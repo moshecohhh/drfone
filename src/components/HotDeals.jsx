@@ -32,22 +32,40 @@ export default function HotDeals() {
     interacting.current = false
     lastInteract.current = performance.now()
   }
-  // Center the items when they don't fill the row (few deals); left-align +
-  // scroll when they overflow (so the start is never clipped).
+  // `centered`: few deals that fit the row → center them, no auto-scroll.
+  // `looping`: a full set overflows → render the deals TWICE so the auto-scroll
+  // can wrap seamlessly (snake/infinite loop) instead of rewinding to the start.
   const [centered, setCentered] = useState(false)
+  const [looping, setLooping] = useState(false)
+  const setWidth = useRef(0) // exact width of ONE set of deals (the loop period)
+
+  // Exact width of one set = the horizontal offset of the second copy's first
+  // card from the first card (avoids the half-gap error of scrollWidth/2).
+  const measureSet = () => {
+    const el = scroller.current
+    const cards = el?.children
+    if (!el || !cards || cards.length <= deals.length) return el ? el.scrollWidth : 0
+    return cards[deals.length].offsetLeft - cards[0].offsetLeft
+  }
 
   useEffect(() => {
     const el = scroller.current
     if (!el) return
-    const check = () => setCentered(el.scrollWidth <= el.clientWidth + 1)
+    const check = () => {
+      const oneSet = measureSet()
+      const overflow = oneSet > el.clientWidth + 1
+      if (looping) setWidth.current = oneSet
+      setLooping(overflow)
+      setCentered(!overflow)
+    }
     check()
-    const t = setTimeout(check, 150)
+    const t = setTimeout(check, 200) // re-measure once images/layout settle
     window.addEventListener('resize', check)
     return () => {
       clearTimeout(t)
       window.removeEventListener('resize', check)
     }
-  }, [deals.length])
+  }, [deals.length, looping])
 
   const stepWidth = () => {
     const el = scroller.current
@@ -92,14 +110,20 @@ export default function HotDeals() {
       const max = el.scrollWidth - el.clientWidth
       if (max <= 0) return
       lastAdvance.current = now
-      if (el.scrollLeft >= max - 4) animateScroll(-el.scrollLeft) // wrap to start
-      else animateScroll(stepWidth())
+      // Seamless infinite loop: once a full set has scrolled past, jump back by
+      // exactly one set BEFORE the next step. The second copy is identical, so
+      // the jump is invisible and the motion never rewinds — it just keeps going.
+      if (looping) {
+        const setW = setWidth.current || measureSet()
+        if (setW > 0 && el.scrollLeft >= setW) el.scrollLeft -= setW
+      }
+      animateScroll(stepWidth())
     }, 400)
     return () => {
       clearInterval(id)
       clearInterval(tween.current)
     }
-  }, [deals.length])
+  }, [deals.length, looping])
 
   // NOTE: intentionally NO vertical-wheel hijacking here — scrolling the mouse
   // wheel up/down lets the PAGE scroll normally. Only a horizontal mouse drag
@@ -198,10 +222,12 @@ export default function HotDeals() {
             onWheel={onWheel}
             className={`no-scrollbar flex items-stretch gap-4 overflow-x-auto pb-2 pt-8 ${centered ? 'cursor-default justify-center' : 'cursor-grab active:cursor-grabbing'}`}
           >
-            {deals.map((item) => (
+            {(looping ? [...deals, ...deals] : deals).map((item, i) => (
               // flex column wrapper → the ItemCard stretches to the full (equal)
               // height of the tallest card, so every tile is the same size.
-              <div key={item.id} data-deal-card className="animate-fade-in flex w-[10.5rem] shrink-0 flex-col sm:w-72 [&>article]:flex-1">
+              // When looping, the row is duplicated so the auto-scroll wraps
+              // seamlessly (keys include the index since ids repeat).
+              <div key={`${item.id}-${i}`} data-deal-card className="animate-fade-in flex w-[10.5rem] shrink-0 flex-col sm:w-72 [&>article]:flex-1">
                 <ItemCard item={item} kind="product" />
               </div>
             ))}
