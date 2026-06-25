@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ShoppingBag, Wrench, Smartphone, HardDrive,
   Tags, Users, UserCog, Settings as SettingsIcon, LogOut, Home, Tag, Mail,
-  LayoutTemplate, Inbox,
+  LayoutTemplate, Inbox, DatabaseBackup,
 } from 'lucide-react'
 import { useAuth, ROLE_LABELS } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
@@ -24,6 +24,7 @@ import UsersPanel from '../components/admin/UsersPanel.jsx'
 import CustomersPanel from '../components/admin/CustomersPanel.jsx'
 import NewsletterPanel from '../components/admin/NewsletterPanel.jsx'
 import SettingsPanel from '../components/admin/SettingsPanel.jsx'
+import BackupPanel from '../components/admin/BackupPanel.jsx'
 
 // `store: true` marks the only sections a STORE account may see. The master
 // admin sees everything; STORE sees Repairs only; CUSTOMER has no admin access.
@@ -57,6 +58,7 @@ const NAV = [
       { id: 'categories', label: 'קטגוריות', Icon: Tags },
       { id: 'users', label: 'משתמשים והרשאות', Icon: UserCog },
       { id: 'newsletter', label: 'ניוזלטר', Icon: Mail },
+      { id: 'backup', label: 'גיבוי ושחזור', Icon: DatabaseBackup },
       { id: 'settings', label: 'הגדרות', Icon: SettingsIcon },
     ],
   },
@@ -76,6 +78,7 @@ const PANELS = {
   categories: CategoriesPanel,
   users: UsersPanel,
   newsletter: NewsletterPanel,
+  backup: BackupPanel,
   settings: SettingsPanel,
 }
 
