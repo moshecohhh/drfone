@@ -204,13 +204,14 @@ export default function BrandCarousel() {
 
   if (brands.length === 0) return null
 
-  // Mobile: a plain finger-scrollable strip — no auto-movement.
+  // Mobile: a plain finger-scrollable strip — no auto-movement. "הכל" lives
+  // INSIDE the scroller so it swipes together with the brands.
   if (isMobile) {
     return (
       <div className="border-b border-black/5 bg-white">
-        <div className="flex w-full items-start gap-3 px-4 py-3">
-          <AllCircle active={allActive} onClick={() => select('all')} />
-          <div className="no-scrollbar flex flex-1 gap-3 overflow-x-auto py-2">
+        <div className="px-4 py-3">
+          <div className="no-scrollbar flex gap-3 overflow-x-auto py-2">
+            <AllCircle active={allActive} onClick={() => select('all')} />
             {brands.map((b) => (
               <BrandCircle
                 key={b.id}

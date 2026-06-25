@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Search } from 'lucide-react'
 import Logo from './Logo.jsx'
 import DomainSwitch from './DomainSwitch.jsx'
 import SearchBar from './SearchBar.jsx'
@@ -42,6 +43,19 @@ export default function Header() {
               category row below can use the full width (including the space
               beneath them) instead of being squeezed into a narrow column. */}
           <div className="order-2 flex shrink-0 items-center gap-2 lg:absolute lg:left-4 lg:top-3 lg:z-20 xl:left-[3cm]">
+            {/* Compact search shortcut — appears (mobile only) once the full
+                search bar has collapsed on scroll; tapping it scrolls back up to
+                reveal the bar, and then the icon hides itself again. */}
+            {hideSearch && (
+              <button
+                type="button"
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                aria-label="חיפוש"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-ink transition hover:bg-black/5 lg:hidden"
+              >
+                <Search size={20} />
+              </button>
+            )}
             <ThemeToggle />
             <CartButton />
             <AuthControls />

@@ -147,7 +147,7 @@ export function SettingsProvider({ children }) {
         ...a,
         slides: [
           ...a.slides,
-          { id: uid('ad'), image: '', linkType: 'none', link: '', targetId: '', start: '', end: '', enabled: true, ...slide },
+          { id: uid('ad'), image: '', mobileImage: '', linkType: 'none', link: '', targetId: '', start: '', end: '', enabled: true, ...slide },
         ],
       })),
     [],

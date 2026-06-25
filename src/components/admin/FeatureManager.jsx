@@ -11,7 +11,9 @@ import ProductPicker from './ProductPicker.jsx'
 // Aspect of the featured strip (shared with <FeatureStrip/>). Intentionally
 // avoids ad-related identifiers (file name, labels) so ad blockers don't block
 // the module and white-page the site for those users.
+// Desktop = wide banner; mobile = squarer/taller image with more "volume".
 export const STRIP_ASPECT = 4
+export const STRIP_ASPECT_MOBILE = 1.3
 
 // Master-only manager for the rotating top-of-site featured strip.
 export default function FeatureManager() {
@@ -19,15 +21,16 @@ export default function FeatureManager() {
   const { brands } = useBrands()
   const { getCategories } = useCatalogStore()
   const storeCategories = getCategories(DOMAINS.STORE)
-  const [cropFor, setCropFor] = useState(null) // { slideId, src } | null
+  const [cropFor, setCropFor] = useState(null) // { slideId, src, field, aspect } | null
   const fileRefs = useRef({})
 
-  const pickFile = (slideId) => fileRefs.current[slideId]?.click()
-  const onFile = (slideId, e) => {
+  // `field` is the slide property to write ('image' = desktop, 'mobileImage').
+  const pickFile = (slideId, field) => fileRefs.current[`${slideId}-${field}`]?.click()
+  const onFile = (slideId, field, aspect, e) => {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = () => setCropFor({ slideId, src: reader.result })
+    reader.onload = () => setCropFor({ slideId, field, aspect, src: reader.result })
     reader.readAsDataURL(file)
     e.target.value = ''
   }
@@ -75,31 +78,63 @@ export default function FeatureManager() {
         {ads.slides.map((s, i) => (
           <div key={s.id} className="rounded-xl border border-black/10 bg-brand-50/30 p-3">
             <div className="flex flex-col gap-3 sm:flex-row">
-              {/* Preview / upload */}
-              <div className="sm:w-56 shrink-0">
-                <div
-                  style={{ aspectRatio: String(STRIP_ASPECT) }}
-                  className="flex w-full items-center justify-center overflow-hidden rounded-lg border border-black/10 bg-white"
-                >
-                  {s.image ? (
-                    <img src={s.image} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-xs text-ink-light">ללא תמונה</span>
-                  )}
-                </div>
-                <div className="mt-2 flex gap-2">
+              {/* Preview / upload — separate images for desktop (wide) and
+                  mobile (squarer). Mobile falls back to the desktop image. */}
+              <div className="shrink-0 space-y-3 sm:w-64">
+                {/* Desktop image */}
+                <div>
+                  <span className="mb-1 block text-[11px] font-semibold text-ink-light">תמונת מחשב (רחבה)</span>
+                  <div
+                    style={{ aspectRatio: String(STRIP_ASPECT) }}
+                    className="flex w-full items-center justify-center overflow-hidden rounded-lg border border-black/10 bg-white"
+                  >
+                    {s.image ? (
+                      <img src={s.image} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-xs text-ink-light">ללא תמונה</span>
+                    )}
+                  </div>
                   <button
                     type="button"
-                    onClick={() => pickFile(s.id)}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs font-semibold text-ink hover:bg-black/5"
+                    onClick={() => pickFile(s.id, 'image')}
+                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs font-semibold text-ink hover:bg-black/5"
                   >
                     {s.image ? <Crop size={13} /> : <Upload size={13} />} {s.image ? 'החלפה / חיתוך' : 'העלאת תמונה'}
                   </button>
                   <input
-                    ref={(el) => (fileRefs.current[s.id] = el)}
+                    ref={(el) => (fileRefs.current[`${s.id}-image`] = el)}
                     type="file"
                     accept="image/*"
-                    onChange={(e) => onFile(s.id, e)}
+                    onChange={(e) => onFile(s.id, 'image', STRIP_ASPECT, e)}
+                    className="hidden"
+                  />
+                </div>
+
+                {/* Mobile image */}
+                <div>
+                  <span className="mb-1 block text-[11px] font-semibold text-ink-light">תמונת מובייל (מרובעת)</span>
+                  <div
+                    style={{ aspectRatio: String(STRIP_ASPECT_MOBILE) }}
+                    className="mx-auto flex w-full max-w-[11rem] items-center justify-center overflow-hidden rounded-lg border border-black/10 bg-white"
+                  >
+                    {s.mobileImage ? (
+                      <img src={s.mobileImage} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="px-2 text-center text-[11px] text-ink-light">ללא תמונה — תוצג תמונת המחשב</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => pickFile(s.id, 'mobileImage')}
+                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs font-semibold text-ink hover:bg-black/5"
+                  >
+                    {s.mobileImage ? <Crop size={13} /> : <Upload size={13} />} {s.mobileImage ? 'החלפה / חיתוך' : 'העלאת תמונה'}
+                  </button>
+                  <input
+                    ref={(el) => (fileRefs.current[`${s.id}-mobileImage`] = el)}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => onFile(s.id, 'mobileImage', STRIP_ASPECT_MOBILE, e)}
                     className="hidden"
                   />
                 </div>
@@ -227,10 +262,10 @@ export default function FeatureManager() {
       {cropFor && (
         <ImageCropper
           src={cropFor.src}
-          aspect={STRIP_ASPECT}
+          aspect={cropFor.aspect}
           onCancel={() => setCropFor(null)}
           onConfirm={(dataUrl) => {
-            updateAdSlide(cropFor.slideId, { image: dataUrl })
+            updateAdSlide(cropFor.slideId, { [cropFor.field]: dataUrl })
             setCropFor(null)
           }}
         />

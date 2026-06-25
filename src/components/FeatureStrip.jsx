@@ -11,6 +11,9 @@ import { useCatalogStore } from '../context/CatalogContext.jsx'
 // the whole site for those users. Keep all identifiers here neutral.
 
 const STRIP_ASPECT = 4
+// Mobile shows a squarer image with more "volume" (admin can supply a separate
+// mobile crop; falls back to the desktop image).
+const STRIP_ASPECT_MOBILE = 1.3
 // ~1cm of mouse/finger travel is enough to flip to the next image (96dpi → 1cm ≈ 38px).
 const SWIPE_THRESHOLD = 38
 
@@ -38,6 +41,17 @@ export default function FeatureStrip() {
   const [index, setIndex] = useState(0)
   const [paused, setPaused] = useState(false) // only paused while actively dragging
   const drag = useRef({ down: false, startX: 0, fired: false, moved: false })
+
+  // Switch to the squarer mobile layout/image below the lg breakpoint.
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const on = () => setIsMobile(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
 
   // Re-evaluate schedules every 30s so timed slides appear/disappear on time.
   useEffect(() => {
@@ -119,8 +133,8 @@ export default function FeatureStrip() {
     <div className="w-full px-4 py-4 xl:px-[3cm] 2xl:px-[7cm]">
     <section
       aria-label="מבצעים והטבות"
-      className="relative w-full cursor-grab touch-pan-y select-none overflow-hidden rounded-2xl bg-black shadow-card active:cursor-grabbing"
-      style={{ aspectRatio: String(STRIP_ASPECT) }}
+      className="relative mx-auto w-full cursor-grab touch-pan-y select-none overflow-hidden rounded-2xl bg-black shadow-card active:cursor-grabbing lg:mx-0"
+      style={{ aspectRatio: String(isMobile ? STRIP_ASPECT_MOBILE : STRIP_ASPECT), maxWidth: isMobile ? '26rem' : undefined }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
@@ -129,7 +143,8 @@ export default function FeatureStrip() {
     >
       {/* Crossfading slides */}
       {slides.map((s, i) => {
-        const Img = <img src={s.image} alt="" className="h-full w-full object-cover" draggable={false} />
+        const src = isMobile && s.mobileImage ? s.mobileImage : s.image
+        const Img = <img src={src} alt="" className="h-full w-full object-cover" draggable={false} />
         const type = slideType(s)
         let wrapped = Img
         if (type === 'url' && s.link) {
