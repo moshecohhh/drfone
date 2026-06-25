@@ -164,29 +164,30 @@ export default function ItemCard({ item, kind }) {
           </div>
         )}
 
-        {/* Price — below the colors, just above the add-to-cart button. */}
-        <div className="mt-3 flex items-end justify-between">
-          <div>
-            {/* Effective price (master-admin override applied for this card only) */}
-            <span className="text-xl font-extrabold text-ink">₪{isService ? item.price : effectivePrice}</span>
-            {/* Original price struck through: explicit oldPrice, or the catalog
-                price when a master admin lowered it for this transaction. */}
-            {!isService && override != null && override < listPrice ? (
-              <span className="mr-2 text-sm text-ink-light line-through">₪{listPrice}</span>
-            ) : (
-              item.oldPrice && <span className="mr-2 text-sm text-ink-light line-through">₪{item.oldPrice}</span>
-            )}
-            {/* Discount badge — only when the price was lowered. */}
-            {discountPct > 0 && (
-              <span className="mr-2 inline-flex items-center gap-0.5 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-600">
-                <Tag size={11} /> {discountPct}% הנחה
-              </span>
-            )}
-          </div>
-          <span className={`text-xs font-semibold ${available ? 'text-brand-600' : 'text-red-500'}`}>
-            {available ? availableLabel : unavailableLabel}
-          </span>
+        {/* Price — below the colors. Wraps gracefully so the discount badge
+            never pushes anything out of the card. */}
+        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+          {/* Effective price (master-admin override applied for this card only) */}
+          <span className="text-xl font-extrabold leading-none text-ink">₪{isService ? item.price : effectivePrice}</span>
+          {/* Original price struck through: explicit oldPrice, or the catalog
+              price when a master admin lowered it for this transaction. */}
+          {!isService && override != null && override < listPrice ? (
+            <span className="text-sm text-ink-light line-through">₪{listPrice}</span>
+          ) : (
+            item.oldPrice && <span className="text-sm text-ink-light line-through">₪{item.oldPrice}</span>
+          )}
+          {/* Discount badge — only when the price was lowered. */}
+          {discountPct > 0 && (
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-600">
+              <Tag size={11} /> {discountPct}% הנחה
+            </span>
+          )}
         </div>
+        {/* Stock status on its OWN line — same position on every card, so it can
+            never overlap the price or spill outside the frame. */}
+        <span className={`mt-1.5 block text-xs font-semibold ${available ? 'text-brand-600' : 'text-red-500'}`}>
+          {available ? availableLabel : unavailableLabel}
+        </span>
 
         {/* Master-admin only: per-transaction price editor (not saved to catalog) */}
         {isMaster && !isService && (
