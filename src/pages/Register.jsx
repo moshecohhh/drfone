@@ -1,40 +1,63 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { UserPlus, User, Mail, Lock } from 'lucide-react'
+import { UserPlus, User, Mail, Lock, Phone } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { savePasswordCredential } from '../utils/credentials.js'
+import { emailIssue, passwordIssue, isValidMobileIL, sanitizePhone } from '../utils/validation.js'
 import { AuthShell, Field, FormError } from './Login.jsx'
 
 export default function Register() {
   const { register } = useAuth()
   const navigate = useNavigate()
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', confirm: '' })
+  const [form, setForm] = useState({
+    firstName: '', lastName: '', email: '', phone: '', password: '', confirm: '',
+  })
+  const [remember, setRemember] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }))
+  const onChange = (e) => {
+    const { name, value } = e.target
+    setForm((f) => ({ ...f, [name]: name === 'phone' ? sanitizePhone(value) : value }))
+  }
+
+  // Live, per-field problems — surfaced in red once a field has any content.
+  const emailErr = form.email.trim() ? emailIssue(form.email) : null
+  const phoneErr =
+    form.phone.trim() && !isValidMobileIL(form.phone)
+      ? 'מספר נייד חייב להתחיל ב-05 ולהכיל 10 ספרות.'
+      : null
+  const pwErr = form.password ? passwordIssue(form.password) : null
+  const showGmailHint = form.email.trim() && !form.email.includes('@')
 
   const onSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setNotice('')
-    // Require both a first AND last name.
     if (!form.firstName.trim() || !form.lastName.trim()) {
-      setError('יש להזין שם פרטי ושם משפחה.')
-      return
+      return setError('יש להזין שם פרטי ושם משפחה.')
     }
-    if (form.password.length < 6) {
-      setError('הסיסמה חייבת להכיל לפחות 6 תווים.')
-      return
+    if (!isValidMobileIL(form.phone)) {
+      return setError('יש להזין מספר נייד תקין (מתחיל ב-05, 10 ספרות).')
     }
+    const eErr = emailIssue(form.email)
+    if (eErr) return setError(eErr)
+    const pErr = passwordIssue(form.password)
+    if (pErr) return setError(pErr)
     if (form.password !== form.confirm) {
-      setError('הסיסמאות אינן תואמות.')
-      return
+      return setError('הסיסמאות אינן תואמות.')
     }
     const name = `${form.firstName.trim()} ${form.lastName.trim()}`
+    // Record the "remember me" choice BEFORE signing up so the session token is
+    // stored in the right place (local vs session storage).
+    try {
+      localStorage.setItem('drfone_remember', remember ? 'true' : 'false')
+    } catch {
+      /* ignore */
+    }
     setBusy(true)
-    const res = await register({ name, email: form.email, password: form.password })
+    const res = await register({ name, email: form.email, password: form.password, phone: form.phone })
     setBusy(false)
     if (!res.ok) {
       setError(res.error)
@@ -77,24 +100,60 @@ export default function Register() {
             autoComplete="family-name"
           />
         </div>
-        <Field
-          icon={Mail}
-          name="email"
-          type="email"
-          placeholder="אימייל"
-          value={form.email}
-          onChange={onChange}
-          autoComplete="email"
-        />
-        <Field
-          icon={Lock}
-          name="password"
-          type="password"
-          placeholder="סיסמה (לפחות 6 תווים)"
-          value={form.password}
-          onChange={onChange}
-          autoComplete="new-password"
-        />
+
+        <div>
+          <Field
+            icon={Phone}
+            name="phone"
+            type="tel"
+            dir="ltr"
+            placeholder="טלפון נייד (05XXXXXXXX)"
+            value={form.phone}
+            onChange={onChange}
+            autoComplete="tel"
+            invalid={!!phoneErr}
+          />
+          {phoneErr && <p className="mt-1 text-xs font-medium text-red-600">{phoneErr}</p>}
+        </div>
+
+        <div>
+          <Field
+            icon={Mail}
+            name="email"
+            type="email"
+            dir="ltr"
+            placeholder="אימייל"
+            value={form.email}
+            onChange={onChange}
+            autoComplete="email"
+            invalid={!!emailErr}
+          />
+          {showGmailHint && (
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, email: `${f.email}@gmail.com` }))}
+              className="mt-1 text-xs font-medium text-brand-600 hover:underline"
+            >
+              הוספת ‎@gmail.com‎
+            </button>
+          )}
+          {emailErr && <p className="mt-1 text-xs font-medium text-red-600">{emailErr}</p>}
+        </div>
+
+        <div>
+          <Field
+            icon={Lock}
+            name="password"
+            type="password"
+            placeholder="סיסמה (לפחות 6 תווים)"
+            value={form.password}
+            onChange={onChange}
+            autoComplete="new-password"
+            invalid={!!pwErr}
+          />
+          {pwErr && <p className="mt-1 text-xs font-medium text-red-600">{pwErr}</p>}
+        </div>
+
         <Field
           icon={Lock}
           name="confirm"
@@ -103,7 +162,19 @@ export default function Register() {
           value={form.confirm}
           onChange={onChange}
           autoComplete="new-password"
+          invalid={!!form.confirm && form.confirm !== form.password}
         />
+
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-light">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            className="h-4 w-4 rounded border-black/20 text-brand-500 focus:ring-brand-500"
+          />
+          זכור אותי
+        </label>
+
         <button
           type="submit"
           disabled={busy}

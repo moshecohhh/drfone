@@ -34,6 +34,31 @@ function BrandCircle({ brand, active, onClick }) {
   )
 }
 
+// The pinned "all brands" reset circle — shared by the mobile strip and the
+// desktop marquee. Light by default; teal/filled when active.
+function AllCircle({ active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-16 shrink-0 flex-col items-center gap-1.5 pt-2 sm:w-20"
+    >
+      <span
+        className={`flex h-[58px] w-[58px] items-center justify-center rounded-full transition-colors sm:h-[74px] sm:w-[74px] ${
+          active
+            ? 'bg-brand-500 text-white ring-4 ring-brand-500'
+            : 'bg-brand-50 text-brand-600 ring-2 ring-gray-300 hover:ring-brand-300'
+        }`}
+      >
+        <LayoutGrid size={28} />
+      </span>
+      <span className={`text-xs font-medium ${active ? 'text-brand-700' : 'text-ink-light'}`}>
+        הכל
+      </span>
+    </button>
+  )
+}
+
 export default function BrandCarousel() {
   const { filters, setBrand, setCategory } = useApp()
   const { brands } = useBrands()
@@ -50,6 +75,21 @@ export default function BrandCarousel() {
   // overflow the viewport, so the marquee keeps moving even with few brands —
   // seeing the same logo any number of times never stops the motion.
   const [copies, setCopies] = useState(2)
+  // Below the lg breakpoint the row is a plain finger-scrollable strip (no
+  // auto-drift); at lg and up it's the animated marquee.
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const on = () => setIsMobile(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+
+  // The "הכל" circle is only "active" once the user is actually browsing the
+  // catalog — on the default home/featured view it stays light (un-selected).
+  const allActive = filters.brand === 'all' && filters.category !== 'home'
 
   const select = (id) => {
     const next = filters.brand === id ? 'all' : id
@@ -102,6 +142,7 @@ export default function BrandCarousel() {
   // rAF loop: advance the transform (unless paused/dragging) and wrap it modulo
   // the period so a brand that exits on the left re-enters on the right, forever.
   useEffect(() => {
+    if (isMobile) return // mobile: no auto-drift — the user scrolls by finger
     const tr = track.current
     const vp = viewport.current
     if (!tr || !vp || brands.length === 0) return
@@ -128,7 +169,7 @@ export default function BrandCarousel() {
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [brands])
+  }, [brands, isMobile])
 
   // Mouse wheel nudges the row horizontally (so a regular mouse can browse it
   // while hovering, where the auto-drift is paused).
@@ -162,28 +203,32 @@ export default function BrandCarousel() {
 
   if (brands.length === 0) return null
 
+  // Mobile: a plain finger-scrollable strip — no auto-movement.
+  if (isMobile) {
+    return (
+      <div className="border-b border-black/5 bg-white">
+        <div className="flex w-full items-start gap-3 px-4 py-3">
+          <AllCircle active={allActive} onClick={() => select('all')} />
+          <div className="no-scrollbar flex flex-1 gap-3 overflow-x-auto py-2">
+            {brands.map((b) => (
+              <BrandCircle
+                key={b.id}
+                brand={b}
+                active={filters.brand === b.id}
+                onClick={() => select(b.id)}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="border-b border-black/5 bg-white">
       <div className="flex w-full items-start gap-3 px-4 py-3 sm:gap-4 xl:px-[3cm] xl:py-4">
         {/* "All" reset circle — pinned at the start (does not scroll away) */}
-        <button
-          type="button"
-          onClick={() => select('all')}
-          className="flex w-16 shrink-0 flex-col items-center gap-1.5 pt-2 sm:w-20"
-        >
-          <span
-            className={`flex h-[58px] w-[58px] items-center justify-center rounded-full transition-colors sm:h-[74px] sm:w-[74px] ${
-              filters.brand === 'all'
-                ? 'bg-brand-500 text-white ring-4 ring-brand-500'
-                : 'bg-brand-50 text-brand-600 ring-2 ring-gray-300 hover:ring-brand-300'
-            }`}
-          >
-            <LayoutGrid size={28} />
-          </span>
-          <span className={`text-xs font-medium ${filters.brand === 'all' ? 'text-brand-700' : 'text-ink-light'}`}>
-            הכל
-          </span>
-        </button>
+        <AllCircle active={allActive} onClick={() => select('all')} />
 
         {/* Auto-scrolling row. A transform-driven marquee (forced LTR) that
             loops forever — a logo that exits on the left re-enters on the

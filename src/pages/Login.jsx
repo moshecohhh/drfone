@@ -108,7 +108,7 @@ export function AuthShell({ title, subtitle, children }) {
   )
 }
 
-export function Field({ icon: Icon, ...props }) {
+export function Field({ icon: Icon, invalid, ...props }) {
   return (
     <div className="relative">
       {Icon && (
@@ -119,7 +119,11 @@ export function Field({ icon: Icon, ...props }) {
       )}
       <input
         {...props}
-        className="w-full rounded-xl border border-black/10 bg-white py-3 pr-10 pl-3 text-sm text-ink outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+        className={`w-full rounded-xl border bg-white py-3 pr-10 pl-3 text-sm text-ink outline-none transition focus:ring-2 ${
+          invalid
+            ? 'border-red-400 focus:border-red-500 focus:ring-red-500/30'
+            : 'border-black/10 focus:border-brand-500 focus:ring-brand-500/30'
+        }`}
       />
     </div>
   )

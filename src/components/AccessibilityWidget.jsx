@@ -47,6 +47,14 @@ export default function AccessibilityWidget() {
   const [pos, setPos] = useState(loadPos)
   const dragRef = useRef({ down: false, moved: false, sx: 0, sy: 0, ox: 0, oy: 0 })
 
+  // After 5s of sitting idle the button shrinks and fades so it's less intrusive;
+  // it returns to full size/opacity on hover/focus or while the panel is open.
+  const [idle, setIdle] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setIdle(true), 5000)
+    return () => clearTimeout(t)
+  }, [])
+
   // Persist the button position whenever it settles.
   useEffect(() => {
     try {
@@ -172,7 +180,9 @@ export default function AccessibilityWidget() {
         aria-label="תפריט נגישות"
         aria-expanded={open}
         style={{ right: pos.x, bottom: pos.y, touchAction: 'none' }}
-        className="fixed z-[60] flex h-12 w-12 cursor-grab touch-none items-center justify-center rounded-full bg-brand-600 text-white shadow-lg ring-2 ring-white transition hover:scale-105 hover:bg-brand-700 active:cursor-grabbing"
+        className={`fixed z-[60] flex h-12 w-12 cursor-grab touch-none items-center justify-center rounded-full bg-brand-600 text-white shadow-lg ring-2 ring-white transition-all duration-300 hover:scale-105 hover:bg-brand-700 hover:opacity-100 focus:scale-100 focus:opacity-100 active:cursor-grabbing ${
+          idle && !open ? 'scale-[0.7] opacity-50 hover:scale-100' : ''
+        }`}
       >
         <Accessibility size={24} />
         {active && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-orange-400 ring-2 ring-white" />}

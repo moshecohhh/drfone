@@ -35,6 +35,11 @@ export default function InquiriesPanel() {
                     {q.name || '—'}
                   </p>
                   <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-light">
+                    {q.phone && (
+                      <a href={`tel:${String(q.phone).replace(/[^\d+]/g, '')}`} dir="ltr" className="flex items-center gap-1 hover:text-brand-600">
+                        <Phone size={12} /> {q.phone}
+                      </a>
+                    )}
                     {q.email && (
                       <a href={`mailto:${q.email}`} dir="ltr" className="flex items-center gap-1 hover:text-brand-600">
                         <Mail size={12} /> {q.email}

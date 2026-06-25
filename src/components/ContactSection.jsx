@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Phone, Mail, MapPin, Send, CheckCircle2, MessageSquare } from 'lucide-react'
 import { useSettings } from '../context/SettingsContext.jsx'
+import { sanitizePhone, isValidContactPhone, emailIssue } from '../utils/validation.js'
 
 const PHONE = '0527-10-14-10'
 const EMAIL = 'drfone4949@gmail.com'
@@ -10,21 +11,33 @@ const ADDRESS = 'רשבי 49, מודיעין עילית'
 // the admin "פניות" (inquiries) inbox.
 export default function ContactSection() {
   const { addInquiry } = useSettings()
-  const [form, setForm] = useState({ name: '', email: '', message: '' })
+  const [form, setForm] = useState({ name: '', phone: '', email: '', message: '' })
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+  // Phone keeps digits/`+` only; everything else passes through.
+  const set = (k, v) =>
+    setForm((f) => ({ ...f, [k]: k === 'phone' ? v.replace(/[^\d+]/g, '').slice(0, 15) : v }))
+
+  // Live per-field problems (shown in red once the field has any content).
+  const emailErr = form.email.trim() ? emailIssue(form.email) : null
+  const phoneErr = form.phone.trim() && !isValidContactPhone(form.phone) ? 'מספר הטלפון אינו תקין.' : null
+  const showGmailHint = form.email.trim() && !form.email.includes('@')
 
   const submit = (e) => {
     e.preventDefault()
-    if (!form.name.trim() || !form.message.trim()) {
-      setError('יש למלא שם והודעה.')
-      return
-    }
+    if (!form.name.trim()) return setError('יש למלא שם.')
+    if (!isValidContactPhone(form.phone)) return setError('יש להזין מספר טלפון תקין.')
+    if (!form.message.trim()) return setError('יש למלא את תוכן הפנייה.')
+    if (form.email.trim() && emailIssue(form.email)) return setError(emailIssue(form.email))
     setError('')
-    addInquiry({ name: form.name.trim(), email: form.email.trim(), message: form.message.trim() })
+    addInquiry({
+      name: form.name.trim(),
+      phone: form.phone.trim(),
+      email: form.email.trim(),
+      message: form.message.trim(),
+    })
     setSent(true)
-    setForm({ name: '', email: '', message: '' })
+    setForm({ name: '', phone: '', email: '', message: '' })
   }
 
   return (
@@ -65,20 +78,43 @@ export default function ContactSection() {
             <input
               value={form.name}
               onChange={(e) => set('name', e.target.value)}
-              placeholder="שם מלא"
+              placeholder="שם מלא *"
               className={fieldCls}
             />
-            <input
-              type="email"
-              dir="ltr"
-              value={form.email}
-              onChange={(e) => set('email', e.target.value)}
-              placeholder="כתובת מייל"
-              className={`${fieldCls} text-right`}
-            />
+            <div>
+              <input
+                type="tel"
+                dir="ltr"
+                value={form.phone}
+                onChange={(e) => set('phone', e.target.value)}
+                placeholder="טלפון *"
+                className={`${fieldCls} text-right ${phoneErr ? errorFieldCls : ''}`}
+              />
+              {phoneErr && <p className="mt-1 text-xs font-medium text-red-600">{phoneErr}</p>}
+            </div>
+            <div>
+              <input
+                type="email"
+                dir="ltr"
+                value={form.email}
+                onChange={(e) => set('email', e.target.value)}
+                placeholder="כתובת מייל"
+                className={`${fieldCls} text-right ${emailErr ? errorFieldCls : ''}`}
+              />
+              {showGmailHint && (
+                <button
+                  type="button"
+                  onClick={() => set('email', `${form.email}@gmail.com`)}
+                  className="mt-1 text-xs font-medium text-brand-600 hover:underline"
+                >
+                  הוספת ‎@gmail.com‎
+                </button>
+              )}
+              {emailErr && <p className="mt-1 text-xs font-medium text-red-600">{emailErr}</p>}
+            </div>
             <div>
               <span className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-ink-light">
-                <MessageSquare size={13} /> איך נוכל לעזור?
+                <MessageSquare size={13} /> איך נוכל לעזור? *
               </span>
               <textarea
                 rows={4}
@@ -103,3 +139,6 @@ export default function ContactSection() {
 
 const fieldCls =
   'w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-light/60 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20'
+
+// Red outline for an invalid field (overrides the neutral border/focus ring).
+const errorFieldCls = '!border-red-400 focus:!border-red-500 focus:!ring-red-500/20'

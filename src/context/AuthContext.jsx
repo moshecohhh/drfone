@@ -122,19 +122,23 @@ export function AuthProvider({ children }) {
   }, [user?.role, user?.id, refreshUsers])
 
   // ---- Auth actions (async) -> { ok, error?, user?, needsConfirmation? } ----
-  const register = useCallback(async ({ name, email, password }) => {
+  const register = useCallback(async ({ name, email, password, phone }) => {
     const cleanEmail = String(email || '').trim().toLowerCase()
+    const cleanPhone = String(phone || '').replace(/\D/g, '').slice(0, 10)
     if (!name?.trim() || !cleanEmail || !password) {
       return { ok: false, error: 'נא למלא את כל השדות.' }
     }
     const { data, error } = await supabase.auth.signUp({
       email: cleanEmail,
       password,
-      options: { data: { name: name.trim() } },
+      options: { data: { name: name.trim(), phone: cleanPhone } },
     })
     if (error) return { ok: false, error: authErrorMessage(error) }
     // With email-confirmation ON, there is no session until the user confirms.
     if (data.session) {
+      // The DB trigger seeds name/email only — persist the phone onto the new
+      // profile row now that we have a session.
+      if (cleanPhone) await supabase.from('profiles').update({ phone: cleanPhone }).eq('id', data.user.id)
       const u = await loadProfile(data.user)
       setUser(u)
       return { ok: true, user: u }
