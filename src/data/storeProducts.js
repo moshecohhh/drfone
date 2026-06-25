@@ -19,6 +19,7 @@ export const STORE_CATEGORIES = [
 export const STORE_PRODUCTS = [
   {
     id: 'store-1',
+    deal: true,
     name: 'נוקיה 105 כשר',
     brand: 'nokia',
     category: 'kosher',
@@ -33,6 +34,7 @@ export const STORE_PRODUCTS = [
   },
   {
     id: 'store-2',
+    deal: true,
     name: 'Samsung Galaxy A05 תומך כשר',
     brand: 'samsung',
     category: 'kosher-support',
@@ -47,6 +49,7 @@ export const STORE_PRODUCTS = [
   },
   {
     id: 'store-3',
+    deal: true,
     name: 'iPhone 13 מסונן',
     brand: 'apple',
     category: 'filtered-smartphones',
@@ -61,6 +64,7 @@ export const STORE_PRODUCTS = [
   },
   {
     id: 'store-4',
+    deal: true,
     name: 'מטען מהיר Type-C 25W',
     brand: 'xiaomi',
     category: 'accessories',
@@ -75,6 +79,7 @@ export const STORE_PRODUCTS = [
   },
   {
     id: 'store-5',
+    deal: true,
     name: 'OnePlus Nord מסונן - מבצע',
     brand: 'oneplus',
     category: 'deals',
