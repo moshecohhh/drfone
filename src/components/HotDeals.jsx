@@ -15,6 +15,23 @@ export default function HotDeals() {
   const scroller = useRef(null)
   const drag = useRef({ down: false, lastX: 0, moved: false })
   const tween = useRef(null)
+  // Interaction tracking for the auto-advance pause. While the customer is
+  // actively scrolling/dragging the row, auto-advance stops; it resumes only
+  // 5s after they let go (so it never fights the customer's own scrolling).
+  const interacting = useRef(false)
+  const lastInteract = useRef(0)
+  const lastAdvance = useRef(0)
+  const markInteract = () => {
+    interacting.current = true
+    lastInteract.current = performance.now()
+  }
+  const touchInteract = () => {
+    lastInteract.current = performance.now()
+  }
+  const releaseInteract = () => {
+    interacting.current = false
+    lastInteract.current = performance.now()
+  }
   // Center the items when they don't fill the row (few deals); left-align +
   // scroll when they overflow (so the start is never clipped).
   const [centered, setCentered] = useState(false)
@@ -57,18 +74,27 @@ export default function HotDeals() {
     }, 16)
   }
 
-  // Auto-advance every 3s (pauses while hovered, like the brand row). Drifts the
-  // row by one card; wraps back to the start when it reaches the end.
+  // Auto-advance one card every 3s. The fast (400ms) tick decouples the check
+  // from the cadence so it can resume promptly once the 5s post-interaction
+  // pause elapses. It never advances while the customer is interacting, within
+  // 5s of their last interaction, or while hovered (desktop).
   useEffect(() => {
     if (deals.length <= 1) return
+    lastAdvance.current = performance.now()
     const id = setInterval(() => {
       const el = scroller.current
-      if (!el || el.matches(':hover')) return
+      if (!el) return
+      const now = performance.now()
+      if (interacting.current) return // actively scrolling/dragging
+      if (now - lastInteract.current < 5000) return // wait 5s after release
+      if (el.matches(':hover')) return // desktop: paused while hovered
+      if (now - lastAdvance.current < 3000) return // one step every 3s
       const max = el.scrollWidth - el.clientWidth
       if (max <= 0) return
+      lastAdvance.current = now
       if (el.scrollLeft >= max - 4) animateScroll(-el.scrollLeft) // wrap to start
       else animateScroll(stepWidth())
-    }, 3000)
+    }, 400)
     return () => {
       clearInterval(id)
       clearInterval(tween.current)
@@ -79,7 +105,10 @@ export default function HotDeals() {
   // wheel up/down lets the PAGE scroll normally. Only a horizontal mouse drag
   // (or the arrows / trackpad horizontal scroll) browses more products.
 
-  const nudge = (dir) => animateScroll(dir * stepWidth())
+  const nudge = (dir) => {
+    lastInteract.current = performance.now() // arrow tap also defers auto-advance 5s
+    animateScroll(dir * stepWidth())
+  }
 
   // Mouse drag-to-scroll. On touch we do NOTHING here so the browser's native
   // horizontal scroll handles the finger swipe (manual scrollLeft would fight
@@ -87,15 +116,26 @@ export default function HotDeals() {
   const onPointerDown = (e) => {
     if (e.pointerType !== 'mouse') return
     drag.current = { down: true, lastX: e.clientX, moved: false }
+    markInteract()
   }
   const onPointerMove = (e) => {
     if (!drag.current.down) return
     const dx = e.clientX - drag.current.lastX
     drag.current.lastX = e.clientX
     if (Math.abs(dx) > 1) drag.current.moved = true
+    lastInteract.current = performance.now()
     scroller.current.scrollLeft -= dx
   }
-  const endDrag = () => (drag.current.down = false)
+  const endDrag = () => {
+    if (drag.current.down) releaseInteract()
+    drag.current.down = false
+  }
+  // Touch swipe (native scroll) + trackpad/wheel — these pause auto-advance and
+  // (re)start the 5s countdown so it only resumes after the customer lets go.
+  const onTouchStart = () => markInteract()
+  const onTouchMove = () => touchInteract()
+  const onTouchEnd = () => releaseInteract()
+  const onWheel = () => touchInteract()
 
   return (
     <section>
@@ -151,6 +191,11 @@ export default function HotDeals() {
             onPointerMove={onPointerMove}
             onPointerUp={endDrag}
             onPointerLeave={endDrag}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+            onTouchCancel={onTouchEnd}
+            onWheel={onWheel}
             className={`no-scrollbar flex items-stretch gap-4 overflow-x-auto pb-2 pt-8 ${centered ? 'cursor-default justify-center' : 'cursor-grab active:cursor-grabbing'}`}
           >
             {deals.map((item) => (
