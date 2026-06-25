@@ -117,7 +117,12 @@ export function CartProvider({ children }) {
         },
       ]
     })
-    setOpen(true)
+    // Auto-open the cart drawer on DESKTOP only. On mobile it covered the screen
+    // and interrupted browsing — instead the product card shows a "go to cart"
+    // link after adding.
+    if (typeof window === 'undefined' || window.matchMedia('(min-width: 1024px)').matches) {
+      setOpen(true)
+    }
     return true
   }, [])
 

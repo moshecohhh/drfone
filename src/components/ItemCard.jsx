@@ -10,10 +10,13 @@ import ProductTag from './ProductTag.jsx'
 // - kind === 'service' (Lab):   WhatsApp CTA, untouched by the cart.
 export default function ItemCard({ item, kind }) {
   const isService = kind === 'service'
-  const { addItem } = useCart()
+  const { addItem, setOpen } = useCart()
   const { waLink } = useSettings()
   const { isMaster } = useAuth()
   const [added, setAdded] = useState(false)
+  // Mobile only: after adding, show a "go to cart" link (the drawer no longer
+  // auto-opens on mobile).
+  const [showGoToCart, setShowGoToCart] = useState(false)
 
   // Normalize colors to { hex, image } (older data stored plain hex strings).
   const colors =
@@ -66,6 +69,9 @@ export default function ItemCard({ item, kind }) {
     if (addItem(item, selectedColor, isMaster && override != null ? override : null)) {
       setAdded(true)
       setTimeout(() => setAdded(false), 1200)
+      if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) {
+        setShowGoToCart(true)
+      }
     }
   }
 
@@ -255,6 +261,18 @@ export default function ItemCard({ item, kind }) {
                 <ShoppingCart size={16} /> הוסף לסל
               </>
             )}
+          </button>
+        )}
+
+        {/* Mobile only: shortcut to open the cart after adding (the drawer no
+            longer pops open automatically on mobile). */}
+        {!isService && showGoToCart && (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="mt-2 w-full text-center text-sm font-semibold text-brand-600 underline-offset-2 hover:underline lg:hidden"
+          >
+            מעבר לסל הקניות
           </button>
         )}
       </div>
