@@ -33,13 +33,14 @@ export default function Header() {
               its content, categories fill the rest) to save vertical space; on
               desktop they stack beside the logo as before. */}
           <div className="order-3 flex w-full min-w-0 flex-row items-center gap-2 lg:order-2 lg:flex-col lg:items-start lg:flex-1 lg:pt-1">
-            {/* Major switch — beside the categories on mobile, above them on
-                desktop (items-start keeps the segmented pill hugging its
-                content instead of stretching). */}
-            <DomainSwitch />
-            {/* Nudge the categories left a touch (desktop) so "ראשי" lands
-                directly under "חנות" in the switch above. */}
-            <div className="min-w-0 flex-1 lg:w-full lg:flex-none lg:pr-3">
+            {/* Major switch — on mobile it sits on the LEFT (order-2) with the
+                categories on the RIGHT (order-1); on desktop it goes back above
+                the categories (order-1) in the vertical stack. */}
+            <div className="order-2 shrink-0 lg:order-1">
+              <DomainSwitch />
+            </div>
+            {/* Categories — RIGHT on mobile, below the switch on desktop. */}
+            <div className="order-1 min-w-0 flex-1 lg:order-2 lg:w-full lg:flex-none lg:pr-3">
               <CategoryBar />
             </div>
           </div>

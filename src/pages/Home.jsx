@@ -21,7 +21,7 @@ function DomainHero() {
   const { isStore } = useApp()
   const { settings } = useSettings()
   return (
-    <div className="bg-gradient-to-l from-brand-500 to-brand-700 text-white">
+    <div className="hidden bg-gradient-to-l from-brand-500 to-brand-700 text-white lg:block">
       <div className="w-full px-4 py-4 sm:py-8 xl:px-[3cm]">
         <h2 className="text-lg font-extrabold sm:text-3xl">
           {isStore ? `החנות של ${settings.name}` : `מעבדת ${settings.name}`}

@@ -81,8 +81,13 @@ export default function HotDeals() {
 
   const nudge = (dir) => animateScroll(dir * stepWidth())
 
-  // Mouse drag-to-scroll.
-  const onPointerDown = (e) => (drag.current = { down: true, lastX: e.clientX, moved: false })
+  // Mouse drag-to-scroll. On touch we do NOTHING here so the browser's native
+  // horizontal scroll handles the finger swipe (manual scrollLeft would fight
+  // it and the row wouldn't move).
+  const onPointerDown = (e) => {
+    if (e.pointerType !== 'mouse') return
+    drag.current = { down: true, lastX: e.clientX, moved: false }
+  }
   const onPointerMove = (e) => {
     if (!drag.current.down) return
     const dx = e.clientX - drag.current.lastX

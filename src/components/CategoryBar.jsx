@@ -44,8 +44,6 @@ export default function CategoryBar() {
   const deskRef = useRef(null) // desktop block — measures the available width
   const measureRef = useRef(null) // hidden row of ALL chips, for width measuring
 
-  const current = categories.find((c) => c.id === filters.category) || categories[0]
-
   // Close both dropdowns on an outside click.
   useEffect(() => {
     const onDoc = (e) => {
@@ -96,7 +94,8 @@ export default function CategoryBar() {
   const activeHidden = hidden.some((c) => c.id === filters.category)
 
   // The full list (used by both the "עוד" menu and the mobile dropdown).
-  const List = ({ onPick }) =>
+  // `big` renders larger, clearer rows for the mobile dropdown.
+  const List = ({ onPick, big }) =>
     categories.map((cat) => {
       const active = filters.category === cat.id
       const Icon = CAT_ICON[cat.id]
@@ -108,15 +107,15 @@ export default function CategoryBar() {
             setCategory(cat.id)
             onPick()
           }}
-          className={`flex w-full items-center justify-between px-4 py-2.5 text-right text-sm transition ${
-            active ? 'bg-brand-50 font-semibold text-brand-700' : 'text-ink hover:bg-black/5'
-          }`}
+          className={`flex w-full items-center justify-between px-4 text-right transition ${
+            big ? 'py-3 text-base' : 'py-2.5 text-sm'
+          } ${active ? 'bg-brand-50 font-semibold text-brand-700' : 'text-ink hover:bg-black/5'}`}
         >
-          <span className="flex items-center gap-2">
-            {Icon && <Icon size={15} className={cat.id === 'deals' ? 'text-orange-500' : ''} />}
+          <span className="flex items-center gap-2.5">
+            {Icon && <Icon size={big ? 19 : 15} className={cat.id === 'deals' ? 'text-orange-500' : ''} />}
             {cat.label}
           </span>
-          {active && <Check size={16} />}
+          {active && <Check size={big ? 18 : 16} />}
         </button>
       )
     })
@@ -182,12 +181,12 @@ export default function CategoryBar() {
           <span className="flex items-center gap-2">
             <Menu size={18} /> קטגוריות
           </span>
-          <span className="text-ink-light">{current?.label}</span>
+          <ChevronDown size={18} className={`text-ink-light transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
 
         {open && (
-          <div className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-xl border border-black/10 bg-white py-1 shadow-card-hover">
-            <List onPick={() => setOpen(false)} />
+          <div className="absolute right-0 z-30 mt-2 max-h-[60vh] w-64 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-black/10 bg-white py-1.5 shadow-card-hover">
+            <List onPick={() => setOpen(false)} big />
           </div>
         )}
       </div>

@@ -6,8 +6,20 @@
   html {
     scroll-behavior: smooth;
   }
+  /* Lock the page horizontally so mobile feels like an app — no left/right
+     drift or rubber-band. `overflow-x: clip` removes any horizontal scroll
+     without creating a scroll container (so the sticky header keeps working),
+     and overscroll-behavior-x kills the horizontal bounce. Inner horizontal
+     scrollers (deals row, brand marquee) have their own overflow and are
+     unaffected. */
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: clip;
+  }
   body {
     @apply bg-white text-black font-sans antialiased;
+    overscroll-behavior-x: none;
   }
 }
 

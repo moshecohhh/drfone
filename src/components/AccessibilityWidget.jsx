@@ -10,9 +10,23 @@ import {
 // accessibility STATEMENT (included here) and a real audit are also required.
 
 const KEY = 'drfone_a11y'
+const POS_KEY = 'drfone_a11y_pos'
+const BTN = 48 // floating button size (h-12 w-12)
 const DEFAULT = {
   font: 0, contrast: false, invert: false, grayscale: false,
   links: false, readable: false, bigCursor: false, noMotion: false, guide: false,
+}
+
+// The floating button's resting position, stored as {x, y} = distance from the
+// RIGHT and BOTTOM edges (px). Defaults to the bottom-right corner.
+function loadPos() {
+  try {
+    const p = JSON.parse(localStorage.getItem(POS_KEY))
+    if (p && typeof p.x === 'number' && typeof p.y === 'number') return p
+  } catch {
+    /* ignore */
+  }
+  return { x: 20, y: 20 }
 }
 
 function load() {
@@ -28,6 +42,69 @@ export default function AccessibilityWidget() {
   const [statement, setStatement] = useState(false)
   const [s, setS] = useState(load)
   const guideRef = useRef(null)
+
+  // Draggable floating button — the user can pick it up and move it anywhere.
+  const [pos, setPos] = useState(loadPos)
+  const dragRef = useRef({ down: false, moved: false, sx: 0, sy: 0, ox: 0, oy: 0 })
+
+  // Persist the button position whenever it settles.
+  useEffect(() => {
+    try {
+      localStorage.setItem(POS_KEY, JSON.stringify(pos))
+    } catch {
+      /* ignore */
+    }
+  }, [pos])
+
+  const onBtnPointerDown = (e) => {
+    dragRef.current = { down: true, moved: false, sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y }
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+  }
+  const onBtnPointerMove = (e) => {
+    const d = dragRef.current
+    if (!d.down) return
+    const dx = e.clientX - d.sx
+    const dy = e.clientY - d.sy
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) d.moved = true
+    // x/y are offsets from the right/bottom edges, so they grow as the pointer
+    // moves left/up.
+    const nx = Math.max(4, Math.min(window.innerWidth - BTN - 4, d.ox - dx))
+    const ny = Math.max(4, Math.min(window.innerHeight - BTN - 4, d.oy - dy))
+    setPos({ x: nx, y: ny })
+  }
+  const onBtnPointerUp = () => {
+    dragRef.current.down = false
+  }
+  // A real drag must not also toggle the panel; a plain tap should.
+  const onBtnClick = () => {
+    if (dragRef.current.moved) {
+      dragRef.current.moved = false
+      return
+    }
+    setOpen((o) => !o)
+  }
+
+  // Anchor the panel to the button: open upward when the button sits in the
+  // lower half of the screen, downward when it's near the top.
+  const panelStyle = () => {
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 400
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+    // Panel is w-72 (288) but never wider than the viewport minus gutters. Clamp
+    // its right offset so it always stays fully on-screen regardless of where the
+    // button was dragged.
+    const panelW = Math.min(288, vw - 40)
+    const right = Math.max(8, Math.min(pos.x, vw - panelW - 8))
+    // pos.y is the distance from the BOTTOM edge: a large value means the button
+    // sits near the top, so the panel should open downward; otherwise upward.
+    if (pos.y > vh / 2) {
+      return { right, top: vh - pos.y + 12 }
+    }
+    return { right, bottom: pos.y + BTN + 12 }
+  }
 
   // Apply every setting to <html>.
   useEffect(() => {
@@ -85,13 +162,17 @@ export default function AccessibilityWidget() {
       {/* Reading guide bar */}
       {s.guide && <div ref={guideRef} className="a11y-guide-bar" aria-hidden />}
 
-      {/* Floating button — small, on the right side */}
+      {/* Floating button — draggable; the user can move it anywhere on screen. */}
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={onBtnClick}
+        onPointerDown={onBtnPointerDown}
+        onPointerMove={onBtnPointerMove}
+        onPointerUp={onBtnPointerUp}
         aria-label="תפריט נגישות"
         aria-expanded={open}
-        className="fixed bottom-5 right-5 z-[60] flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg ring-2 ring-white transition hover:scale-105 hover:bg-brand-700"
+        style={{ right: pos.x, bottom: pos.y, touchAction: 'none' }}
+        className="fixed z-[60] flex h-12 w-12 cursor-grab touch-none items-center justify-center rounded-full bg-brand-600 text-white shadow-lg ring-2 ring-white transition hover:scale-105 hover:bg-brand-700 active:cursor-grabbing"
       >
         <Accessibility size={24} />
         {active && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-orange-400 ring-2 ring-white" />}
@@ -102,7 +183,8 @@ export default function AccessibilityWidget() {
         <div
           role="dialog"
           aria-label="הגדרות נגישות"
-          className="fixed bottom-20 right-5 z-[60] w-72 max-w-[calc(100vw-2.5rem)] overflow-hidden rounded-2xl bg-white shadow-card-hover ring-1 ring-black/10"
+          style={panelStyle()}
+          className="fixed z-[60] w-72 max-w-[calc(100vw-2.5rem)] overflow-hidden rounded-2xl bg-white shadow-card-hover ring-1 ring-black/10"
         >
           <div className="flex items-center justify-between bg-brand-600 px-4 py-3 text-white">
             <span className="flex items-center gap-2 text-sm font-bold">
