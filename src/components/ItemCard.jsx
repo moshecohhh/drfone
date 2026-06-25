@@ -75,10 +75,11 @@ export default function ItemCard({ item, kind }) {
 
   return (
     <article className="group relative flex h-full flex-col rounded-2xl border border-black/5 bg-white shadow-card transition duration-200 hover:-translate-y-1 hover:shadow-card-hover">
-      {/* Visual product tag (deal / importer / custom round image) — sits at the
-          top of the card and overflows it so half the tag is OUTSIDE the frame. */}
+      {/* Visual product tag (deal / importer / custom round image) — pinned to
+          the LEFT (with a small gap), poking out the top so ~30% sits OUTSIDE
+          the card and ~70% inside. */}
       {!isService && item.tag && (
-        <div className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1/2">
+        <div className="pointer-events-none absolute left-3 top-0 z-20 -translate-y-[30%]">
           <ProductTag tag={item.tag} image={item.tagImage} />
         </div>
       )}
@@ -86,7 +87,13 @@ export default function ItemCard({ item, kind }) {
       {/* Visual */}
       <div className="relative flex h-36 items-center justify-center overflow-hidden rounded-t-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-5xl">
         {activeImage ? (
-          <img src={activeImage} alt={item.name} className="h-full w-full object-cover transition-opacity duration-200" />
+          <img
+            src={activeImage}
+            alt={item.name}
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover transition-opacity duration-200"
+          />
         ) : (
           <span aria-hidden>{item.emoji}</span>
         )}

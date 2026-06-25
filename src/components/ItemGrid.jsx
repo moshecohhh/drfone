@@ -1,13 +1,32 @@
+import { useState, useEffect } from 'react'
 import { SearchX, ArrowUpDown } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { useCatalog } from '../hooks/useCatalog.js'
 import { useCatalogStore } from '../context/CatalogContext.jsx'
 import ItemCard from './ItemCard.jsx'
 
+// Reveal the list in batches instead of all at once: the first rows paint
+// immediately (the category the user is on), then the rest stream in over the
+// next frames — so a large category feels instant. `list` is the memoized
+// results array, so it only resets when the filters actually change.
+function useProgressiveList(list, initial = 6, step = 8) {
+  const [count, setCount] = useState(initial)
+  useEffect(() => {
+    setCount(initial)
+  }, [list, initial])
+  useEffect(() => {
+    if (count >= list.length) return
+    const raf = requestAnimationFrame(() => setCount((c) => Math.min(list.length, c + step)))
+    return () => cancelAnimationFrame(raf)
+  }, [count, list.length, step])
+  return list.slice(0, count)
+}
+
 export default function ItemGrid() {
   const { isStore, filters, setSort, resetFilters } = useApp()
   const { results, kind, total } = useCatalog()
   const { ready } = useCatalogStore()
+  const shown = useProgressiveList(results)
 
   const heading = isStore ? 'מוצרים בחנות' : 'שירותי המעבדה'
 
@@ -65,17 +84,23 @@ export default function ItemGrid() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 pt-5 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {results.map((item) => (
-              <ItemCard key={item.id} item={item} kind={kind} />
+          {/* gap-y is a touch larger than gap-x so the tag poking out of a card's
+              top never overlaps the card in the row above it. */}
+          <div className="grid grid-cols-2 gap-x-3 gap-y-5 pt-5 sm:gap-x-4 sm:gap-y-6 md:grid-cols-3 lg:grid-cols-4">
+            {shown.map((item) => (
+              <div key={item.id} className="animate-fade-in">
+                <ItemCard item={item} kind={kind} />
+              </div>
             ))}
           </div>
-          {/* End-of-list divider */}
-          <div className="mt-6 flex items-center gap-3 text-xs font-medium text-ink-light">
-            <span className="h-px flex-1 bg-black/10" />
-            הגעת לסוף הרשימה
-            <span className="h-px flex-1 bg-black/10" />
-          </div>
+          {/* End-of-list divider — only once the whole list has streamed in. */}
+          {shown.length >= results.length && (
+            <div className="mt-6 flex items-center gap-3 text-xs font-medium text-ink-light">
+              <span className="h-px flex-1 bg-black/10" />
+              הגעת לסוף הרשימה
+              <span className="h-px flex-1 bg-black/10" />
+            </div>
+          )}
         </>
       )}
     </section>

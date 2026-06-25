@@ -32,6 +32,24 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* Gentle entrance for product cards as they stream in after loading. */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  /* No fill-mode on purpose: the resting state is the element's normal (visible)
+     style, so a card can never get stuck invisible if the animation is skipped
+     or throttled. The entrance simply plays 0→1 on mount. */
+  .animate-fade-in {
+    animation: fadeInUp 0.35s ease-out;
+  }
 }
 
 /* Smooth, UNIFIED light/dark switch. The `theme-transition` class is added to

@@ -10,9 +10,17 @@ import ThemeToggle from './ThemeToggle.jsx'
 export default function Header() {
   // On mobile the search bar collapses once the user scrolls down, freeing
   // screen space for the products (the categories + store/lab switch stay).
+  // Hysteresis (collapse past 90px, only re-open under 30px) leaves a dead zone
+  // so the bar can't rapidly flip-flop — collapsing the bar shifts the layout,
+  // which would otherwise re-cross a single threshold and make it jitter.
   const [hideSearch, setHideSearch] = useState(false)
   useEffect(() => {
-    const onScroll = () => setHideSearch(window.scrollY > 60)
+    const onScroll = () => {
+      const y = window.scrollY
+      // Dead zone between 30 and 90: once collapsed it stays collapsed until
+      // we're back near the top, and vice-versa — so it can't flip-flop.
+      setHideSearch((prev) => (prev ? y > 30 : y > 90))
+    }
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
