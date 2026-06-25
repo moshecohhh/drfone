@@ -20,19 +20,13 @@ export default function Header() {
   // customer back up. Reusing <SearchBar/> keeps the behaviour identical.
   const [searchOpen, setSearchOpen] = useState(false)
   useEffect(() => {
-    let ticking = false
     const onScroll = () => {
-      // Coalesce scroll events to one update per frame so the search bar's
-      // expand/collapse aligns with the browser's paint (smoother on fast scroll).
-      if (ticking) return
-      ticking = true
-      requestAnimationFrame(() => {
-        const y = window.scrollY
-        // Dead zone between 30 and 90: once collapsed it stays collapsed until
-        // we're back near the top, and vice-versa — so it can't flip-flop.
-        setHideSearch((prev) => (prev ? y > 30 : y > 90))
-        ticking = false
-      })
+      const y = window.scrollY
+      // Dead zone between 30 and 90: once collapsed it stays collapsed until
+      // we're back near the top, and vice-versa — so it can't flip-flop. The
+      // smoothness of the reappear comes from the bar's transition (short height
+      // settle + a slow opacity fade), not from throttling the handler.
+      setHideSearch((prev) => (prev ? y > 30 : y > 90))
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
@@ -51,6 +45,21 @@ export default function Header() {
       return next
     })
   }
+
+  // Keep the compact search icon mounted through its exit so it fades out
+  // smoothly (transparency + slight shrink) instead of vanishing.
+  const [iconRender, setIconRender] = useState(false)
+  const [iconShown, setIconShown] = useState(false)
+  useEffect(() => {
+    if (hideSearch) {
+      setIconRender(true)
+      const t = setTimeout(() => setIconShown(true), 10)
+      return () => clearTimeout(t)
+    }
+    setIconShown(false)
+    const t = setTimeout(() => setIconRender(false), 350)
+    return () => clearTimeout(t)
+  }, [hideSearch])
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/5 bg-white/90 backdrop-blur">
@@ -72,15 +81,15 @@ export default function Header() {
             {/* Compact search shortcut — appears (mobile only) once the full
                 search bar has collapsed on scroll. Tapping it opens the search
                 bar in place (at the top of the screen) WITHOUT scrolling up. */}
-            {hideSearch && (
+            {iconRender && (
               <button
                 type="button"
                 onClick={toggleInlineSearch}
                 aria-label="חיפוש"
                 aria-expanded={searchOpen}
-                className={`flex h-9 w-9 items-center justify-center rounded-full transition lg:hidden ${
+                className={`flex h-9 shrink-0 items-center justify-center overflow-hidden rounded-full transition-all duration-300 ease-out lg:hidden ${
                   searchOpen ? 'bg-brand-50 text-brand-600' : 'text-ink hover:bg-black/5'
-                }`}
+                } ${iconShown ? 'w-9 scale-100 opacity-100' : 'w-0 scale-90 opacity-0'}`}
               >
                 <Search size={20} />
               </button>
@@ -111,9 +120,17 @@ export default function Header() {
             the compact icon can re-open it in place (searchOpen); on desktop
             (lg+) it's always visible. */}
         <div
-          className={`overflow-hidden transition-[max-height,opacity,margin-top] duration-300 ease-out lg:mt-3 lg:max-h-16 lg:opacity-100 ${
+          className={`overflow-hidden lg:mt-3 lg:max-h-16 lg:opacity-100 ${
             hideSearch && !searchOpen ? 'mt-0 max-h-0 opacity-0' : 'mt-2.5 max-h-16 opacity-100'
           }`}
+          // Height/margin settle quickly (less reflow time = no jitter), while
+          // opacity fades slowly — so the bar eases back in from transparent to
+          // normal in a soft slow-motion as you reach the top.
+          style={{
+            transitionProperty: 'max-height, margin-top, opacity',
+            transitionTimingFunction: 'ease-out',
+            transitionDuration: '320ms, 320ms, 600ms',
+          }}
         >
           <SearchBar />
         </div>
