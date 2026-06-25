@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react'
 import { useAuth, ROLES } from '../context/AuthContext.jsx'
+import { savePasswordCredential } from '../utils/credentials.js'
 import Logo from '../components/Logo.jsx'
 
 export default function Login() {
@@ -25,6 +26,8 @@ export default function Login() {
       setError(res.error)
       return
     }
+    // Offer to save the credentials in the browser's password manager.
+    savePasswordCredential(form.email, form.password)
     // Redirect by role; honour an intended destination if one was set.
     // Staff (חנות) and master admin go to the panel; customers go to the store.
     if (res.user.role === ROLES.MASTER_ADMIN || res.user.role === ROLES.STORE) {
@@ -57,6 +60,11 @@ export default function Login() {
           onChange={onChange}
           autoComplete="current-password"
         />
+        <div className="text-left">
+          <Link to="/forgot-password" className="text-sm font-medium text-brand-600 hover:underline">
+            שכחתי סיסמה?
+          </Link>
+        </div>
         <button
           type="submit"
           disabled={busy}

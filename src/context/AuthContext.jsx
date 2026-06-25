@@ -158,6 +158,25 @@ export function AuthProvider({ children }) {
     setUser(null)
   }, [])
 
+  // Send a "reset your password" email. The link returns the user to
+  // /reset-password (which must be allowed in Supabase Auth → Redirect URLs).
+  const requestPasswordReset = useCallback(async (email) => {
+    const cleanEmail = String(email || '').trim().toLowerCase()
+    if (!cleanEmail) return { ok: false, error: 'נא להזין כתובת אימייל.' }
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    if (error) return { ok: false, error: authErrorMessage(error) }
+    return { ok: true }
+  }, [])
+
+  // Set a new password for the currently-recovering (or logged-in) user.
+  const updatePassword = useCallback(async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (error) return { ok: false, error: authErrorMessage(error) }
+    return { ok: true }
+  }, [])
+
   // Self-service update of the logged-in user's own profile.
   const updateProfile = useCallback(
     async (patch) => {
@@ -239,6 +258,8 @@ export function AuthProvider({ children }) {
     register,
     login,
     logout,
+    requestPasswordReset,
+    updatePassword,
     updateProfile,
     deleteUser,
     updateRole,

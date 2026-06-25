@@ -29,7 +29,29 @@
       "Bash(git config *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(grep -E \"node_modules|\\\\.env$|^dist/\")"
+      "Bash(grep -E \"node_modules|\\\\.env$|^dist/\")",
+      "Bash(git branch *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(curl -s https://drfone.vercel.app/?cb=__TRACKED_VAR__)",
+      "Bash(curl -s -o /dev/null -w \"home status=%{http_code}\\\\n\" \"https://drfone.vercel.app/\")",
+      "Read(//d/drfone/**)",
+      "Bash(vercel ls *)",
+      "Bash(timeout 50 vercel git connect https://github.com/moshecohhh/drfone.git)",
+      "Bash(echo \"\\(exit: $?\\)\")",
+      "Bash(supabase --version)",
+      "Bash(npx --yes supabase --version)",
+      "Bash(npx --yes supabase functions deploy notify-admin --no-verify-jwt)",
+      "Bash(node -e \"console.log\\('WEBHOOK_SECRET=' + require\\('crypto'\\).randomBytes\\(24\\).toString\\('hex'\\)\\)\")",
+      "Bash(npx --yes supabase secrets list)",
+      "Bash(npx --yes supabase secrets set RESEND_API_KEY=re_C5RT8yz1_2knURodiXasxYV813nCCKNRe)",
+      "Bash(npx --yes supabase secrets unset re_C5RT8yz1_2knURodiXasxYV813nCCKNRe)",
+      "Bash(curl -s -X POST \"https://ticfdidkigskxnpycvzd.supabase.co/functions/v1/notify-admin\" -H \"Content-Type: application/json\" -H \"x-webhook-secret: 7ebf7c1f607c4a43f87114c804a033a50fef474af9794c93\" -d '{\"table\":\"inquiries\",\"record\":{\"data\":{\"name\":\"בדיקת מערכת\",\"phone\":\"050-1234567\",\"message\":\"זו בדיקה אוטומטית של התראות מייל - אם קיבלת את זה, זה עובד!\"}}}')",
+      "Bash(curl -s -X POST \"https://ticfdidkigskxnpycvzd.supabase.co/functions/v1/notify-admin\" -H \"Content-Type: application/json; charset=utf-8\" -H \"x-webhook-secret: 7ebf7c1f607c4a43f87114c804a033a50fef474af9794c93\" --data-binary @_tmp_payload.local)",
+      "Bash(rm -f _tmp_payload.local)",
+      "Bash(npx --yes supabase secrets set NOTIFY_TO=drfone4949@gmail.com)",
+      "Bash(npx --yes supabase secrets set NOTIFY_TO=moshecohh@gmail.com)",
+      "Bash(curl -s -o /dev/null -w \"insert status=%{http_code}\\\\n\" -X POST \"https://ticfdidkigskxnpycvzd.supabase.co/rest/v1/inquiries\" -H \"Content-Type: application/json; charset=utf-8\" -H \"apikey: sb_publishable_miG44mm-4i_SLMK30O7yuw_D8t8MIQT\" -H \"Prefer: return=minimal\" --data-binary @_tmp_payload.local)"
     ]
   }
 }

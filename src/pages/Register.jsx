@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { UserPlus, User, Mail, Lock } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
+import { savePasswordCredential } from '../utils/credentials.js'
 import { AuthShell, Field, FormError } from './Login.jsx'
 
 export default function Register() {
@@ -39,6 +40,8 @@ export default function Register() {
       setError(res.error)
       return
     }
+    // Offer to save the new credentials in the browser's password manager.
+    savePasswordCredential(form.email, form.password, name)
     // If email confirmation is required, there's no session yet — tell the user.
     if (res.needsConfirmation) {
       setNotice('נשלח אליך מייל לאימות הכתובת. אשרו אותו ואז התחברו.')
