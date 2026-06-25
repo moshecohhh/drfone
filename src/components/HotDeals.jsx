@@ -238,7 +238,7 @@ export default function HotDeals() {
             <button
               type="button"
               onClick={() => setCategory('deals')}
-              className="flex items-center gap-2 rounded-full bg-brand-500 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600"
+              className="flex items-center gap-2 rounded-full bg-brand-500 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-brand-600 hover:shadow-md active:scale-95"
             >
               למבצעים נוספים <ArrowLeft size={16} />
             </button>

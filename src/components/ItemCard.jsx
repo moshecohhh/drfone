@@ -232,7 +232,7 @@ export default function ItemCard({ item, kind }) {
             href={waLink(`שלום, אשמח לתאם תיקון: ${item.name}`)}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-brand-500 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-600"
+            className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-brand-500 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-brand-600 active:scale-95"
           >
             <MessageCircle size={16} /> תיאום תיקון
           </a>
@@ -242,12 +242,12 @@ export default function ItemCard({ item, kind }) {
             type="button"
             onClick={handleAdd}
             disabled={outOfStock}
-            className={`mt-3 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition ${
+            className={`mt-3 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition duration-200 ${
               outOfStock
                 ? 'cursor-not-allowed bg-black/10 text-ink-light'
                 : added
                   ? 'bg-brand-600 text-white'
-                  : 'bg-brand-500 text-white hover:bg-brand-600'
+                  : 'bg-brand-500 text-white hover:bg-brand-600 active:scale-95'
             }`}
           >
             {outOfStock ? (

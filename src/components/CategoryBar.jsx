@@ -36,9 +36,24 @@ function Chip({ cat, active, onClick }) {
 export default function CategoryBar() {
   const { filters, setCategory } = useApp()
   const { categories } = useCatalog()
-  const [open, setOpen] = useState(false) // mobile dropdown
+  const [open, setOpen] = useState(false) // mobile dropdown (logical)
   const [moreOpen, setMoreOpen] = useState(false) // desktop "עוד" dropdown
   const [visible, setVisible] = useState(categories.length) // chips shown on one line
+
+  // Smooth open/close for the mobile dropdown: keep it mounted through the exit
+  // so it can fade + slide out instead of vanishing.
+  const [ddRender, setDdRender] = useState(false)
+  const [ddShown, setDdShown] = useState(false)
+  useEffect(() => {
+    if (open) {
+      setDdRender(true)
+      const t = setTimeout(() => setDdShown(true), 10)
+      return () => clearTimeout(t)
+    }
+    setDdShown(false)
+    const t = setTimeout(() => setDdRender(false), 200)
+    return () => clearTimeout(t)
+  }, [open])
 
   const ref = useRef(null) // mobile wrapper (outside-click)
   const deskRef = useRef(null) // desktop block — measures the available width
@@ -188,7 +203,7 @@ export default function CategoryBar() {
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="flex w-full items-center justify-between rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-ink"
+          className="flex w-full items-center justify-between rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-ink transition duration-200 hover:border-brand-300 active:scale-[0.98]"
           aria-expanded={open}
         >
           <span className="flex items-center gap-2">
@@ -197,8 +212,12 @@ export default function CategoryBar() {
           <ChevronDown size={18} className={`text-ink-light transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
 
-        {open && (
-          <div className="absolute right-0 z-30 mt-2 max-h-[60vh] w-64 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-black/10 bg-white py-1.5 shadow-card-hover">
+        {ddRender && (
+          <div
+            className={`absolute right-0 z-30 mt-2 max-h-[60vh] w-64 max-w-[calc(100vw-2rem)] origin-top overflow-y-auto rounded-2xl border border-black/10 bg-white py-1.5 shadow-card-hover transition duration-200 ease-out ${
+              ddShown ? 'scale-100 opacity-100 translate-y-0' : '-translate-y-1 scale-95 opacity-0'
+            }`}
+          >
             <List onPick={() => setOpen(false)} big />
           </div>
         )}

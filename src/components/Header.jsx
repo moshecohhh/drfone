@@ -20,11 +20,19 @@ export default function Header() {
   // customer back up. Reusing <SearchBar/> keeps the behaviour identical.
   const [searchOpen, setSearchOpen] = useState(false)
   useEffect(() => {
+    let ticking = false
     const onScroll = () => {
-      const y = window.scrollY
-      // Dead zone between 30 and 90: once collapsed it stays collapsed until
-      // we're back near the top, and vice-versa — so it can't flip-flop.
-      setHideSearch((prev) => (prev ? y > 30 : y > 90))
+      // Coalesce scroll events to one update per frame so the search bar's
+      // expand/collapse aligns with the browser's paint (smoother on fast scroll).
+      if (ticking) return
+      ticking = true
+      requestAnimationFrame(() => {
+        const y = window.scrollY
+        // Dead zone between 30 and 90: once collapsed it stays collapsed until
+        // we're back near the top, and vice-versa — so it can't flip-flop.
+        setHideSearch((prev) => (prev ? y > 30 : y > 90))
+        ticking = false
+      })
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
@@ -103,7 +111,7 @@ export default function Header() {
             the compact icon can re-open it in place (searchOpen); on desktop
             (lg+) it's always visible. */}
         <div
-          className={`overflow-hidden transition-all duration-300 lg:mt-3 lg:max-h-16 lg:opacity-100 ${
+          className={`overflow-hidden transition-[max-height,opacity,margin-top] duration-300 ease-out lg:mt-3 lg:max-h-16 lg:opacity-100 ${
             hideSearch && !searchOpen ? 'mt-0 max-h-0 opacity-0' : 'mt-2.5 max-h-16 opacity-100'
           }`}
         >
