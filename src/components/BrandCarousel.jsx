@@ -36,12 +36,12 @@ function BrandCircle({ brand, active, onClick }) {
 
 // The pinned "all brands" reset circle — shared by the mobile strip and the
 // desktop marquee. Light by default; teal/filled when active.
-function AllCircle({ active, onClick }) {
+function AllCircle({ active, onClick, className = '' }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-16 shrink-0 flex-col items-center gap-1.5 pt-2 sm:w-20"
+      className={`flex w-16 shrink-0 flex-col items-center gap-1.5 sm:w-20 ${className}`}
     >
       <span
         className={`flex h-[58px] w-[58px] items-center justify-center rounded-full transition-colors sm:h-[74px] sm:w-[74px] ${
@@ -229,8 +229,9 @@ export default function BrandCarousel() {
   return (
     <div className="border-b border-black/5 bg-white">
       <div className="flex w-full items-start gap-3 px-4 py-3 sm:gap-4 xl:px-[3cm] xl:py-4">
-        {/* "All" reset circle — pinned at the start (does not scroll away) */}
-        <AllCircle active={allActive} onClick={() => select('all')} />
+        {/* "All" reset circle — pinned at the start (does not scroll away).
+            pt-2 aligns it with the py-2 marquee track beside it. */}
+        <AllCircle active={allActive} onClick={() => select('all')} className="pt-2" />
 
         {/* Auto-scrolling row. A transform-driven marquee (forced LTR) that
             loops forever — a logo that exits on the left re-enters on the
