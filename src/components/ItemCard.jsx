@@ -1,4 +1,4 @@
-import { MessageCircle, ShoppingCart, Check, Pencil, Tag } from 'lucide-react'
+import { MessageCircle, ShoppingCart, Pencil, Tag, Minus, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { useCart } from '../context/CartContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
@@ -10,13 +10,9 @@ import ProductTag from './ProductTag.jsx'
 // - kind === 'service' (Lab):   WhatsApp CTA, untouched by the cart.
 export default function ItemCard({ item, kind }) {
   const isService = kind === 'service'
-  const { addItem, setOpen } = useCart()
+  const { addItem, setOpen, items, changeQty } = useCart()
   const { waLink } = useSettings()
   const { isMaster } = useAuth()
-  const [added, setAdded] = useState(false)
-  // Mobile only: after adding, show a "go to cart" link (the drawer no longer
-  // auto-opens on mobile).
-  const [showGoToCart, setShowGoToCart] = useState(false)
 
   // Normalize colors to { hex, image } (older data stored plain hex strings).
   const colors =
@@ -66,14 +62,17 @@ export default function ItemCard({ item, kind }) {
   }
 
   const handleAdd = () => {
-    if (addItem(item, selectedColor, isMaster && override != null ? override : null)) {
-      setAdded(true)
-      setTimeout(() => setAdded(false), 1200)
-      if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) {
-        setShowGoToCart(true)
-      }
-    }
+    addItem(item, selectedColor, isMaster && override != null ? override : null)
   }
+
+  // The cart line for THIS product in the currently-selected colour, so the
+  // ±-stepper reflects/controls exactly that line. qty 0 = not in the cart.
+  const cartLine = !isService
+    ? items.find((i) => i.id === item.id && (i.color || '') === (selectedColor || ''))
+    : null
+  const cartQty = cartLine?.qty || 0
+  const incQty = () => cartLine && changeQty(cartLine.lineId, 1)
+  const decQty = () => cartLine && changeQty(cartLine.lineId, -1) // drops the line at 0
 
   const availableLabel = isService ? 'זמין לתיקון' : lowStock ? `נותרו ${stock} במלאי` : 'במלאי'
   const unavailableLabel = isService ? 'בבדיקת זמינות' : 'אזל מהמלאי'
@@ -236,6 +235,31 @@ export default function ItemCard({ item, kind }) {
           >
             <MessageCircle size={16} /> תיאום תיקון
           </a>
+        ) : cartQty > 0 ? (
+          // STORE, already in cart: a ±-stepper to choose how many units.
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-brand-200 bg-brand-50/50 p-1">
+            <button
+              type="button"
+              onClick={decQty}
+              aria-label="הפחתת כמות"
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-brand-600 shadow-sm transition duration-150 hover:bg-brand-100 active:scale-90"
+            >
+              <Minus size={16} />
+            </button>
+            <span className="flex items-baseline gap-1 text-sm font-bold text-ink">
+              {cartQty}
+              <span className="text-[11px] font-medium text-ink-light">בסל</span>
+            </span>
+            <button
+              type="button"
+              onClick={incQty}
+              disabled={cartQty >= stock}
+              aria-label="הוספת כמות"
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-brand-600 shadow-sm transition duration-150 hover:bg-brand-100 active:scale-90 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
         ) : (
           // STORE: Add to Cart (disabled when out of stock)
           <button
@@ -245,18 +269,10 @@ export default function ItemCard({ item, kind }) {
             className={`mt-3 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition duration-200 ${
               outOfStock
                 ? 'cursor-not-allowed bg-black/10 text-ink-light'
-                : added
-                  ? 'bg-brand-600 text-white'
-                  : 'bg-brand-500 text-white hover:bg-brand-600 active:scale-95'
+                : 'bg-brand-500 text-white hover:bg-brand-600 active:scale-95'
             }`}
           >
-            {outOfStock ? (
-              'אזל מהמלאי'
-            ) : added ? (
-              <>
-                <Check size={16} /> נוסף לסל
-              </>
-            ) : (
+            {outOfStock ? 'אזל מהמלאי' : (
               <>
                 <ShoppingCart size={16} /> הוסף לסל
               </>
@@ -264,9 +280,9 @@ export default function ItemCard({ item, kind }) {
           </button>
         )}
 
-        {/* Mobile only: shortcut to open the cart after adding (the drawer no
-            longer pops open automatically on mobile). */}
-        {!isService && showGoToCart && (
+        {/* Mobile only: shortcut to open the cart once the item is in it (the
+            drawer no longer pops open automatically on mobile). */}
+        {!isService && cartQty > 0 && (
           <button
             type="button"
             onClick={() => setOpen(true)}

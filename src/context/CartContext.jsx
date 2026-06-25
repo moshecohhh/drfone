@@ -136,6 +136,19 @@ export function CartProvider({ children }) {
     )
   }, [])
 
+  // Adjust a line's quantity by a delta, reading the current value (so rapid
+  // ± clicks are reliable). Drops the line at 0; never exceeds stock.
+  const changeQty = useCallback((lineId, delta) => {
+    setItems((prev) =>
+      prev.flatMap((i) => {
+        if ((i.lineId || lineKey(i.id, i.color)) !== lineId) return [i]
+        const next = i.qty + delta
+        if (next <= 0) return []
+        return [{ ...i, qty: Math.min(next, i.stock || next) }]
+      }),
+    )
+  }, [])
+
   const removeItem = useCallback((lineId) => {
     setItems((prev) => prev.filter((i) => (i.lineId || lineKey(i.id, i.color)) !== lineId))
   }, [])
@@ -159,6 +172,7 @@ export function CartProvider({ children }) {
     setOpen,
     addItem,
     setQty,
+    changeQty,
     removeItem,
     clear,
     // 24h auto-clear restore
