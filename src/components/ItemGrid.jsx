@@ -25,14 +25,16 @@ function useProgressiveList(list, initial = 6, step = 8) {
 export default function ItemGrid() {
   const { isStore, filters, setSort, resetFilters } = useApp()
   const { results, kind, total } = useCatalog()
-  const { ready } = useCatalogStore()
+  const { synced } = useCatalogStore()
   const shown = useProgressiveList(results)
 
   const heading = isStore ? 'מוצרים בחנות' : 'שירותי המעבדה'
 
-  // Still fetching the catalog — show placeholder cards so the grid never flashes
-  // an empty "no results" message before the data arrives.
-  if (!ready) {
+  // The seed already provides products for the main categories, so they render
+  // instantly. Only show placeholder cards while a category looks empty AND the
+  // server sync hasn't finished yet (it might still add items) — never flash a
+  // premature "no results".
+  if (results.length === 0 && !synced) {
     return (
       <section>
         <div className="mb-4 h-7 w-40 animate-pulse rounded bg-black/10" />

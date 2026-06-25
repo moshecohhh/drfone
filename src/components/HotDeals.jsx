@@ -9,7 +9,7 @@ import ItemCard from './ItemCard.jsx'
 // / arrow scrolling. Below it, a button to the full deals collection.
 export default function HotDeals() {
   const { setCategory } = useApp()
-  const { store, ready } = useCatalogStore()
+  const { store, synced } = useCatalogStore()
   const deals = store.filter((p) => p.deal === true)
 
   const scroller = useRef(null)
@@ -128,9 +128,9 @@ export default function HotDeals() {
         )}
       </div>
 
-      {!ready ? (
-        // Still loading the catalog from the server — show placeholders instead
-        // of the "no deals" message (which would flash before the data arrives).
+      {deals.length === 0 && !synced ? (
+        // Deals are admin-set and aren't in the bundled seed, so until the server
+        // sync finishes show placeholders instead of flashing "no deals".
         <div className="flex gap-4 overflow-hidden">
           {Array.from({ length: 4 }).map((_, i) => (
             <DealSkeleton key={i} />

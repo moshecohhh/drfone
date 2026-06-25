@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { Menu, Check, Home, Flame, ChevronDown } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { useCatalog } from '../hooks/useCatalog.js'
-import { useCatalogStore } from '../context/CatalogContext.jsx'
 
 // Icon for the special virtual tabs.
 const CAT_ICON = { home: Home, deals: Flame }
@@ -37,7 +36,6 @@ function Chip({ cat, active, onClick }) {
 export default function CategoryBar() {
   const { filters, setCategory } = useApp()
   const { categories } = useCatalog()
-  const { ready } = useCatalogStore()
   const [open, setOpen] = useState(false) // mobile dropdown
   const [moreOpen, setMoreOpen] = useState(false) // desktop "עוד" dropdown
   const [visible, setVisible] = useState(categories.length) // chips shown on one line
@@ -121,22 +119,6 @@ export default function CategoryBar() {
         </button>
       )
     })
-
-  // Until the catalog has loaded, show a stable skeleton instead of rendering
-  // the virtual tabs first and then popping in the real categories ("2 then the
-  // rest"). When ready, every category appears together.
-  if (!ready) {
-    return (
-      <div>
-        <div className="hidden items-center gap-2 lg:flex">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-8 w-20 animate-pulse rounded-full bg-black/10" />
-          ))}
-        </div>
-        <div className="h-10 w-full animate-pulse rounded-xl bg-black/10 lg:hidden" />
-      </div>
-    )
-  }
 
   return (
     <div>

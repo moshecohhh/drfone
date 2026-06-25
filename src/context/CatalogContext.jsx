@@ -46,11 +46,19 @@ const rowToCat = (row) => ({ id: row.id, label: row.label, ...(row.image ? { ima
 const CatalogContext = createContext(null)
 
 export function CatalogProvider({ children }) {
-  const [store, setStore] = useState([])
-  const [lab, setLab] = useState([])
-  const [storeCats, setStoreCats] = useState([])
-  const [labCats, setLabCats] = useState([])
-  const [ready, setReady] = useState(false)
+  // Seed from the bundled defaults IMMEDIATELY so the catalog (products +
+  // categories) is on screen from the very first paint — no waiting on the
+  // network. The Supabase fetch below only reconciles this in the background,
+  // and never blanks it out. `ready` is therefore true from the start.
+  const [store, setStore] = useState(() => normalizeProducts(ITEM_SEEDS[DOMAINS.STORE]))
+  const [lab, setLab] = useState(() => ITEM_SEEDS[DOMAINS.LAB])
+  const [storeCats, setStoreCats] = useState(() => CAT_SEEDS[DOMAINS.STORE].map((c) => ({ ...c })))
+  const [labCats, setLabCats] = useState(() => CAT_SEEDS[DOMAINS.LAB].map((c) => ({ ...c })))
+  const [ready, setReady] = useState(true)
+  // `synced` flips true once the Supabase fetch has completed (success or not).
+  // The seed has products & categories but NO deals (those are admin-set), so a
+  // "no deals" / "no results" message must wait for the real data before showing.
+  const [synced, setSynced] = useState(false)
 
   // Refs mirror state so mutation helpers can read current values for the
   // Supabase payload without stale closures.
@@ -68,7 +76,11 @@ export function CatalogProvider({ children }) {
   // ---- Initial load (+ one-time seed when the catalog is empty) ----
   useEffect(() => {
     let active = true
+    // Safety net: never leave "no deals / no results" states waiting forever if
+    // the network hangs — flip `synced` after 6s regardless.
+    const failSafe = setTimeout(() => active && setSynced(true), 6000)
     ;(async () => {
+      try {
       const [{ data: items }, { data: cats }] = await Promise.all([
         supabase.from('catalog_items').select('*').order('created_at', { ascending: false }),
         supabase.from('catalog_categories').select('*').order('sort_order', { ascending: true }),
@@ -107,14 +119,28 @@ export function CatalogProvider({ children }) {
       }
 
       if (!active) return
-      setStore(normalizeProducts(itemRows.filter((r) => r.domain === DOMAINS.STORE).map(rowToItem)))
-      setLab(itemRows.filter((r) => r.domain === DOMAINS.LAB).map(rowToItem))
-      setStoreCats(catRows.filter((r) => r.domain === DOMAINS.STORE).map(rowToCat))
-      setLabCats(catRows.filter((r) => r.domain === DOMAINS.LAB).map(rowToCat))
+      // Reconcile with the server — but only overwrite the seeded state when the
+      // fetch actually returned rows, so a slow / empty / failed request never
+      // wipes the catalog back to nothing.
+      if (itemRows.length) {
+        setStore(normalizeProducts(itemRows.filter((r) => r.domain === DOMAINS.STORE).map(rowToItem)))
+        setLab(itemRows.filter((r) => r.domain === DOMAINS.LAB).map(rowToItem))
+      }
+      if (catRows.length) {
+        setStoreCats(catRows.filter((r) => r.domain === DOMAINS.STORE).map(rowToCat))
+        setLabCats(catRows.filter((r) => r.domain === DOMAINS.LAB).map(rowToCat))
+      }
       setReady(true)
+      } catch {
+        /* network / RLS failure — keep the bundled seed that's already on screen */
+      } finally {
+        if (active) setSynced(true)
+        clearTimeout(failSafe)
+      }
     })()
     return () => {
       active = false
+      clearTimeout(failSafe)
     }
   }, [])
 
@@ -245,6 +271,7 @@ export function CatalogProvider({ children }) {
     store,
     lab,
     ready,
+    synced,
     getItems,
     addItem,
     updateItem,
