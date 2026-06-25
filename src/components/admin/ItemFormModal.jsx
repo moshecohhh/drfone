@@ -1,0 +1,427 @@
+import { useState, useEffect, useRef } from 'react'
+import { X, Save, Upload, ImageOff, Plus, Link2, Flame, BadgeCheck } from 'lucide-react'
+import { useBrands } from '../../context/BrandsContext.jsx'
+import { Switch } from './ui.jsx'
+import ColorPicker from './ColorPicker.jsx'
+
+const MAX_IMAGES = 7
+
+const emptyItem = {
+  name: '',
+  brand: 'samsung',
+  category: '',
+  price: '',
+  oldPrice: '',
+  stock: 1,
+  description: '',
+  badge: '',
+  emoji: '📦',
+  barcode: '',
+  image: '',
+  images: [],
+  inStock: true,
+  colors: [],
+  tag: '', // '' | 'deal' | 'importer'  (visual product stamp)
+}
+
+// Colors may have been persisted as plain hex strings by an earlier build;
+// normalize every entry to { hex, image } (image = associated gallery image).
+const normColors = (arr) =>
+  (Array.isArray(arr) ? arr : []).map((c) =>
+    typeof c === 'string' ? { hex: c, image: '' } : { hex: c.hex, image: c.image || '' },
+  )
+
+// Modal form for creating/editing a single catalog item.
+// `categories` is the active domain's category list (already excludes "all").
+// `kind` adjusts wording and which fields show ('product' has stock; both have image).
+export default function ItemFormModal({ open, onClose, onSave, item, categories, kind }) {
+  const isService = kind === 'service'
+  const { brands } = useBrands()
+  const [form, setForm] = useState(emptyItem)
+  const [draftColor, setDraftColor] = useState('#3B82F6')
+  const [urlDraft, setUrlDraft] = useState('')
+  const fileRef = useRef(null)
+
+  useEffect(() => {
+    if (item) {
+      const images = Array.isArray(item.images) && item.images.length
+        ? item.images
+        : item.image
+          ? [item.image]
+          : []
+      setForm({
+        ...emptyItem,
+        ...item,
+        oldPrice: item.oldPrice ?? '',
+        images,
+        image: images[0] || '',
+        colors: normColors(item.colors),
+      })
+    } else {
+      setForm({ ...emptyItem, category: categories[0]?.id || '', brand: brands[0]?.id || '', images: [], colors: [] })
+    }
+  }, [item, categories, open])
+
+  if (!open) return null
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+
+  // ---- Image gallery (up to MAX_IMAGES) ----
+  const addImages = (urls) =>
+    setForm((f) => {
+      const next = [...f.images, ...urls.filter(Boolean)].slice(0, MAX_IMAGES)
+      return { ...f, images: next, image: next[0] || '' }
+    })
+  const removeImage = (idx) =>
+    setForm((f) => {
+      const removed = f.images[idx]
+      const next = f.images.filter((_, i) => i !== idx)
+      return {
+        ...f,
+        images: next,
+        image: next[0] || '',
+        // Unlink any color that pointed at the removed image.
+        colors: f.colors.map((c) => (c.image === removed ? { ...c, image: '' } : c)),
+      }
+    })
+
+  const onFiles = (e) => {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+    Promise.all(
+      files.map(
+        (file) =>
+          new Promise((resolve) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result)
+            reader.readAsDataURL(file)
+          }),
+      ),
+    ).then(addImages)
+    e.target.value = '' // allow re-selecting the same file
+  }
+
+  // ---- Colors (each optionally linked to a gallery image) ----
+  const addColor = () => {
+    const hex = draftColor.toUpperCase()
+    setForm((f) => (f.colors.some((c) => c.hex === hex) ? f : { ...f, colors: [...f.colors, { hex, image: '' }] }))
+  }
+  const removeColor = (hex) => setForm((f) => ({ ...f, colors: f.colors.filter((c) => c.hex !== hex) }))
+  const linkColorImage = (hex, image) =>
+    setForm((f) => ({ ...f, colors: f.colors.map((c) => (c.hex === hex ? { ...c, image } : c)) }))
+
+  const submit = (e) => {
+    e.preventDefault()
+    const stock = isService ? undefined : Math.max(0, Number(form.stock) || 0)
+    onSave({
+      ...form,
+      image: form.images[0] || '',
+      price: Number(form.price) || 0,
+      oldPrice: form.oldPrice === '' ? null : Number(form.oldPrice),
+      // For products, availability is driven by stock.
+      ...(isService ? {} : { stock, inStock: stock > 0 }),
+    })
+  }
+
+  const brandOptions = brands
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-xl">
+        <div className="sticky top-0 flex items-center justify-between border-b border-black/5 bg-white px-6 py-4">
+          <h3 className="text-lg font-extrabold text-ink">
+            {item ? 'עריכת' : 'הוספת'} {isService ? 'שירות' : 'מוצר'}
+          </h3>
+          <button onClick={onClose} aria-label="סגירה" className="text-ink-light hover:text-ink">
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="space-y-4 p-6">
+          {/* Image gallery (up to MAX_IMAGES) */}
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-semibold text-ink-light">תמונות המוצר</span>
+              <span className="text-[11px] text-ink-light">{form.images.length}/{MAX_IMAGES}</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {form.images.map((src, idx) => (
+                <div
+                  key={`${idx}-${src.slice(0, 24)}`}
+                  className="group relative h-16 w-16 overflow-hidden rounded-xl border border-black/10 bg-brand-50"
+                >
+                  <img src={src} alt="" className="h-full w-full object-cover" />
+                  {idx === 0 && (
+                    <span className="absolute bottom-0 inset-x-0 bg-black/55 text-center text-[9px] font-semibold text-white">
+                      ראשית
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeImage(idx)}
+                    aria-label="הסרת תמונה"
+                    className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+              {form.images.length < MAX_IMAGES && (
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-xl border border-dashed border-black/20 text-ink-light transition hover:border-brand-400 hover:text-brand-600"
+                >
+                  <Upload size={16} />
+                  <span className="text-[10px] font-semibold">העלאה</span>
+                </button>
+              )}
+              {form.images.length === 0 && (
+                <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-black/10 bg-brand-50 text-2xl">
+                  <span>{form.emoji || <ImageOff size={20} />}</span>
+                </div>
+              )}
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                value={urlDraft}
+                onChange={(e) => setUrlDraft(e.target.value)}
+                placeholder="או הדבק כתובת תמונה (URL)"
+                className={inputCls}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    if (urlDraft.trim()) { addImages([urlDraft.trim()]); setUrlDraft('') }
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => { if (urlDraft.trim()) { addImages([urlDraft.trim()]); setUrlDraft('') } }}
+                disabled={!urlDraft.trim() || form.images.length >= MAX_IMAGES}
+                className="shrink-0 rounded-lg border border-black/10 px-3 py-2 text-xs font-semibold text-ink hover:bg-black/5 disabled:opacity-40"
+              >
+                הוספה
+              </button>
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" multiple onChange={onFiles} className="hidden" />
+          </div>
+
+          <Row label={isService ? 'שם השירות' : 'שם המוצר'}>
+            <input required value={form.name} onChange={(e) => set('name', e.target.value)} className={inputCls} />
+          </Row>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Row label="מותג">
+              <select value={form.brand} onChange={(e) => set('brand', e.target.value)} className={inputCls}>
+                {brandOptions.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.label}
+                  </option>
+                ))}
+              </select>
+            </Row>
+            <Row label="קטגוריה">
+              <select value={form.category} onChange={(e) => set('category', e.target.value)} className={inputCls}>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </Row>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Row label="מחיר (₪)">
+              <input
+                required
+                type="number"
+                min="0"
+                value={form.price}
+                onChange={(e) => set('price', e.target.value)}
+                className={inputCls}
+              />
+            </Row>
+            <Row label="מחיר קודם (אופציונלי)">
+              <input
+                type="number"
+                min="0"
+                value={form.oldPrice}
+                onChange={(e) => set('oldPrice', e.target.value)}
+                className={inputCls}
+              />
+            </Row>
+          </div>
+
+          <Row label="תיאור">
+            <textarea
+              rows={3}
+              value={form.description}
+              onChange={(e) => set('description', e.target.value)}
+              className={inputCls}
+            />
+          </Row>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Row label="תווית (Badge)">
+              <input value={form.badge} onChange={(e) => set('badge', e.target.value)} className={inputCls} />
+            </Row>
+            <Row label="אימוג׳י">
+              <input value={form.emoji} onChange={(e) => set('emoji', e.target.value)} maxLength={4} className={inputCls} />
+            </Row>
+          </div>
+
+          {/* Barcode — internal only, never shown to customers. Lets a scan in
+              the storefront search jump straight to this product. */}
+          {!isService && (
+            <Row label="ברקוד (פנימי — לא מוצג ללקוח)">
+              <input
+                value={form.barcode}
+                onChange={(e) => set('barcode', e.target.value)}
+                placeholder="סרקו או הקלידו ברקוד"
+                dir="ltr"
+                className={`${inputCls} text-right font-mono`}
+              />
+            </Row>
+          )}
+
+          {/* Product tag — a visual stamp on the card. Only ONE of the two may
+              be active (turning one on switches the other off). */}
+          {!isService && (
+            <div className="rounded-xl border border-black/10 p-4">
+              <span className="mb-2 block text-xs font-semibold text-ink-light">תג מוצר (ניתן לבחור אחד בלבד)</span>
+              <div className="space-y-2">
+                <label className="flex items-center justify-between rounded-lg border border-black/10 bg-white px-3 py-2">
+                  <span className="flex items-center gap-2 text-sm font-medium text-ink">
+                    <Flame size={16} className="text-orange-500" /> תג מבצע
+                  </span>
+                  <Switch checked={form.tag === 'deal'} onChange={(v) => set('tag', v ? 'deal' : '')} label="תג מבצע" />
+                </label>
+                <label className="flex items-center justify-between rounded-lg border border-black/10 bg-white px-3 py-2">
+                  <span className="flex items-center gap-2 text-sm font-medium text-ink">
+                    <BadgeCheck size={16} className="text-blue-600" /> תג יבואן רשמי
+                  </span>
+                  <Switch checked={form.tag === 'importer'} onChange={(v) => set('tag', v ? 'importer' : '')} label="תג יבואן רשמי" />
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Colors — products only. Each color can be tied to a gallery image,
+              so picking that color on the storefront swaps the shown image. */}
+          {!isService && (
+            <div className="rounded-xl border border-black/10 bg-brand-50/30 p-4">
+              <span className="mb-2 block text-xs font-semibold text-ink-light">צבעים זמינים למוצר</span>
+
+              {/* Selected colors — each row: swatch + hex + linked-image picker + remove */}
+              {form.colors.length > 0 ? (
+                <div className="mb-3 space-y-2">
+                  {form.colors.map((c) => (
+                    <div key={c.hex} className="flex items-center gap-2 rounded-lg border border-black/10 bg-white px-2 py-1.5">
+                      <span className="h-5 w-5 shrink-0 rounded-full border border-black/15" style={{ background: c.hex }} />
+                      <span dir="ltr" className="w-16 shrink-0 font-mono text-xs text-ink">{c.hex}</span>
+
+                      {/* Linked image: thumbnail + selector */}
+                      <Link2 size={13} className="shrink-0 text-ink-light" />
+                      {c.image ? (
+                        <img src={c.image} alt="" className="h-7 w-7 shrink-0 rounded border border-black/10 object-cover" />
+                      ) : (
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-dashed border-black/20 text-ink-light">
+                          <ImageOff size={13} />
+                        </span>
+                      )}
+                      <select
+                        value={c.image}
+                        onChange={(e) => linkColorImage(c.hex, e.target.value)}
+                        disabled={form.images.length === 0}
+                        className="min-w-0 flex-1 rounded-lg border border-black/10 bg-white px-2 py-1 text-xs text-ink outline-none focus:border-brand-500 disabled:opacity-50"
+                      >
+                        <option value="">ללא תמונה משויכת</option>
+                        {form.images.map((src, i) => (
+                          <option key={i} value={src}>תמונה {i + 1}</option>
+                        ))}
+                      </select>
+
+                      <button
+                        type="button"
+                        onClick={() => removeColor(c.hex)}
+                        aria-label={`הסרת ${c.hex}`}
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-ink-light hover:bg-black/10 hover:text-red-500"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mb-3 text-xs text-ink-light">לא נבחרו צבעים. בחרו צבע למטה והוסיפו אותו לרשימה.</p>
+              )}
+
+              <ColorPicker value={draftColor} onChange={setDraftColor} />
+
+              <button
+                type="button"
+                onClick={addColor}
+                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-brand-500 bg-white py-2 text-sm font-semibold text-brand-600 transition hover:bg-brand-50"
+              >
+                <Plus size={16} /> הוספת הצבע לרשימה
+              </button>
+            </div>
+          )}
+
+          {/* Inventory — products only */}
+          {isService ? (
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={form.inStock}
+                onChange={(e) => set('inStock', e.target.checked)}
+                className="h-4 w-4 accent-brand-500"
+              />
+              זמין לתיקון
+            </label>
+          ) : (
+            <Row label="כמות במלאי">
+              <input
+                type="number"
+                min="0"
+                value={form.stock}
+                onChange={(e) => set('stock', e.target.value)}
+                className={inputCls}
+              />
+            </Row>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-black/10 px-4 py-2 text-sm font-semibold text-ink hover:bg-black/5"
+            >
+              ביטול
+            </button>
+            <button
+              type="submit"
+              className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600"
+            >
+              <Save size={16} /> שמירה
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+const inputCls =
+  'w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30'
+
+function Row({ label, children }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-semibold text-ink-light">{label}</span>
+      {children}
+    </label>
+  )
+}

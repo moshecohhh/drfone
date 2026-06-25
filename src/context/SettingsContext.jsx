@@ -1,0 +1,243 @@
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
+import { BUSINESS } from '../data/business.js'
+import { PAYMENT_METHODS, DELIVERY_METHODS, ORDER_STATUSES } from '../data/orderMeta.js'
+import { kvLoadAll, kvSave } from '../lib/kv.js'
+import { supabase } from '../lib/supabase.js'
+import { useAuth } from './AuthContext.jsx'
+
+// ---------------------------------------------------------------------------
+// Editable CONSUMER-SIDE settings (storefront / checkout): business details,
+// payment/delivery methods, order statuses, ad banner, home content. Persisted
+// to Supabase (app_state: public read, master-admin write). Contact-form
+// inquiries live in their own `inquiries` table (anyone submits, admin reads).
+// ---------------------------------------------------------------------------
+
+const DEFAULT_ADS = { enabled: false, rotateSeconds: 5, slides: [] }
+
+const DEFAULT_HOME = {
+  hiddenCats: [],
+  reviews: [
+    { id: 'rv1', name: 'משה כ.', rating: 5, text: 'שירות מעולה ומחירים הוגנים. תיקנו לי את המסך תוך שעה!' },
+    { id: 'rv2', name: 'יוסי ל.', rating: 5, text: 'קניתי מכשיר כשר, הכל הוסבר בסבלנות. ממליץ בחום.' },
+    { id: 'rv3', name: 'דבורה מ.', rating: 5, text: 'הזמנתי אונליין והגיע מהר עם משלוח עד הבית. מרוצה מאוד.' },
+  ],
+}
+
+const DEFAULTS = {
+  name: BUSINESS.name,
+  address: BUSINESS.address,
+  whatsappDisplay: BUSINESS.whatsappDisplay,
+  whatsappIntl: BUSINESS.whatsappIntl,
+}
+
+const uid = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+
+const rowToInquiry = (row) => ({ id: row.id, read: row.read, createdAt: row.created_at, ...(row.data || {}) })
+
+const SettingsContext = createContext(null)
+
+export function SettingsProvider({ children }) {
+  const { isMaster } = useAuth()
+  const [settings, setSettings] = useState(DEFAULTS)
+  const [paymentMethods, setPaymentMethods] = useState(PAYMENT_METHODS)
+  const [deliveryMethods, setDeliveryMethods] = useState(DELIVERY_METHODS)
+  const [orderStatuses, setOrderStatuses] = useState(ORDER_STATUSES)
+  const [ads, setAds] = useState(DEFAULT_ADS)
+  const [home, setHome] = useState(DEFAULT_HOME)
+  const [inquiries, setInquiries] = useState([])
+  const [loaded, setLoaded] = useState(false)
+
+  // Load the public app_state collections (falls back to defaults until saved).
+  useEffect(() => {
+    let active = true
+    kvLoadAll('app_state').then((m) => {
+      if (!active) return
+      if (m.settings) setSettings({ ...DEFAULTS, ...m.settings })
+      if (Array.isArray(m.payments)) setPaymentMethods(m.payments)
+      if (Array.isArray(m.deliveries)) setDeliveryMethods(m.deliveries)
+      if (Array.isArray(m.orderStatuses)) setOrderStatuses(m.orderStatuses)
+      if (m.ads) setAds({ ...DEFAULT_ADS, ...m.ads })
+      if (m.home) setHome({ ...DEFAULT_HOME, ...m.home })
+      setLoaded(true)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // Persist each collection on change — only the master admin writes (RLS).
+  useEffect(() => { if (loaded && isMaster) kvSave('app_state', 'settings', settings) }, [settings, loaded, isMaster])
+  useEffect(() => { if (loaded && isMaster) kvSave('app_state', 'payments', paymentMethods) }, [paymentMethods, loaded, isMaster])
+  useEffect(() => { if (loaded && isMaster) kvSave('app_state', 'deliveries', deliveryMethods) }, [deliveryMethods, loaded, isMaster])
+  useEffect(() => { if (loaded && isMaster) kvSave('app_state', 'orderStatuses', orderStatuses) }, [orderStatuses, loaded, isMaster])
+  useEffect(() => { if (loaded && isMaster) kvSave('app_state', 'ads', ads) }, [ads, loaded, isMaster])
+  useEffect(() => { if (loaded && isMaster) kvSave('app_state', 'home', home) }, [home, loaded, isMaster])
+
+  // Inquiries: the master admin loads them all (RLS hides them from everyone else).
+  useEffect(() => {
+    if (!isMaster) {
+      setInquiries([])
+      return
+    }
+    let active = true
+    supabase
+      .from('inquiries')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (active) setInquiries((data || []).map(rowToInquiry))
+      })
+    return () => {
+      active = false
+    }
+  }, [isMaster])
+
+  const updateSettings = useCallback((patch) => setSettings((s) => ({ ...s, ...patch })), [])
+
+  // ---- Home page (showcase visibility + reviews) ----
+  const toggleCategoryHidden = useCallback((catId) => {
+    setHome((h) => {
+      const hidden = h.hiddenCats.includes(catId)
+        ? h.hiddenCats.filter((c) => c !== catId)
+        : [...h.hiddenCats, catId]
+      return { ...h, hiddenCats: hidden }
+    })
+  }, [])
+  const addReview = useCallback(
+    (data = {}) =>
+      setHome((h) => ({
+        ...h,
+        reviews: [...h.reviews, { id: uid('rv'), name: '', rating: 5, text: '', ...data }],
+      })),
+    [],
+  )
+  const updateReview = useCallback(
+    (id, patch) => setHome((h) => ({ ...h, reviews: h.reviews.map((r) => (r.id === id ? { ...r, ...patch } : r)) })),
+    [],
+  )
+  const deleteReview = useCallback(
+    (id) => setHome((h) => ({ ...h, reviews: h.reviews.filter((r) => r.id !== id) })),
+    [],
+  )
+
+  // ---- Contact inquiries (from the home-page form) ----
+  const addInquiry = useCallback((data) => {
+    const id = uid('inq')
+    const inquiry = { id, createdAt: new Date().toISOString(), read: false, ...data }
+    setInquiries((prev) => [inquiry, ...prev]) // optimistic (admin only ever views these)
+    supabase.from('inquiries').insert({ id, read: false, data }).then(({ error }) => {
+      if (error) console.warn('[inquiries] add failed:', error.message)
+    })
+    return inquiry
+  }, [])
+  const markInquiryRead = useCallback((id, read = true) => {
+    setInquiries((prev) => prev.map((i) => (i.id === id ? { ...i, read } : i)))
+    supabase.from('inquiries').update({ read }).eq('id', id).then(() => {})
+  }, [])
+  const deleteInquiry = useCallback((id) => {
+    setInquiries((prev) => prev.filter((i) => i.id !== id))
+    supabase.from('inquiries').delete().eq('id', id).then(() => {})
+  }, [])
+
+  // ---- Ad banner ----
+  const updateAds = useCallback((patch) => setAds((a) => ({ ...a, ...patch })), [])
+  const addAdSlide = useCallback(
+    (slide = {}) =>
+      setAds((a) => ({
+        ...a,
+        slides: [
+          ...a.slides,
+          { id: uid('ad'), image: '', linkType: 'none', link: '', targetId: '', start: '', end: '', enabled: true, ...slide },
+        ],
+      })),
+    [],
+  )
+  const updateAdSlide = useCallback(
+    (id, patch) => setAds((a) => ({ ...a, slides: a.slides.map((s) => (s.id === id ? { ...s, ...patch } : s)) })),
+    [],
+  )
+  const removeAdSlide = useCallback(
+    (id) => setAds((a) => ({ ...a, slides: a.slides.filter((s) => s.id !== id) })),
+    [],
+  )
+
+  // Generic add/rename/delete for a label list. `extra(prev)` adds default props.
+  const makeOps = (setter, prefix, extra) => ({
+    add: (label) => {
+      if (!label.trim()) return
+      setter((prev) => [...prev, { id: uid(prefix), label: label.trim(), ...(extra ? extra() : {}) }])
+    },
+    update: (id, label) => {
+      if (!label.trim()) return
+      setter((prev) => prev.map((x) => (x.id === id ? { ...x, label: label.trim() } : x)))
+    },
+    remove: (id) => setter((prev) => prev.filter((x) => x.id !== id)),
+  })
+
+  const payments = useMemo(() => makeOps(setPaymentMethods, 'pay', () => ({ hint: '' })), [])
+  const deliveries = useMemo(() => makeOps(setDeliveryMethods, 'del', () => ({ hint: '' })), [])
+  const orderStatusOps = useMemo(
+    () => makeOps(setOrderStatuses, 'ostat', () => ({ color: 'bg-slate-100 text-slate-700' })),
+    [],
+  )
+
+  const mapsLink = useMemo(
+    () => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(settings.address)}`,
+    [settings.address],
+  )
+  const wazeLink = useMemo(
+    () => `https://waze.com/ul?q=${encodeURIComponent(settings.address)}&navigate=yes`,
+    [settings.address],
+  )
+  const waLink = useCallback(
+    (message) => {
+      const base = `https://wa.me/${settings.whatsappIntl}`
+      return message ? `${base}?text=${encodeURIComponent(message)}` : base
+    },
+    [settings.whatsappIntl],
+  )
+
+  const value = {
+    settings,
+    updateSettings,
+    // ad banner
+    ads,
+    updateAds,
+    addAdSlide,
+    updateAdSlide,
+    removeAdSlide,
+    // home page content
+    home,
+    toggleCategoryHidden,
+    addReview,
+    updateReview,
+    deleteReview,
+    // contact inquiries
+    inquiries,
+    addInquiry,
+    markInquiryRead,
+    deleteInquiry,
+    mapsLink,
+    wazeLink,
+    waLink,
+    // editable consumer lists
+    paymentMethods,
+    deliveryMethods,
+    orderStatuses,
+    payments, // { add, update, remove }
+    deliveries,
+    orderStatusOps,
+    // label/meta helpers
+    paymentLabel: (id) => paymentMethods.find((p) => p.id === id)?.label || id,
+    deliveryLabel: (id) => deliveryMethods.find((d) => d.id === id)?.label || id,
+    orderStatusMeta: (id) =>
+      orderStatuses.find((s) => s.id === id) || orderStatuses[0] || { label: id, color: 'bg-black/10 text-ink' },
+  }
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>
+}
+
+export function useSettings() {
+  const ctx = useContext(SettingsContext)
+  if (!ctx) throw new Error('useSettings must be used within a <SettingsProvider>')
+  return ctx
+}

@@ -1,0 +1,287 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-white text-black font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbar for horizontal filter strips on mobile */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Smooth, UNIFIED light/dark switch. The `theme-transition` class is added to
+   <html> only while toggling, so every element animates its colors together
+   with one duration and no delay — then it's removed so normal interactions
+   stay snappy. */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  /* Short + only the cheap color properties (no box-shadow) so the switch is
+     snappy and jank-free even on the product-heavy storefront. */
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease,
+    fill 160ms ease, stroke 160ms ease !important;
+  transition-delay: 0ms !important;
+}
+
+/* ===========================================================================
+   ACCESSIBILITY widget adjustments (toggled via classes on <html>).
+   =========================================================================== */
+html.a11y-links a {
+  text-decoration: underline !important;
+  text-underline-offset: 2px;
+  outline: 1px dashed currentColor;
+  outline-offset: 2px;
+}
+html.a11y-readable,
+html.a11y-readable * {
+  font-family: Arial, 'Segoe UI', Tahoma, sans-serif !important;
+  letter-spacing: 0.03em !important;
+  line-height: 1.7 !important;
+}
+html.a11y-no-motion *,
+html.a11y-no-motion *::before,
+html.a11y-no-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+html.a11y-big-cursor,
+html.a11y-big-cursor * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24'%3E%3Cpath fill='black' stroke='white' stroke-width='1.5' d='M5 2l13 7-5.5 1.2L9 18z'/%3E%3C/svg%3E") 4 2, auto !important;
+}
+.a11y-guide-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 16px;
+  transform: translateY(-50%);
+  background: rgba(250, 204, 21, 0.28);
+  border-top: 2px solid #f59e0b;
+  border-bottom: 2px solid #f59e0b;
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* Live "draw the pattern" animation (used by PatternReplay).
+   Progressively reveals the line, holds, then loops. */
+@keyframes drawPattern {
+  0% {
+    stroke-dashoffset: var(--pl);
+  }
+  60% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ===========================================================================
+   LIQUID GLASS — domain switch (חנות ⇄ מעבדה)
+   Apple-style glassy treatment: a glossy top sheen, a specular "lens" that
+   follows the pointer, and a 3-second shine-sweep + glow intro that runs when
+   the home view loads so users notice the control is tappable.
+   =========================================================================== */
+.glass-switch {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  /* Persistent glass material: a crisp top rim-light, a faint inner edge, soft
+     inner depth at the bottom and a gentle drop — so the whole switch always
+     reads as a polished glass capsule (like an iOS toggle). */
+  --glass-rim:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.85),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3),
+    inset 0 -7px 12px -8px rgba(0, 0, 0, 0.12),
+    0 2px 7px rgba(0, 0, 0, 0.09);
+  box-shadow: var(--glass-rim);
+}
+
+/* Permanent glossy sheen across the top — reads as a glass surface. */
+.glass-switch::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 48%);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Specular lens — brightens where the cursor is, and follows it via --gx/--gy. */
+.glass-switch::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    5.5rem circle at var(--gx, 50%) var(--gy, 50%),
+    rgba(255, 255, 255, 0.6),
+    rgba(255, 255, 255, 0.24) 38%,
+    transparent 66%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 3;
+}
+.glass-switch:hover::before { opacity: 1; }
+
+/* Keep the switch tabs (text + active pill) above the sheen but below the lens. */
+.glass-switch > button { z-index: 2; }
+
+/* Glossy (NOT frosted) glass on hover — a clear, shiny surface with a bright
+   specular rim, like the iOS folder glass. No backdrop blur. Self-contained so
+   it works on the switch tabs AND the category chips. */
+.glass-tab,
+.glass-sheen {
+  position: relative;
+  overflow: hidden; /* keep the gloss sheen inside the pill */
+}
+/* `.glass-tab` = gloss + bright box-shadow rim (pills/chips).
+   `.glass-sheen` = gloss only, no box-shadow — for hosts that already use a
+   `ring` (box-shadow) of their own, e.g. the brand circles. */
+.glass-tab::before,
+.glass-sheen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  /* Top-down reflection: bright at the top, a thin mid dip, a soft bottom bounce. */
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0.14) 40%,
+    rgba(255, 255, 255, 0.03) 58%,
+    rgba(255, 255, 255, 0.22) 100%
+  );
+}
+.glass-tab:hover::before,
+.glass-sheen:hover::before { opacity: 1; }
+.glass-tab:hover {
+  /* Bright glossy rim: crisp top highlight, a light edge, a lower bounce and a
+     soft drop — reads as polished glass catching the light. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    inset 0 -7px 10px -7px rgba(255, 255, 255, 0.5),
+    0 5px 14px rgba(0, 0, 0, 0.14);
+}
+/* Inactive tab is see-through glass; the active (teal) tab keeps its colour
+   under the gloss so it still reads as selected. */
+/* Only the switch's transparent inactive tab gets a faint clear fill; category
+   chips keep their own background (white/orange) under the gloss. */
+.glass-switch .glass-tab[aria-pressed='false']:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Travelling shine bar — only animated during the intro. */
+.glass-sweep {
+  position: absolute;
+  top: -10%;
+  bottom: -10%;
+  width: 40%;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.85), transparent);
+  filter: blur(2px);
+}
+
+@keyframes glassSweep {
+  0%   { transform: translateX(-160%) skewX(-16deg); opacity: 0; }
+  12%  { opacity: 0.95; }
+  55%  { opacity: 0.95; }
+  100% { transform: translateX(280%) skewX(-16deg); opacity: 0; }
+}
+@keyframes glassGlow {
+  0%, 100% { box-shadow: var(--glass-rim), 0 0 0 0 rgba(20, 184, 166, 0); }
+  50%      { box-shadow: var(--glass-rim), 0 0 20px 3px rgba(20, 184, 166, 0.45); }
+}
+/* 3 seconds total = two 1.5s passes. */
+.glass-intro .glass-sweep { animation: glassSweep 1.5s ease-in-out 2; }
+.glass-intro { animation: glassGlow 1.5s ease-in-out 2; }
+
+/* ===========================================================================
+   DARK MODE
+   The app uses neutral utilities (bg-white, text-ink, border-black/x ...).
+   These `.dark .<util>` rules have higher specificity than the single-class
+   utilities, so they cleanly remap the neutral palette without touching the
+   brand (teal) colors. Overlays (bg-black/40, /50) intentionally stay dark.
+   =========================================================================== */
+.dark body {
+  background-color: #0f1417;
+  color: #e7eaeb;
+}
+
+/* Surfaces */
+.dark .bg-white { background-color: #181f23; }
+.dark .bg-white\/90 { background-color: rgba(24, 31, 35, 0.9); }
+.dark .bg-white\/95 { background-color: rgba(24, 31, 35, 0.95); }
+.dark .bg-white\/70 { background-color: rgba(24, 31, 35, 0.7); }
+.dark .bg-brand-50 { background-color: #15201f; }
+.dark .bg-brand-50\/30 { background-color: rgba(21, 32, 31, 0.4); }
+.dark .bg-brand-50\/40 { background-color: rgba(21, 32, 31, 0.5); }
+.dark .bg-brand-50\/60 { background-color: rgba(21, 32, 31, 0.6); }
+.dark .bg-brand-50\/70 { background-color: rgba(21, 32, 31, 0.7); }
+.dark .bg-brand-100 { background-color: #18302e; }
+
+/* Subtle black tints -> light tints (hover states etc.) */
+.dark .bg-black\/5 { background-color: rgba(255, 255, 255, 0.06); }
+.dark .bg-black\/10 { background-color: rgba(255, 255, 255, 0.1); }
+.dark .bg-black\/15 { background-color: rgba(255, 255, 255, 0.18); }
+
+/* Text */
+.dark .text-black { color: #e7eaeb; }
+.dark .text-ink { color: #e7eaeb; }
+.dark .text-ink-light { color: #9aa6ab; }
+.dark .text-ink-light\/80 { color: rgba(154, 166, 171, 0.8); }
+.dark .text-ink-light\/70 { color: rgba(154, 166, 171, 0.7); }
+.dark .text-ink-light\/50 { color: rgba(154, 166, 171, 0.5); }
+.dark .text-black\/70 { color: rgba(231, 234, 235, 0.7); }
+.dark .text-black\/60 { color: rgba(231, 234, 235, 0.6); }
+.dark .text-black\/50 { color: rgba(231, 234, 235, 0.5); }
+.dark .text-black\/40 { color: rgba(231, 234, 235, 0.4); }
+.dark .text-black\/30 { color: rgba(231, 234, 235, 0.3); }
+.dark .text-black\/20 { color: rgba(231, 234, 235, 0.2); }
+
+/* Borders / dividers / rings */
+.dark .border-black\/5 { border-color: rgba(255, 255, 255, 0.07); }
+.dark .border-black\/10 { border-color: rgba(255, 255, 255, 0.12); }
+.dark .divide-black\/5 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255, 255, 255, 0.07); }
+.dark .ring-black\/5 { --tw-ring-color: rgba(255, 255, 255, 0.07); }
+.dark .ring-black\/10 { --tw-ring-color: rgba(255, 255, 255, 0.12); }
+
+/* Gradients (card placeholders, auth background) */
+.dark .from-brand-50 {
+  --tw-gradient-from: #15201f var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(21 32 31 / 0) var(--tw-gradient-to-position);
+}
+.dark .to-brand-100 { --tw-gradient-to: #18302e var(--tw-gradient-to-position); }
+.dark .to-white { --tw-gradient-to: #181f23 var(--tw-gradient-to-position); }
+
+/* Form controls */
+.dark ::placeholder { color: rgba(154, 166, 171, 0.6); }
+.dark input,
+.dark textarea,
+.dark select { color: #e7eaeb; }
+.dark select option { background-color: #181f23; color: #e7eaeb; }

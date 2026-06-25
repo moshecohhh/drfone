@@ -1,0 +1,106 @@
+import { MapPin, Phone, Store, Wrench } from 'lucide-react'
+import { useSettings } from '../context/SettingsContext.jsx'
+import Logo from './Logo.jsx'
+
+export default function Footer() {
+  const { settings, waLink, mapsLink, wazeLink } = useSettings()
+  return (
+    <footer className="mt-16 border-t border-black/10 bg-black text-white">
+      <div className="grid w-full gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-3 xl:px-[3cm]">
+        {/* Brand */}
+        <div>
+          <div className="inline-flex rounded-xl bg-white p-3">
+            <Logo className="h-16" withLink={false} />
+          </div>
+          <p className="mt-3 max-w-xs text-sm text-white/60">
+            חנות מכשירים כשרים ומסוננים, לצד מעבדה מקצועית לתיקון סמארטפונים בכל הרמות.
+          </p>
+        </div>
+
+        {/* What we do */}
+        <div>
+          <h4 className="mb-3 text-sm font-bold uppercase tracking-wide text-brand-400">
+            מה אנחנו מציעים
+          </h4>
+          <ul className="space-y-2 text-sm text-white/70">
+            <li className="flex items-center gap-2">
+              <Store size={16} className="text-brand-400" /> חנות: מכשירים כשרים, תומכי כשר ומסוננים
+            </li>
+            <li className="flex items-center gap-2">
+              <Wrench size={16} className="text-brand-400" /> מעבדה: מסכים, סוללות, שקעים ותיקוני לוח
+            </li>
+          </ul>
+        </div>
+
+        {/* Contact */}
+        <div>
+          <h4 className="mb-3 text-sm font-bold uppercase tracking-wide text-brand-400">
+            צרו קשר
+          </h4>
+          <ul className="space-y-2 text-sm text-white/70">
+            <li className="flex flex-col gap-1">
+              <a
+                href={mapsLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 transition hover:text-brand-400"
+                title="ניווט בגוגל מפות"
+              >
+                <MapPin size={16} className="text-brand-400" /> {settings.address}
+              </a>
+              <span className="flex gap-3 pr-6 text-xs text-white/50">
+                <a href={mapsLink} target="_blank" rel="noopener noreferrer" className="hover:text-brand-400">
+                  Google Maps
+                </a>
+                <a href={wazeLink} target="_blank" rel="noopener noreferrer" className="hover:text-brand-400">
+                  Waze
+                </a>
+              </span>
+            </li>
+            <li>
+              <a
+                href={waLink('שלום, אשמח לקבל פרטים')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 transition hover:text-brand-400"
+              >
+                <Phone size={16} className="text-brand-400" /> {settings.whatsappDisplay}
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      {/* Location map */}
+      <div className="border-t border-white/10">
+        <div className="w-full px-4 py-8 xl:px-[3cm]">
+          <h4 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-brand-400">
+            <MapPin size={16} /> המיקום שלנו
+          </h4>
+          <div className="overflow-hidden rounded-2xl border border-white/10">
+            <iframe
+              title="מפת מיקום העסק"
+              src="https://maps.google.com/maps?q=31.938305,35.046213&z=16&hl=he&output=embed"
+              className="h-64 w-full"
+              style={{ border: 0 }}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
+          <a
+            href="https://www.google.com/maps/search/?api=1&query=31.938305,35.046213"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-block text-xs text-white/50 hover:text-brand-400"
+          >
+            פתיחת ניווט בגוגל מפות ←
+          </a>
+        </div>
+      </div>
+
+      <div className="border-t border-white/10 py-4 text-center text-xs text-white/40">
+        © {new Date().getFullYear()} {settings.name} · כל הזכויות שמורות
+      </div>
+    </footer>
+  )
+}

@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm -v)",
+      "PowerShell(node -v)",
+      "PowerShell(npm -v)",
+      "PowerShell(npx -v)",
+      "PowerShell($paths = @\\(\"$env:ProgramFiles\\\\nodejs\\\\node.exe\", \"${env:ProgramFiles\\(x86\\)}\\\\nodejs\\\\node.exe\", \"$env:LOCALAPPDATA\\\\Programs\\\\nodejs\\\\node.exe\", \"$env:APPDATA\\\\npm\\\\node.exe\"\\); foreach \\($p in $paths\\) { if \\(Test-Path $p\\) { Write-Output \"FOUND: $p\" } }; Get-Command winget -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)",
+      "PowerShell($node = \"$env:ProgramFiles\\\\nodejs\"; & \"$node\\\\node.exe\" -v; & \"$node\\\\npm.cmd\" -v)",
+      "PowerShell($env:Path = \"$env:ProgramFiles\\\\nodejs;\" + $env:Path; npm install --no-fund --no-audit)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 1; Write-Output \"killed node\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm install *)",
+      "Bash(node -e \"const fs=require\\('fs'\\);const s=fs.readFileSync\\('src/data/brands.js','utf8'\\); const m=s.match\\(/data:image[^'\\\\\"\\)]+/g\\)||[]; console.log\\('base64 logos:', m.length\\); m.forEach\\(\\(x,i\\)=>console.log\\(i, x.length, 'chars'\\)\\); console.log\\('total file chars:', s.length\\);\")",
+      "Bash(npm run *)",
+      "Bash(npm i *)",
+      "Bash(vercel --version)",
+      "Bash(ls -la .vercel)",
+      "Bash(ls -la /d/Documents/.vercel)",
+      "Bash(ls -la /d/.vercel)",
+      "Bash(find /d/Documents -maxdepth 2 -name \"project.json\" -path \"*/.vercel/*\")",
+      "Bash(curl -s -o /dev/null -w \"status=%{http_code} size=%{size_download}\\\\n\" https://drfone.vercel.app/)",
+      "Bash(curl -s -o /dev/null -w \"status=%{http_code}\\\\n\" https://drfone.vercel.app/admin)",
+      "Bash(curl -s https://drfone.vercel.app/)",
+      "Bash(git --version)",
+      "Bash(gh --version)",
+      "Bash(gh auth *)",
+      "Bash(git init *)",
+      "Bash(git config *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(grep -E \"node_modules|\\\\.env$|^dist/\")"
+    ]
+  }
+}
