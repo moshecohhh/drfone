@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { UserPlus, User, Mail, Lock, Phone } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { savePasswordCredential } from '../utils/credentials.js'
-import { emailIssue, passwordIssue, isValidMobileIL, sanitizePhone } from '../utils/validation.js'
+import { emailIssue, passwordIssue, isValidMobileIL, sanitizePhone, nameIssue } from '../utils/validation.js'
 import { AuthShell, Field, FormError } from './Login.jsx'
 
 export default function Register() {
@@ -23,6 +23,8 @@ export default function Register() {
   }
 
   // Live, per-field problems — surfaced in red once a field has any content.
+  const firstNameErr = form.firstName.trim() ? nameIssue(form.firstName) : null
+  const lastNameErr = form.lastName.trim() ? nameIssue(form.lastName) : null
   const emailErr = form.email.trim() ? emailIssue(form.email) : null
   const phoneErr =
     form.phone.trim() && !isValidMobileIL(form.phone)
@@ -35,9 +37,10 @@ export default function Register() {
     e.preventDefault()
     setError('')
     setNotice('')
-    if (!form.firstName.trim() || !form.lastName.trim()) {
-      return setError('יש להזין שם פרטי ושם משפחה.')
-    }
+    const fErr = nameIssue(form.firstName)
+    if (fErr) return setError('שם פרטי: ' + fErr)
+    const lErr = nameIssue(form.lastName)
+    if (lErr) return setError('שם משפחה: ' + lErr)
     if (!isValidMobileIL(form.phone)) {
       return setError('יש להזין מספר נייד תקין (מתחיל ב-05, 10 ספרות).')
     }
@@ -81,24 +84,33 @@ export default function Register() {
         {notice && (
           <div className="rounded-xl bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700">{notice}</div>
         )}
-        <div className="grid grid-cols-2 gap-3">
-          <Field
-            icon={User}
-            name="firstName"
-            type="text"
-            placeholder="שם פרטי"
-            value={form.firstName}
-            onChange={onChange}
-            autoComplete="given-name"
-          />
-          <Field
-            name="lastName"
-            type="text"
-            placeholder="שם משפחה"
-            value={form.lastName}
-            onChange={onChange}
-            autoComplete="family-name"
-          />
+        <div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              icon={User}
+              name="firstName"
+              type="text"
+              placeholder="שם פרטי"
+              value={form.firstName}
+              onChange={onChange}
+              autoComplete="given-name"
+              invalid={!!firstNameErr}
+            />
+            <Field
+              name="lastName"
+              type="text"
+              placeholder="שם משפחה"
+              value={form.lastName}
+              onChange={onChange}
+              autoComplete="family-name"
+              invalid={!!lastNameErr}
+            />
+          </div>
+          {(firstNameErr || lastNameErr) && (
+            <p className="mt-1 text-xs font-medium text-red-600">
+              {firstNameErr ? 'שם פרטי: ' + firstNameErr : 'שם משפחה: ' + lastNameErr}
+            </p>
+          )}
         </div>
 
         <div>

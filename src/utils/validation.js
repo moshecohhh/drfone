@@ -41,10 +41,13 @@ const PROVIDER_TYPOS = {
 }
 
 // Returns a Hebrew problem string if the email looks wrong, or null if it's OK.
-// Catches bad structure, unknown TLDs (e.g. ".con") and common provider typos.
+// Catches non-English characters, bad structure, unknown TLDs (e.g. ".con") and
+// common provider typos.
 export function emailIssue(v) {
   const s = String(v ?? '').trim()
   if (!s) return 'יש להזין כתובת אימייל.'
+  // Email must be plain ASCII — Hebrew (or any non-English) characters are invalid.
+  if (/[^\x20-\x7E]/.test(s)) return 'כתובת האימייל יכולה לכלול אותיות באנגלית ומספרים בלבד.'
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return 'כתובת האימייל אינה תקינה.'
   const domain = s.split('@')[1].toLowerCase()
   const labels = domain.split('.')
@@ -56,6 +59,15 @@ export function emailIssue(v) {
 }
 
 export const isValidEmail = (v) => emailIssue(v) === null
+
+// A name field must hold at least 2 letters and contain no digits.
+export function nameIssue(v) {
+  const s = String(v ?? '').trim()
+  if (!s) return 'שדה חובה.'
+  if (/\d/.test(s)) return 'השם אינו יכול לכלול מספרים.'
+  if ((s.match(/\p{L}/gu) || []).length < 2) return 'יש להזין לפחות 2 אותיות.'
+  return null
+}
 
 // Passwords that are too easy to guess. We block the truly trivial ones
 // (sequences, all-identical, well-known passwords) but still permit merely weak

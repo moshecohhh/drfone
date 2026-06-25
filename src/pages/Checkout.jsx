@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  User, Phone, MapPin, CreditCard, Smartphone, Headset, CheckCircle2, ArrowRight, AlertCircle,
+  User, Phone, Mail, MapPin, CreditCard, Smartphone, Headset, CheckCircle2, ArrowRight, AlertCircle,
 } from 'lucide-react'
 import { DOMAINS } from '../context/AppContext.jsx'
 import { useCart } from '../context/CartContext.jsx'
@@ -9,7 +9,7 @@ import { useOrders } from '../context/OrdersContext.jsx'
 import { useCatalogStore } from '../context/CatalogContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
-import { sanitizePhone, isValidPhone, luhnValid } from '../utils/validation.js'
+import { sanitizePhone, isValidPhone, luhnValid, emailIssue } from '../utils/validation.js'
 import Logo from '../components/Logo.jsx'
 
 // Known payment ids get a matching icon; custom ones fall back to a wallet.
@@ -27,6 +27,7 @@ export default function Checkout() {
 
   const [form, setForm] = useState({
     name: user?.name || '',
+    email: user?.email || '',
     phone: '',
     address: '',
     delivery: deliveryMethods[0]?.id || 'pickup',
@@ -91,6 +92,12 @@ export default function Checkout() {
     // Validation — fully bypassed for the master admin account.
     if (!bypass) {
       if (!form.name.trim()) return setError('שם מלא הוא שדה חובה.')
+      // Guests must supply a valid email — it's where the invoice and the
+      // order-tracking link are sent.
+      if (!user) {
+        const eErr = emailIssue(form.email)
+        if (eErr) return setError(eErr)
+      }
       if (!isValidPhone(form.phone)) return setError('יש להזין מספר טלפון תקין (10 ספרות).')
       if (form.delivery === 'delivery' && !form.address.trim()) return setError('יש להזין כתובת למשלוח.')
       if (form.payment === 'credit' && !luhnValid(form.cardNumber)) {
@@ -103,7 +110,7 @@ export default function Checkout() {
         name: form.name,
         phone: form.phone,
         address: form.address,
-        email: user?.email || null,
+        email: user?.email || form.email.trim() || null,
       },
       delivery: form.delivery,
       payment: form.payment,
@@ -139,6 +146,32 @@ export default function Checkout() {
           {/* Customer details */}
           <Section title="פרטי לקוח">
             <Field icon={User} label="שם מלא" required value={form.name} onChange={(v) => set('name', v)} />
+            {/* Guests must leave an email — for the invoice and order tracking. */}
+            {!user && (
+              <div>
+                <Field
+                  icon={Mail}
+                  label="אימייל (לקבלת חשבונית ומעקב אחר ההזמנה)"
+                  type="email"
+                  dir="ltr"
+                  required
+                  value={form.email}
+                  onChange={(v) => set('email', v)}
+                />
+                {form.email.trim() && !form.email.includes('@') && (
+                  <button
+                    type="button"
+                    onClick={() => set('email', `${form.email}@gmail.com`)}
+                    className="mt-1 text-xs font-medium text-brand-600 hover:underline"
+                  >
+                    הוספת ‎@gmail.com‎
+                  </button>
+                )}
+                {form.email.trim() && emailIssue(form.email) && (
+                  <p className="mt-1 text-xs font-medium text-red-600">{emailIssue(form.email)}</p>
+                )}
+              </div>
+            )}
             <Field
               icon={Phone}
               label="טלפון"
