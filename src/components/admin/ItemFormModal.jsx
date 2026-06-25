@@ -21,7 +21,8 @@ const emptyItem = {
   images: [],
   inStock: true,
   colors: [],
-  tag: '', // '' | 'deal' | 'importer'  (visual product stamp)
+  tag: '', // '' | 'deal' | 'importer' | 'custom'  (visual product stamp)
+  tagImage: '', // round-image used when tag === 'custom'
 }
 
 // Colors may have been persisted as plain hex strings by an earlier build;
@@ -41,6 +42,17 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
   const [draftColor, setDraftColor] = useState('#3B82F6')
   const [urlDraft, setUrlDraft] = useState('')
   const fileRef = useRef(null)
+  const tagFileRef = useRef(null)
+
+  // Pick an image for the custom round tag → enables the 'custom' tag.
+  const onTagFile = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setForm((f) => ({ ...f, tagImage: reader.result, tag: 'custom' }))
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
 
   useEffect(() => {
     if (item) {
@@ -304,6 +316,38 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
                   </span>
                   <Switch checked={form.tag === 'importer'} onChange={(v) => set('tag', v ? 'importer' : '')} label="תג יבואן רשמי" />
                 </label>
+
+                {/* Custom round-image tag — pick a photo/logo for a circular badge. */}
+                <div className="flex items-center justify-between rounded-lg border border-black/10 bg-white px-3 py-2">
+                  <span className="flex items-center gap-2 text-sm font-medium text-ink">
+                    <button
+                      type="button"
+                      onClick={() => tagFileRef.current?.click()}
+                      title="בחירת תמונה לתג"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-black/25 text-ink-light transition hover:border-brand-400 hover:text-brand-600"
+                    >
+                      {form.tagImage ? (
+                        <img src={form.tagImage} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <Plus size={16} />
+                      )}
+                    </button>
+                    תג תמונה עגול
+                  </span>
+                  <Switch
+                    checked={form.tag === 'custom'}
+                    onChange={(v) => {
+                      if (v) {
+                        if (form.tagImage) set('tag', 'custom')
+                        else tagFileRef.current?.click()
+                      } else {
+                        set('tag', '')
+                      }
+                    }}
+                    label="תג תמונה עגול"
+                  />
+                </div>
+                <input ref={tagFileRef} type="file" accept="image/*" onChange={onTagFile} className="hidden" />
               </div>
             </div>
           )}

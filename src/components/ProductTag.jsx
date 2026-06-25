@@ -1,9 +1,19 @@
 import { BadgeCheck, Flame } from 'lucide-react'
 
-// Visual product stamp shown on a product card. Either an "official importer"
-// seal (blue, stamp-like) or a "deal" tag (red). Our own design — inspired by
-// the classic importer rubber-stamp look.
-export default function ProductTag({ tag, className = '' }) {
+// Visual product stamp shown on a product card. One of: an "official importer"
+// seal (blue, stamp-like), a "deal" tag (red), or a custom round image badge
+// (admin-supplied logo/photo). Our own design — inspired by the classic
+// importer rubber-stamp look.
+export default function ProductTag({ tag, image = '', className = '' }) {
+  if (tag === 'custom' && image) {
+    return (
+      <span
+        className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white shadow-md ring-1 ring-black/10 ${className}`}
+      >
+        <img src={image} alt="" className="h-full w-full object-cover" draggable={false} />
+      </span>
+    )
+  }
   if (tag === 'importer') {
     return (
       <span

@@ -74,9 +74,17 @@ export default function ItemCard({ item, kind }) {
   const available = isService ? item.inStock : stock > 0
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-black/5 bg-white shadow-card transition duration-200 hover:-translate-y-1 hover:shadow-card-hover">
+    <article className="group relative flex h-full flex-col rounded-2xl border border-black/5 bg-white shadow-card transition duration-200 hover:-translate-y-1 hover:shadow-card-hover">
+      {/* Visual product tag (deal / importer / custom round image) — sits at the
+          top of the card and overflows it so half the tag is OUTSIDE the frame. */}
+      {!isService && item.tag && (
+        <div className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1/2">
+          <ProductTag tag={item.tag} image={item.tagImage} />
+        </div>
+      )}
+
       {/* Visual */}
-      <div className="relative flex h-36 items-center justify-center overflow-hidden bg-gradient-to-br from-brand-50 to-brand-100 text-5xl">
+      <div className="relative flex h-36 items-center justify-center overflow-hidden rounded-t-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-5xl">
         {activeImage ? (
           <img src={activeImage} alt={item.name} className="h-full w-full object-cover transition-opacity duration-200" />
         ) : (
@@ -87,8 +95,6 @@ export default function ItemCard({ item, kind }) {
             {item.badge}
           </span>
         )}
-        {/* Visual product tag (deal / official importer) — top-left corner */}
-        {!isService && item.tag && <ProductTag tag={item.tag} className="absolute left-3 top-3 z-10" />}
       </div>
 
       {/* Thumbnail strip (multiple images) */}

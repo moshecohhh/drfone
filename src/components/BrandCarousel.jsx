@@ -93,11 +93,12 @@ export default function BrandCarousel() {
 
   const select = (id) => {
     const next = filters.brand === id ? 'all' : id
-    setBrand(next)
     // The "ראשי" featured view ignores the brand filter, so any pick there
     // (including "הכל") would look like nothing happened. Jump to the full
-    // catalog so the result is always visible — "הכל" works from first load.
+    // catalog FIRST (setCategory also clears the brand) and then apply the
+    // chosen brand — so brand selection from the home view still works.
     if (filters.category === 'home') setCategory('all')
+    setBrand(next)
   }
   // Swallow the click that ends a drag, so dragging doesn't toggle a filter.
   const guardedSelect = (id) => {

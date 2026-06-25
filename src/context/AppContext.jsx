@@ -46,8 +46,11 @@ export function AppProvider({ children }) {
     })
   }, [])
 
+  // Picking a category clears any active brand filter — a fresh category should
+  // show everything in it, not stay narrowed to the previously-selected brand.
+  // (The brand row reorders its calls so selecting a brand still works.)
   const setCategory = useCallback((category) => {
-    setFilters((f) => ({ ...f, category }))
+    setFilters((f) => ({ ...f, category, brand: 'all' }))
   }, [])
 
   const setBrand = useCallback((brand) => {

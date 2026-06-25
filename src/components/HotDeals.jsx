@@ -9,7 +9,7 @@ import ItemCard from './ItemCard.jsx'
 // / arrow scrolling. Below it, a button to the full deals collection.
 export default function HotDeals() {
   const { setCategory } = useApp()
-  const { store } = useCatalogStore()
+  const { store, ready } = useCatalogStore()
   const deals = store.filter((p) => p.deal === true)
 
   const scroller = useRef(null)
@@ -128,7 +128,15 @@ export default function HotDeals() {
         )}
       </div>
 
-      {deals.length === 0 ? (
+      {!ready ? (
+        // Still loading the catalog from the server — show placeholders instead
+        // of the "no deals" message (which would flash before the data arrives).
+        <div className="flex gap-4 overflow-hidden">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <DealSkeleton key={i} />
+          ))}
+        </div>
+      ) : deals.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-black/10 py-14 text-center">
           <Flame size={36} className="text-orange-300" />
           <p className="mt-3 font-semibold text-ink">אין מבצעים חמים כרגע</p>
@@ -143,7 +151,7 @@ export default function HotDeals() {
             onPointerMove={onPointerMove}
             onPointerUp={endDrag}
             onPointerLeave={endDrag}
-            className={`no-scrollbar flex items-stretch gap-4 overflow-x-auto pb-2 ${centered ? 'cursor-default justify-center' : 'cursor-grab active:cursor-grabbing'}`}
+            className={`no-scrollbar flex items-stretch gap-4 overflow-x-auto pb-2 pt-8 ${centered ? 'cursor-default justify-center' : 'cursor-grab active:cursor-grabbing'}`}
           >
             {deals.map((item) => (
               // flex column wrapper → the ItemCard stretches to the full (equal)
@@ -167,5 +175,20 @@ export default function HotDeals() {
         </>
       )}
     </section>
+  )
+}
+
+// Pulsing placeholder card shown while the catalog loads.
+function DealSkeleton() {
+  return (
+    <div className="w-[10.5rem] shrink-0 animate-pulse overflow-hidden rounded-2xl border border-black/5 bg-white shadow-card sm:w-72">
+      <div className="h-36 bg-black/10" />
+      <div className="space-y-2 p-4">
+        <div className="h-4 w-3/4 rounded bg-black/10" />
+        <div className="h-3 w-full rounded bg-black/5" />
+        <div className="h-3 w-1/2 rounded bg-black/5" />
+        <div className="mt-3 h-9 rounded-xl bg-black/10" />
+      </div>
+    </div>
   )
 }

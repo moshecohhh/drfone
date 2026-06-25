@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import Logo from './Logo.jsx'
 import DomainSwitch from './DomainSwitch.jsx'
 import SearchBar from './SearchBar.jsx'
@@ -7,6 +8,15 @@ import CartButton from './CartButton.jsx'
 import ThemeToggle from './ThemeToggle.jsx'
 
 export default function Header() {
+  // On mobile the search bar collapses once the user scrolls down, freeing
+  // screen space for the products (the categories + store/lab switch stay).
+  const [hideSearch, setHideSearch] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setHideSearch(window.scrollY > 60)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   return (
     <header className="sticky top-0 z-40 border-b border-black/5 bg-white/90 backdrop-blur">
       <div className="relative w-full px-4 py-2.5 lg:py-3 xl:px-[3cm]">
@@ -46,8 +56,13 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Bottom row: contextual search */}
-        <div className="mt-2.5 lg:mt-3">
+        {/* Bottom row: contextual search. On mobile it collapses on scroll;
+            on desktop (lg+) it's always visible. */}
+        <div
+          className={`overflow-hidden transition-all duration-300 lg:mt-3 lg:max-h-16 lg:opacity-100 ${
+            hideSearch ? 'mt-0 max-h-0 opacity-0' : 'mt-2.5 max-h-16 opacity-100'
+          }`}
+        >
           <SearchBar />
         </div>
       </div>

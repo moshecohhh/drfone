@@ -1,13 +1,30 @@
 import { SearchX, ArrowUpDown } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { useCatalog } from '../hooks/useCatalog.js'
+import { useCatalogStore } from '../context/CatalogContext.jsx'
 import ItemCard from './ItemCard.jsx'
 
 export default function ItemGrid() {
   const { isStore, filters, setSort, resetFilters } = useApp()
   const { results, kind, total } = useCatalog()
+  const { ready } = useCatalogStore()
 
   const heading = isStore ? 'מוצרים בחנות' : 'שירותי המעבדה'
+
+  // Still fetching the catalog — show placeholder cards so the grid never flashes
+  // an empty "no results" message before the data arrives.
+  if (!ready) {
+    return (
+      <section>
+        <div className="mb-4 h-7 w-40 animate-pulse rounded bg-black/10" />
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <GridSkeleton key={i} />
+          ))}
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section>
@@ -48,7 +65,7 @@ export default function ItemGrid() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 pt-5 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
             {results.map((item) => (
               <ItemCard key={item.id} item={item} kind={kind} />
             ))}
@@ -62,5 +79,19 @@ export default function ItemGrid() {
         </>
       )}
     </section>
+  )
+}
+
+// Pulsing placeholder card shown while the catalog loads.
+function GridSkeleton() {
+  return (
+    <div className="animate-pulse overflow-hidden rounded-2xl border border-black/5 bg-white shadow-card">
+      <div className="h-36 bg-black/10" />
+      <div className="space-y-2 p-4">
+        <div className="h-4 w-3/4 rounded bg-black/10" />
+        <div className="h-3 w-full rounded bg-black/5" />
+        <div className="mt-3 h-9 rounded-xl bg-black/10" />
+      </div>
+    </div>
   )
 }
