@@ -43,17 +43,33 @@ const itemToRow = (domain, item) => {
 }
 const rowToCat = (row) => ({ id: row.id, label: row.label, ...(row.image ? { image: row.image } : {}) })
 
+// Local cache of the last-known catalog, so a returning visitor sees the real
+// (admin-edited) data instantly while the network revalidates in the background.
+// Writes are best-effort — if the snapshot is too large for localStorage (e.g.
+// big base64 images) it's simply skipped.
+const CACHE_KEY = 'drfone_catalog_v1'
+function loadCatalogCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY))
+    if (c && Array.isArray(c.store) && Array.isArray(c.storeCats)) return c
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
 const CatalogContext = createContext(null)
 
 export function CatalogProvider({ children }) {
-  // Seed from the bundled defaults IMMEDIATELY so the catalog (products +
-  // categories) is on screen from the very first paint — no waiting on the
-  // network. The Supabase fetch below only reconciles this in the background,
+  // Show content on the very first paint with NO network wait: prefer the local
+  // cache (the real catalog from a previous visit), falling back to the bundled
+  // defaults. The Supabase fetch below only reconciles this in the background
   // and never blanks it out. `ready` is therefore true from the start.
-  const [store, setStore] = useState(() => normalizeProducts(ITEM_SEEDS[DOMAINS.STORE]))
-  const [lab, setLab] = useState(() => ITEM_SEEDS[DOMAINS.LAB])
-  const [storeCats, setStoreCats] = useState(() => CAT_SEEDS[DOMAINS.STORE].map((c) => ({ ...c })))
-  const [labCats, setLabCats] = useState(() => CAT_SEEDS[DOMAINS.LAB].map((c) => ({ ...c })))
+  const cached = loadCatalogCache()
+  const [store, setStore] = useState(() => cached?.store ?? normalizeProducts(ITEM_SEEDS[DOMAINS.STORE]))
+  const [lab, setLab] = useState(() => cached?.lab ?? ITEM_SEEDS[DOMAINS.LAB])
+  const [storeCats, setStoreCats] = useState(() => cached?.storeCats ?? CAT_SEEDS[DOMAINS.STORE].map((c) => ({ ...c })))
+  const [labCats, setLabCats] = useState(() => cached?.labCats ?? CAT_SEEDS[DOMAINS.LAB].map((c) => ({ ...c })))
   const [ready, setReady] = useState(true)
   // `synced` flips true once the Supabase fetch has completed (success or not).
   // The seed has products & categories but NO deals (those are admin-set), so a
@@ -122,13 +138,32 @@ export function CatalogProvider({ children }) {
       // Reconcile with the server — but only overwrite the seeded state when the
       // fetch actually returned rows, so a slow / empty / failed request never
       // wipes the catalog back to nothing.
+      const nextStore = itemRows.length
+        ? normalizeProducts(itemRows.filter((r) => r.domain === DOMAINS.STORE).map(rowToItem))
+        : store
+      const nextLab = itemRows.length ? itemRows.filter((r) => r.domain === DOMAINS.LAB).map(rowToItem) : lab
+      const nextSCats = catRows.length ? catRows.filter((r) => r.domain === DOMAINS.STORE).map(rowToCat) : storeCats
+      const nextLCats = catRows.length ? catRows.filter((r) => r.domain === DOMAINS.LAB).map(rowToCat) : labCats
       if (itemRows.length) {
-        setStore(normalizeProducts(itemRows.filter((r) => r.domain === DOMAINS.STORE).map(rowToItem)))
-        setLab(itemRows.filter((r) => r.domain === DOMAINS.LAB).map(rowToItem))
+        setStore(nextStore)
+        setLab(nextLab)
       }
       if (catRows.length) {
-        setStoreCats(catRows.filter((r) => r.domain === DOMAINS.STORE).map(rowToCat))
-        setLabCats(catRows.filter((r) => r.domain === DOMAINS.LAB).map(rowToCat))
+        setStoreCats(nextSCats)
+        setLabCats(nextLCats)
+      }
+      // Refresh the local cache so the next visit paints the real data instantly.
+      // Skip oversized snapshots (image-heavy base64 catalogs) — caching megabytes
+      // gives no benefit and can blow the localStorage quota on mobile. Once
+      // images move to Storage URLs the snapshot is tiny and caches cleanly.
+      if (itemRows.length || catRows.length) {
+        try {
+          const snapshot = JSON.stringify({ store: nextStore, lab: nextLab, storeCats: nextSCats, labCats: nextLCats })
+          if (snapshot.length < 2_000_000) localStorage.setItem(CACHE_KEY, snapshot)
+          else localStorage.removeItem(CACHE_KEY)
+        } catch {
+          /* storage unavailable / quota — ignore */
+        }
       }
       setReady(true)
       } catch {
