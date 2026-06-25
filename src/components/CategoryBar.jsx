@@ -54,6 +54,19 @@ export default function CategoryBar() {
     return () => document.removeEventListener('mousedown', onDoc)
   }, [])
 
+  // Also close on page scroll — if the customer scrolls the site instead of the
+  // category list, the open list shouldn't linger. (Scrolling inside the list
+  // itself fires on the list element, not the window, so it stays open.)
+  useEffect(() => {
+    if (!open && !moreOpen) return
+    const onScroll = () => {
+      setOpen(false)
+      setMoreOpen(false)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [open, moreOpen])
+
   // Priority+ : fit as many chips as the row allows; the rest go under "עוד".
   useLayoutEffect(() => {
     const wrap = deskRef.current

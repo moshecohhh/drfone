@@ -133,7 +133,17 @@ export function AuthProvider({ children }) {
       password,
       options: { data: { name: name.trim(), phone: cleanPhone } },
     })
-    if (error) return { ok: false, error: authErrorMessage(error) }
+    if (error) {
+      const m = (error.message || '').toLowerCase()
+      const emailExists = m.includes('already') && (m.includes('regist') || m.includes('exist'))
+      return { ok: false, error: authErrorMessage(error), emailExists }
+    }
+    // With email-confirmation ON, Supabase obfuscates an already-registered
+    // email by returning a user with NO identities (instead of an error) to
+    // prevent enumeration — detect that and treat it as "already registered".
+    if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      return { ok: false, error: 'כתובת אימייל זו כבר רשומה.', emailExists: true }
+    }
     // With email-confirmation ON, there is no session until the user confirms.
     if (data.session) {
       // The DB trigger seeds name/email only — persist the phone onto the new

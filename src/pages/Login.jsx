@@ -9,7 +9,8 @@ export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const [form, setForm] = useState({ email: '', password: '' })
+  // Pre-fill the email when arriving from "already registered → log in".
+  const [form, setForm] = useState({ email: location.state?.email || '', password: '' })
   const [error, setError] = useState('')
 
   const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }))

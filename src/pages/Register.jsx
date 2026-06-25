@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { UserPlus, User, Mail, Lock, Phone } from 'lucide-react'
+import { UserPlus, User, Mail, Lock, Phone, LogIn } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { savePasswordCredential } from '../utils/credentials.js'
 import { emailIssue, passwordIssue, isValidMobileIL, sanitizePhone, nameIssue } from '../utils/validation.js'
@@ -15,6 +15,7 @@ export default function Register() {
   const [remember, setRemember] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [emailExists, setEmailExists] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const onChange = (e) => {
@@ -37,6 +38,7 @@ export default function Register() {
     e.preventDefault()
     setError('')
     setNotice('')
+    setEmailExists(false)
     const fErr = nameIssue(form.firstName)
     if (fErr) return setError('שם פרטי: ' + fErr)
     const lErr = nameIssue(form.lastName)
@@ -64,6 +66,7 @@ export default function Register() {
     setBusy(false)
     if (!res.ok) {
       setError(res.error)
+      setEmailExists(!!res.emailExists)
       return
     }
     // Offer to save the new credentials in the browser's password manager.
@@ -81,6 +84,16 @@ export default function Register() {
     <AuthShell title="הרשמה" subtitle="פתיחת חשבון לקוח חדש">
       <form onSubmit={onSubmit} className="space-y-4">
         {error && <FormError message={error} />}
+        {/* The email is already registered → steer the customer to log in. */}
+        {emailExists && (
+          <Link
+            to="/login"
+            state={{ email: form.email }}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 font-semibold text-white transition hover:bg-brand-600"
+          >
+            <LogIn size={18} /> כבר יש לך חשבון — מעבר להתחברות
+          </Link>
+        )}
         {notice && (
           <div className="rounded-xl bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700">{notice}</div>
         )}
