@@ -15,6 +15,10 @@ export default function Header() {
   // so the bar can't rapidly flip-flop — collapsing the bar shifts the layout,
   // which would otherwise re-cross a single threshold and make it jitter.
   const [hideSearch, setHideSearch] = useState(false)
+  // When scrolled down, the compact icon opens the SAME search bar in place
+  // (inside the sticky header at the top of the screen) instead of scrolling the
+  // customer back up. Reusing <SearchBar/> keeps the behaviour identical.
+  const [searchOpen, setSearchOpen] = useState(false)
   useEffect(() => {
     const onScroll = () => {
       const y = window.scrollY
@@ -25,6 +29,20 @@ export default function Header() {
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+  // Once the full bar is naturally visible again (back near the top), drop the
+  // manual "opened via icon" state so scrolling down re-collapses it.
+  useEffect(() => {
+    if (!hideSearch) setSearchOpen(false)
+  }, [hideSearch])
+
+  const toggleInlineSearch = () => {
+    setSearchOpen((o) => {
+      const next = !o
+      // Focus the field (and pop the keyboard) right after it expands.
+      if (next) setTimeout(() => document.querySelector('header input[type="search"]')?.focus(), 60)
+      return next
+    })
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/5 bg-white/90 backdrop-blur">
@@ -44,14 +62,17 @@ export default function Header() {
               beneath them) instead of being squeezed into a narrow column. */}
           <div className="order-2 flex shrink-0 items-center gap-2 lg:absolute lg:left-4 lg:top-3 lg:z-20 xl:left-[3cm]">
             {/* Compact search shortcut — appears (mobile only) once the full
-                search bar has collapsed on scroll; tapping it scrolls back up to
-                reveal the bar, and then the icon hides itself again. */}
+                search bar has collapsed on scroll. Tapping it opens the search
+                bar in place (at the top of the screen) WITHOUT scrolling up. */}
             {hideSearch && (
               <button
                 type="button"
-                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                onClick={toggleInlineSearch}
                 aria-label="חיפוש"
-                className="flex h-9 w-9 items-center justify-center rounded-full text-ink transition hover:bg-black/5 lg:hidden"
+                aria-expanded={searchOpen}
+                className={`flex h-9 w-9 items-center justify-center rounded-full transition lg:hidden ${
+                  searchOpen ? 'bg-brand-50 text-brand-600' : 'text-ink hover:bg-black/5'
+                }`}
               >
                 <Search size={20} />
               </button>
@@ -78,11 +99,12 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Bottom row: contextual search. On mobile it collapses on scroll;
-            on desktop (lg+) it's always visible. */}
+        {/* Bottom row: contextual search. On mobile it collapses on scroll, but
+            the compact icon can re-open it in place (searchOpen); on desktop
+            (lg+) it's always visible. */}
         <div
           className={`overflow-hidden transition-all duration-300 lg:mt-3 lg:max-h-16 lg:opacity-100 ${
-            hideSearch ? 'mt-0 max-h-0 opacity-0' : 'mt-2.5 max-h-16 opacity-100'
+            hideSearch && !searchOpen ? 'mt-0 max-h-0 opacity-0' : 'mt-2.5 max-h-16 opacity-100'
           }`}
         >
           <SearchBar />
