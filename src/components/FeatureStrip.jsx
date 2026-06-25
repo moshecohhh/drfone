@@ -61,8 +61,14 @@ export default function FeatureStrip() {
 
   const slides = useMemo(() => {
     if (!ads?.enabled || !Array.isArray(ads.slides)) return []
-    return ads.slides.filter((s) => s && s.enabled !== false && s.image && isScheduled(s, now))
-  }, [ads, now])
+    // Mobile shows any slide that has a mobile (or desktop) image; desktop shows
+    // only slides that have a desktop image — so a mobile-only ad rotates on
+    // mobile without appearing cropped on the wide desktop strip.
+    return ads.slides.filter((s) => {
+      if (!s || s.enabled === false || !isScheduled(s, now)) return false
+      return isMobile ? s.mobileImage || s.image : s.image
+    })
+  }, [ads, now, isMobile])
 
   const go = (dir) => setIndex((i) => (i + dir + slides.length) % slides.length)
 
@@ -143,7 +149,9 @@ export default function FeatureStrip() {
     >
       {/* Crossfading slides */}
       {slides.map((s, i) => {
-        const src = isMobile && s.mobileImage ? s.mobileImage : s.image
+        // Mobile prefers the mobile crop (falls back to desktop); desktop slides
+        // always have a desktop image.
+        const src = isMobile ? s.mobileImage || s.image : s.image
         const Img = <img src={src} alt="" className="h-full w-full object-cover" draggable={false} />
         const type = slideType(s)
         let wrapped = Img
