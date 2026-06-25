@@ -22,11 +22,11 @@ function DomainHero() {
   const { settings } = useSettings()
   return (
     <div className="bg-gradient-to-l from-brand-500 to-brand-700 text-white">
-      <div className="w-full px-4 py-8 xl:px-[3cm]">
-        <h2 className="text-2xl font-extrabold sm:text-3xl">
+      <div className="w-full px-4 py-4 sm:py-8 xl:px-[3cm]">
+        <h2 className="text-lg font-extrabold sm:text-3xl">
           {isStore ? `החנות של ${settings.name}` : `מעבדת ${settings.name}`}
         </h2>
-        <p className="mt-1 max-w-xl text-sm text-white/80">
+        <p className="mt-1 max-w-xl text-xs text-white/80 sm:text-sm">
           {isStore
             ? 'מכשירים כשרים, תומכי כשר וסמארטפונים מסוננים — הכל במקום אחד.'
             : 'תיקון מקצועי לכל סוגי המכשירים: מסכים, סוללות, שקעים ותיקוני לוח אם.'}

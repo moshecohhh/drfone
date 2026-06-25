@@ -14,15 +14,17 @@ export default function AuthControls() {
       <div className="flex items-center gap-2">
         <Link
           to="/login"
-          className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold text-ink hover:bg-black/5"
+          aria-label="התחברות"
+          className="flex items-center gap-1.5 rounded-full px-2.5 py-2 text-sm font-semibold text-ink hover:bg-black/5 sm:px-3"
         >
-          <LogIn size={16} /> התחברות
+          <LogIn size={16} /> <span className="hidden sm:inline">התחברות</span>
         </Link>
         <Link
           to="/register"
-          className="flex items-center gap-1.5 rounded-full bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600"
+          aria-label="הרשמה"
+          className="flex items-center gap-1.5 rounded-full bg-brand-500 px-2.5 py-2 text-sm font-semibold text-white hover:bg-brand-600 sm:px-4"
         >
-          <UserPlus size={16} /> הרשמה
+          <UserPlus size={16} /> <span className="hidden sm:inline">הרשמה</span>
         </Link>
       </div>
     )
@@ -34,18 +36,20 @@ export default function AuthControls() {
       {!canAccessAdmin && (
         <Link
           to="/account"
-          className="flex items-center gap-1.5 rounded-full bg-brand-500 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-600"
+          aria-label="איזור אישי"
+          className="flex items-center gap-1.5 rounded-full bg-brand-500 px-2.5 py-2 text-sm font-semibold text-white hover:bg-brand-600 sm:px-3"
         >
-          <User size={16} /> איזור אישי
+          <User size={16} /> <span className="hidden sm:inline">איזור אישי</span>
         </Link>
       )}
       {/* Admin Panel link — rendered for staff (חנות) and master admin */}
       {canAccessAdmin && (
         <Link
           to="/admin"
-          className="flex items-center gap-1.5 rounded-full bg-ink px-3 py-2 text-sm font-semibold text-white hover:bg-ink-dark"
+          aria-label="ניהול"
+          className="flex items-center gap-1.5 rounded-full bg-ink px-2.5 py-2 text-sm font-semibold text-white hover:bg-ink-dark sm:px-3"
         >
-          <LayoutDashboard size={16} /> ניהול
+          <LayoutDashboard size={16} /> <span className="hidden sm:inline">ניהול</span>
         </Link>
       )}
       <span className="hidden items-center gap-1.5 text-sm text-ink sm:flex">
@@ -54,9 +58,10 @@ export default function AuthControls() {
       </span>
       <button
         onClick={logout}
-        className="flex items-center gap-1.5 rounded-full border border-black/10 px-3 py-2 text-sm font-semibold text-ink hover:bg-black/5"
+        aria-label="התנתקות"
+        className="flex items-center gap-1.5 rounded-full border border-black/10 px-2.5 py-2 text-sm font-semibold text-ink hover:bg-black/5 sm:px-3"
       >
-        <LogOut size={16} /> התנתקות
+        <LogOut size={16} /> <span className="hidden sm:inline">התנתקות</span>
       </button>
     </div>
   )

@@ -143,7 +143,7 @@ export default function HotDeals() {
             {deals.map((item) => (
               // flex column wrapper → the ItemCard stretches to the full (equal)
               // height of the tallest card, so every tile is the same size.
-              <div key={item.id} data-deal-card className="flex w-64 shrink-0 flex-col sm:w-72 [&>article]:flex-1">
+              <div key={item.id} data-deal-card className="flex w-[10.5rem] shrink-0 flex-col sm:w-72 [&>article]:flex-1">
                 <ItemCard item={item} kind="product" />
               </div>
             ))}

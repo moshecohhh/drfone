@@ -14,10 +14,10 @@ function BrandCircle({ brand, active, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex w-20 shrink-0 flex-col items-center gap-1.5"
+      className="flex w-16 shrink-0 flex-col items-center gap-1.5 sm:w-20"
     >
       <span
-        className={`glass-sheen flex h-[74px] w-[74px] items-center justify-center overflow-hidden rounded-full bg-white transition duration-200 hover:scale-105 ${
+        className={`glass-sheen flex h-[58px] w-[58px] items-center justify-center overflow-hidden rounded-full bg-white transition duration-200 hover:scale-105 sm:h-[74px] sm:w-[74px] ${
           active ? 'ring-4 ring-brand-500' : 'ring-2 ring-gray-300 hover:ring-brand-300'
         }`}
       >
@@ -164,15 +164,15 @@ export default function BrandCarousel() {
 
   return (
     <div className="border-b border-black/5 bg-white">
-      <div className="flex w-full items-start gap-4 px-4 py-4 xl:px-[3cm]">
+      <div className="flex w-full items-start gap-3 px-4 py-3 sm:gap-4 xl:px-[3cm] xl:py-4">
         {/* "All" reset circle — pinned at the start (does not scroll away) */}
         <button
           type="button"
           onClick={() => select('all')}
-          className="flex w-20 shrink-0 flex-col items-center gap-1.5 pt-2"
+          className="flex w-16 shrink-0 flex-col items-center gap-1.5 pt-2 sm:w-20"
         >
           <span
-            className={`flex h-[74px] w-[74px] items-center justify-center rounded-full transition-colors ${
+            className={`flex h-[58px] w-[58px] items-center justify-center rounded-full transition-colors sm:h-[74px] sm:w-[74px] ${
               filters.brand === 'all'
                 ? 'bg-brand-500 text-white ring-4 ring-brand-500'
                 : 'bg-brand-50 text-brand-600 ring-2 ring-gray-300 hover:ring-brand-300'
