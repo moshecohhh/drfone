@@ -34,20 +34,57 @@ const uid = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}
 
 const rowToInquiry = (row) => ({ id: row.id, read: row.read, createdAt: row.created_at, ...(row.data || {}) })
 
+// Local cache of the public app_state (ad banner, business details, home
+// content…) so a returning visitor sees the real content — including the
+// uploaded ad images — instantly, while the network revalidates in the
+// background. Best-effort: oversized snapshots are skipped.
+const APP_STATE_CACHE = 'drfone_appstate_v1'
+function loadAppStateCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(APP_STATE_CACHE))
+    if (c && typeof c === 'object') return c
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+function saveAppStateCache(m) {
+  try {
+    const snapshot = JSON.stringify({
+      settings: m.settings, payments: m.payments, deliveries: m.deliveries,
+      orderStatuses: m.orderStatuses, ads: m.ads, home: m.home,
+    })
+    if (snapshot.length < 2_000_000) localStorage.setItem(APP_STATE_CACHE, snapshot)
+    else localStorage.removeItem(APP_STATE_CACHE)
+  } catch {
+    /* storage unavailable / quota — ignore */
+  }
+}
+
 const SettingsContext = createContext(null)
 
 export function SettingsProvider({ children }) {
   const { isMaster } = useAuth()
-  const [settings, setSettings] = useState(DEFAULTS)
-  const [paymentMethods, setPaymentMethods] = useState(PAYMENT_METHODS)
-  const [deliveryMethods, setDeliveryMethods] = useState(DELIVERY_METHODS)
-  const [orderStatuses, setOrderStatuses] = useState(ORDER_STATUSES)
-  const [ads, setAds] = useState(DEFAULT_ADS)
-  const [home, setHome] = useState(DEFAULT_HOME)
+  // Initialise from the local cache (real content, incl. uploaded ad images) so
+  // the storefront — and the ad banner — paint instantly; fall back to defaults.
+  const cached = loadAppStateCache()
+  const [settings, setSettings] = useState(() => (cached?.settings ? { ...DEFAULTS, ...cached.settings } : DEFAULTS))
+  const [paymentMethods, setPaymentMethods] = useState(() =>
+    Array.isArray(cached?.payments) ? cached.payments : PAYMENT_METHODS,
+  )
+  const [deliveryMethods, setDeliveryMethods] = useState(() =>
+    Array.isArray(cached?.deliveries) ? cached.deliveries : DELIVERY_METHODS,
+  )
+  const [orderStatuses, setOrderStatuses] = useState(() =>
+    Array.isArray(cached?.orderStatuses) ? cached.orderStatuses : ORDER_STATUSES,
+  )
+  const [ads, setAds] = useState(() => (cached?.ads ? { ...DEFAULT_ADS, ...cached.ads } : DEFAULT_ADS))
+  const [home, setHome] = useState(() => (cached?.home ? { ...DEFAULT_HOME, ...cached.home } : DEFAULT_HOME))
   const [inquiries, setInquiries] = useState([])
   const [loaded, setLoaded] = useState(false)
 
-  // Load the public app_state collections (falls back to defaults until saved).
+  // Load the public app_state collections (falls back to defaults until saved),
+  // then refresh the local cache so the next visit paints instantly.
   useEffect(() => {
     let active = true
     kvLoadAll('app_state').then((m) => {
@@ -59,6 +96,7 @@ export function SettingsProvider({ children }) {
       if (m.ads) setAds({ ...DEFAULT_ADS, ...m.ads })
       if (m.home) setHome({ ...DEFAULT_HOME, ...m.home })
       setLoaded(true)
+      saveAppStateCache(m)
     })
     return () => {
       active = false
