@@ -3,6 +3,7 @@ import { Store, Wrench, Plus, Pencil, Trash2, RotateCcw, AlertTriangle, ImagePlu
 import { DOMAINS } from '../../context/AppContext.jsx'
 import { useCatalogStore } from '../../context/CatalogContext.jsx'
 import { useBrands } from '../../context/BrandsContext.jsx'
+import { downscaleImage } from '../../utils/image.js'
 import { PanelHead, Table, PrimaryBtn, GhostBtn, IconBtn, PanelSearch } from './ui.jsx'
 import ItemFormModal from './ItemFormModal.jsx'
 import DomainToggle from './DomainToggle.jsx'
@@ -48,17 +49,8 @@ export default function CatalogPanel({ lowStockInitial = false }) {
       : product?.image
         ? [product.image]
         : []
-    Promise.all(
-      files.map(
-        (file) =>
-          new Promise((resolve) => {
-            const reader = new FileReader()
-            reader.onload = () => resolve(reader.result)
-            reader.readAsDataURL(file)
-          }),
-      ),
-    ).then((urls) => {
-      const images = [...current, ...urls].slice(0, MAX_IMAGES)
+    Promise.all(files.map((file) => downscaleImage(file, 1000, 0.82).catch(() => null))).then((results) => {
+      const images = [...current, ...results.filter(Boolean)].slice(0, MAX_IMAGES)
       updateItem(domain, id, { images, image: images[0] || '' })
     })
   }

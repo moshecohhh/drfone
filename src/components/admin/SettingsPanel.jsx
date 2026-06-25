@@ -8,6 +8,7 @@ import { useLab } from '../../context/LabContext.jsx'
 import { PanelHead, Card, Field, PrimaryBtn, inputCls } from './ui.jsx'
 import EditableList from './EditableList.jsx'
 import FeatureManager from './FeatureManager.jsx'
+import ImageOptimizer from './ImageOptimizer.jsx'
 
 // Master-only customization hub, split into two areas:
 //   • אתר הצרכן (storefront/checkout)
@@ -115,6 +116,9 @@ export default function SettingsPanel() {
 
           {/* Rotating featured strip (below the brand row) */}
           <FeatureManager />
+
+          {/* One-click image compression to speed up the whole site */}
+          <ImageOptimizer />
         </div>
       ) : (
         <>

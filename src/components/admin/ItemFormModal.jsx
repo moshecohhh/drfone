@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, Save, Upload, ImageOff, Plus, Link2, Flame, BadgeCheck } from 'lucide-react'
 import { useBrands } from '../../context/BrandsContext.jsx'
+import { downscaleImage } from '../../utils/image.js'
 import { Switch } from './ui.jsx'
 import ColorPicker from './ColorPicker.jsx'
 
@@ -48,9 +49,10 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
   const onTagFile = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => setForm((f) => ({ ...f, tagImage: reader.result, tag: 'custom' }))
-    reader.readAsDataURL(file)
+    // Tag badge is tiny on screen — a small, compressed image is plenty.
+    downscaleImage(file, 240, 0.85)
+      .then((url) => setForm((f) => ({ ...f, tagImage: url, tag: 'custom' })))
+      .catch(() => {})
     e.target.value = ''
   }
 
@@ -100,16 +102,10 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
   const onFiles = (e) => {
     const files = Array.from(e.target.files || [])
     if (!files.length) return
-    Promise.all(
-      files.map(
-        (file) =>
-          new Promise((resolve) => {
-            const reader = new FileReader()
-            reader.onload = () => resolve(reader.result)
-            reader.readAsDataURL(file)
-          }),
-      ),
-    ).then(addImages)
+    // Downscale + JPEG-compress each photo so the catalog payload stays small.
+    Promise.all(files.map((file) => downscaleImage(file, 1000, 0.82).catch(() => null))).then((urls) =>
+      addImages(urls.filter(Boolean)),
+    )
     e.target.value = '' // allow re-selecting the same file
   }
 

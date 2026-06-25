@@ -4,6 +4,7 @@ import { useSettings } from '../../context/SettingsContext.jsx'
 import { useBrands } from '../../context/BrandsContext.jsx'
 import { useCatalogStore } from '../../context/CatalogContext.jsx'
 import { DOMAINS } from '../../context/AppContext.jsx'
+import { downscaleImage } from '../../utils/image.js'
 import { Card, Switch, inputCls } from './ui.jsx'
 import ImageCropper from './ImageCropper.jsx'
 import ProductPicker from './ProductPicker.jsx'
@@ -29,9 +30,10 @@ export default function FeatureManager() {
   const onFile = (slideId, field, aspect, e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => setCropFor({ slideId, field, aspect, src: reader.result })
-    reader.readAsDataURL(file)
+    // Shrink the source before cropping so the saved banner stays light.
+    downscaleImage(file, 1400, 0.82)
+      .then((src) => setCropFor({ slideId, field, aspect, src }))
+      .catch(() => {})
     e.target.value = ''
   }
 

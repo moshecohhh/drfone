@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { Plus, Trash2, Pencil, X, Check, Tag, Upload, ArrowUp, ArrowDown, ImagePlus } from 'lucide-react'
 import { useBrands } from '../../context/BrandsContext.jsx'
+import { downscaleImage } from '../../utils/image.js'
 import { PanelHead, Table, Card, Field, PrimaryBtn, GhostBtn, IconBtn, EmptyState, inputCls } from './ui.jsx'
 import BrandLogo from './BrandLogo.jsx'
 
@@ -36,9 +37,7 @@ export default function BrandsPanel() {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => updateBrand(id, { logo: reader.result })
-    reader.readAsDataURL(file)
+    downscaleImage(file, 240, 0.85).then((logo) => updateBrand(id, { logo })).catch(() => {})
   }
 
   const openNew = () => {
@@ -54,9 +53,7 @@ export default function BrandsPanel() {
   const onFile = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => set('logo', reader.result)
-    reader.readAsDataURL(file)
+    downscaleImage(file, 240, 0.85).then((logo) => set('logo', logo)).catch(() => {})
   }
   const submit = (e) => {
     e.preventDefault()
