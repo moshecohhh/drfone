@@ -7,11 +7,13 @@
 //   NOTIFY_TO       - the email address to notify (e.g. moshecohh@gmail.com)
 //   WEBHOOK_SECRET  - a random string; the webhook must send it in x-webhook-secret
 // Optional:
-//   NOTIFY_FROM     - sender; defaults to Resend's onboarding address
+//   NOTIFY_FROM     - sender; defaults to orders@drfone.co.il (the verified domain).
+//                     Until the domain is verified in Resend, override this with a
+//                     secret set to Resend's onboarding address to keep emails flowing.
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const NOTIFY_TO = Deno.env.get('NOTIFY_TO') ?? ''
-const NOTIFY_FROM = Deno.env.get('NOTIFY_FROM') ?? 'ד״ר פון <onboarding@resend.dev>'
+const NOTIFY_FROM = Deno.env.get('NOTIFY_FROM') ?? 'ד״ר פון <orders@drfone.co.il>'
 const WEBHOOK_SECRET = Deno.env.get('WEBHOOK_SECRET') ?? ''
 // Public site URL for the "open order in admin" button (override via secret).
 const SITE_URL = (Deno.env.get('SITE_URL') ?? 'https://drfone.vercel.app').replace(/\/$/, '')
