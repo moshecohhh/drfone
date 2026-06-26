@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Save, Upload, ImageOff, Plus, Link2, Flame, BadgeCheck } from 'lucide-react'
+import { X, Save, Upload, ImageOff, Plus, Link2, Flame, BadgeCheck, Package, LayoutTemplate } from 'lucide-react'
 import { useBrands } from '../../context/BrandsContext.jsx'
+import { useSettings } from '../../context/SettingsContext.jsx'
 import { downscaleImage } from '../../utils/image.js'
 import { Switch } from './ui.jsx'
 import ColorPicker from './ColorPicker.jsx'
+import ProductPageEditor from './ProductPageEditor.jsx'
 
 const MAX_IMAGES = 7
 
@@ -24,6 +26,7 @@ const emptyItem = {
   colors: [],
   tag: '', // '' | 'deal' | 'importer' | 'custom'  (visual product stamp)
   tagImage: '', // round-image used when tag === 'custom'
+  page: {}, // product-page config (option groups, specs, marketing…) — see "דף המוצר" tab
 }
 
 // Colors may have been persisted as plain hex strings by an earlier build;
@@ -39,7 +42,11 @@ const normColors = (arr) =>
 export default function ItemFormModal({ open, onClose, onSave, item, categories, kind }) {
   const isService = kind === 'service'
   const { brands } = useBrands()
+  const { fieldPresets } = useSettings()
   const [form, setForm] = useState(emptyItem)
+  const [initialForm, setInitialForm] = useState(null) // snapshot to detect unsaved changes
+  const [confirmClose, setConfirmClose] = useState(false)
+  const [tab, setTab] = useState('product') // 'product' | 'page' (products only)
   const [draftColor, setDraftColor] = useState('#3B82F6')
   const [urlDraft, setUrlDraft] = useState('')
   const fileRef = useRef(null)
@@ -57,28 +64,38 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
   }
 
   useEffect(() => {
+    let next
     if (item) {
       const images = Array.isArray(item.images) && item.images.length
         ? item.images
         : item.image
           ? [item.image]
           : []
-      setForm({
+      next = {
         ...emptyItem,
         ...item,
         oldPrice: item.oldPrice ?? '',
         images,
         image: images[0] || '',
         colors: normColors(item.colors),
-      })
+        page: item.page || {},
+      }
     } else {
-      setForm({ ...emptyItem, category: categories[0]?.id || '', brand: brands[0]?.id || '', images: [], colors: [] })
+      next = { ...emptyItem, category: categories[0]?.id || '', brand: brands[0]?.id || '', images: [], colors: [], page: {} }
     }
+    setForm(next)
+    setInitialForm(next) // baseline for the unsaved-changes check
+    setTab('product')
+    setConfirmClose(false)
   }, [item, categories, open])
 
   if (!open) return null
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+
+  // Unsaved-changes guard: ask before discarding edits when closing.
+  const dirty = initialForm && JSON.stringify(form) !== JSON.stringify(initialForm)
+  const requestClose = () => (dirty ? setConfirmClose(true) : onClose())
 
   // ---- Image gallery (up to MAX_IMAGES) ----
   const addImages = (urls) =>
@@ -118,34 +135,84 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
   const linkColorImage = (hex, image) =>
     setForm((f) => ({ ...f, colors: f.colors.map((c) => (c.hex === hex ? { ...c, image } : c)) }))
 
-  const submit = (e) => {
-    e.preventDefault()
+  const buildPayload = () => {
     const stock = isService ? undefined : Math.max(0, Number(form.stock) || 0)
-    onSave({
+    return {
       ...form,
       image: form.images[0] || '',
       price: Number(form.price) || 0,
       oldPrice: form.oldPrice === '' ? null : Number(form.oldPrice),
       // For products, availability is driven by stock.
       ...(isService ? {} : { stock, inStock: stock > 0 }),
-    })
+    }
+  }
+  // onSave persists AND closes the modal (the parent owns `open`).
+  const submit = (e) => {
+    e.preventDefault()
+    onSave(buildPayload())
   }
 
   const brandOptions = brands
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-xl">
-        <div className="sticky top-0 flex items-center justify-between border-b border-black/5 bg-white px-6 py-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={(e) => e.target === e.currentTarget && requestClose()}
+    >
+      <div className="relative max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-xl">
+        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-black/5 bg-white px-6 py-4">
           <h3 className="text-lg font-extrabold text-ink">
             {item ? 'עריכת' : 'הוספת'} {isService ? 'שירות' : 'מוצר'}
           </h3>
-          <button onClick={onClose} aria-label="סגירה" className="text-ink-light hover:text-ink">
+          <button onClick={requestClose} aria-label="סגירה" className="text-ink-light hover:text-ink">
             <X size={20} />
           </button>
         </div>
 
+        {/* Unsaved-changes confirmation */}
+        {confirmClose && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center rounded-2xl bg-black/40 p-4">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+              <h4 className="text-base font-extrabold text-ink">שמירת השינויים?</h4>
+              <p className="mt-1 text-sm text-ink-light">ביצעת שינויים שלא נשמרו. מה לעשות?</p>
+              <div className="mt-4 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setConfirmClose(false); onSave(buildPayload()) }}
+                  className="rounded-xl bg-brand-500 py-2.5 text-sm font-bold text-white hover:bg-brand-600"
+                >
+                  שמירה
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setConfirmClose(false); onClose() }}
+                  className="rounded-xl border border-black/10 py-2.5 text-sm font-semibold text-ink hover:bg-black/5"
+                >
+                  אל תשמור
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmClose(false)}
+                  className="rounded-xl py-2 text-sm font-semibold text-ink-light hover:text-ink"
+                >
+                  חזרה לעריכה
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tabs — product details vs. the product-page builder (products only) */}
+        {!isService && (
+          <div className="flex gap-1 border-b border-black/5 px-6 pt-3">
+            <TabBtn active={tab === 'product'} onClick={() => setTab('product')} Icon={Package}>פרטי המוצר</TabBtn>
+            <TabBtn active={tab === 'page'} onClick={() => setTab('page')} Icon={LayoutTemplate}>דף המוצר</TabBtn>
+          </div>
+        )}
+
         <form onSubmit={submit} className="space-y-4 p-6">
+          {/* ===== Product details tab ===== */}
+          <div className={tab === 'product' ? 'space-y-4' : 'hidden'}>
           {/* Image gallery (up to MAX_IMAGES) */}
           <div>
             <div className="mb-2 flex items-center justify-between">
@@ -432,11 +499,23 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
               />
             </Row>
           )}
+          </div>
+
+          {/* ===== Product-page builder tab ===== */}
+          {!isService && (
+            <div className={tab === 'page' ? '' : 'hidden'}>
+              <ProductPageEditor
+                value={form.page}
+                onChange={(page) => set('page', page)}
+                presets={fieldPresets}
+              />
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="rounded-xl border border-black/10 px-4 py-2 text-sm font-semibold text-ink hover:bg-black/5"
             >
               ביטול
@@ -463,5 +542,19 @@ function Row({ label, children }) {
       <span className="mb-1 block text-xs font-semibold text-ink-light">{label}</span>
       {children}
     </label>
+  )
+}
+
+function TabBtn({ active, onClick, Icon, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-1.5 rounded-t-lg border-b-2 px-4 py-2 text-sm font-bold transition ${
+        active ? 'border-brand-500 text-brand-600' : 'border-transparent text-ink-light hover:text-ink'
+      }`}
+    >
+      <Icon size={16} /> {children}
+    </button>
   )
 }

@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Store, Wrench } from 'lucide-react'
 import { useApp, DOMAINS } from '../context/AppContext.jsx'
 
@@ -6,6 +7,13 @@ import { useApp, DOMAINS } from '../context/AppContext.jsx'
 // Apple-style "liquid glass" treatment (see .glass-switch in index.css).
 export default function DomainSwitch() {
   const { domain, switchDomain, isStore, filters } = useApp()
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+  // Switching Store/Lab from any page returns to the storefront.
+  const go = (id) => {
+    switchDomain(id)
+    if (pathname !== '/') navigate('/')
+  }
   const ref = useRef(null)
   const [intro, setIntro] = useState(false)
 
@@ -49,7 +57,7 @@ export default function DomainSwitch() {
           <button
             key={id}
             type="button"
-            onClick={() => switchDomain(id)}
+            onClick={() => go(id)}
             aria-pressed={active}
             className={`glass-tab flex items-center gap-2 rounded-full px-5 py-2 text-sm font-extrabold transition-all duration-200 hover:z-10 hover:scale-105 sm:text-base ${
               active

@@ -1,4 +1,5 @@
 import { Search, X } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
 
 // Context-aware search. It writes to the shared filter state, but because that
@@ -6,10 +7,15 @@ import { useApp } from '../context/AppContext.jsx'
 // same input searches ONLY the Store or ONLY the Lab depending on context.
 export default function SearchBar() {
   const { filters, setSearch, isStore } = useApp()
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
 
   const placeholder = isStore
     ? 'חיפוש מוצרים בחנות...'
     : 'חיפוש שירותי תיקון במעבדה...'
+
+  // From a non-storefront page (e.g. a product page) jump to the results.
+  const goResults = () => { if (pathname !== '/') navigate('/') }
 
   return (
     <div className="relative w-full">
@@ -21,6 +27,7 @@ export default function SearchBar() {
         type="search"
         value={filters.search}
         onChange={(e) => setSearch(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') goResults() }}
         placeholder={placeholder}
         className="w-full rounded-full border border-black/10 bg-white py-2.5 pr-10 pl-10 text-sm text-black outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
       />

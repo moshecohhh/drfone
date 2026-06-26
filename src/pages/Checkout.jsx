@@ -9,7 +9,7 @@ import { useOrders } from '../context/OrdersContext.jsx'
 import { useCatalogStore } from '../context/CatalogContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
-import { sanitizePhone, isValidPhone, luhnValid, emailIssue } from '../utils/validation.js'
+import { sanitizePhone, isValidMobileIL, luhnValid, emailIssue } from '../utils/validation.js'
 import Logo from '../components/Logo.jsx'
 
 // Known payment ids get a matching icon; custom ones fall back to a wallet.
@@ -41,9 +41,17 @@ export default function Checkout() {
   const [placedOrder, setPlacedOrder] = useState(null)
 
   const set = (k, v) => {
-    const val = k === 'phone' || k === 'bitPhone' ? sanitizePhone(v, bypass) : v
+    // Personal-details phone fields behave exactly like the registration page:
+    // digits only, capped at 10 (no master bypass here).
+    const val = k === 'phone' || k === 'bitPhone' ? sanitizePhone(v) : v
     setForm((f) => ({ ...f, [k]: val }))
   }
+
+  // Live phone validation (same rule/message as the registration page).
+  const phoneErr =
+    form.phone.trim() && !isValidMobileIL(form.phone)
+      ? 'מספר נייד חייב להתחיל ב-05 ולהכיל 10 ספרות.'
+      : null
 
   // Empty cart (and no completed order) → nothing to check out.
   if (items.length === 0 && !placedOrder) {
@@ -98,7 +106,7 @@ export default function Checkout() {
         const eErr = emailIssue(form.email)
         if (eErr) return setError(eErr)
       }
-      if (!isValidPhone(form.phone)) return setError('יש להזין מספר טלפון תקין (10 ספרות).')
+      if (!isValidMobileIL(form.phone)) return setError('יש להזין מספר נייד תקין (מתחיל ב-05, 10 ספרות).')
       if (form.delivery === 'delivery' && !form.address.trim()) return setError('יש להזין כתובת למשלוח.')
       if (form.payment === 'credit' && !luhnValid(form.cardNumber)) {
         return setError('מספר כרטיס האשראי אינו תקין.')
@@ -116,11 +124,16 @@ export default function Checkout() {
       payment: form.payment,
       items: items.map((i) => ({
         id: i.id,
+        lineId: i.lineId,
         name: i.name,
+        image: i.image || '',
         price: i.price,
         listPrice: i.listPrice ?? i.price,
         qty: i.qty,
         color: i.color || '',
+        // Chosen product-page option fields (version / storage / upgrades…) so
+        // the admin sees exactly what the customer ordered.
+        selections: Array.isArray(i.selections) ? i.selections : [],
       })),
       total: subtotal,
     })
@@ -172,14 +185,20 @@ export default function Checkout() {
                 )}
               </div>
             )}
-            <Field
-              icon={Phone}
-              label="טלפון"
-              type="tel"
-              required
-              value={form.phone}
-              onChange={(v) => set('phone', v)}
-            />
+            <div>
+              <Field
+                icon={Phone}
+                label="טלפון נייד (05XXXXXXXX)"
+                type="tel"
+                dir="ltr"
+                inputMode="numeric"
+                required
+                value={form.phone}
+                onChange={(v) => set('phone', v)}
+                invalid={!!phoneErr}
+              />
+              {phoneErr && <p className="mt-1 text-xs font-medium text-red-600">{phoneErr}</p>}
+            </div>
             <Field
               icon={MapPin}
               label="כתובת"
@@ -317,7 +336,7 @@ function Section({ title, children }) {
   )
 }
 
-function Field({ icon: Icon, label, type = 'text', value, onChange, ...props }) {
+function Field({ icon: Icon, label, type = 'text', value, onChange, invalid = false, ...props }) {
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-semibold text-ink-light">{label}</span>
@@ -329,9 +348,11 @@ function Field({ icon: Icon, label, type = 'text', value, onChange, ...props }) 
           type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className={`w-full rounded-xl border border-black/10 bg-white py-2.5 ${
+          className={`w-full rounded-xl border bg-white py-2.5 ${
             Icon ? 'pr-9 pl-3' : 'px-3'
-          } text-sm text-ink outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30`}
+          } text-sm text-ink outline-none transition focus:ring-2 focus:ring-brand-500/30 ${
+            invalid ? 'border-red-400 focus:border-red-500' : 'border-black/10 focus:border-brand-500'
+          }`}
           {...props}
         />
       </div>

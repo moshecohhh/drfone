@@ -14,15 +14,18 @@ const CART_TS_KEY = 'drfone_cart_ts' // last-activity timestamp
 const CART_RESTORE_KEY = 'drfone_cart_restore' // backup from a 24h auto-clear
 const DAY_MS = 24 * 60 * 60 * 1000
 
-// Stable per-line identity = product id + chosen color.
-const makeLineKey = (id, color) => `${id}__${color || ''}`
+// Stable per-line identity = product id + chosen color + chosen page-options.
+// `optionsKey` is a stable signature of the selected product-page option ids, so
+// the same product in two different configurations becomes two cart lines.
+const makeLineKey = (id, color, optionsKey = '') => `${id}__${color || ''}__${optionsKey || ''}`
 
 const normalize = (raw) =>
   (Array.isArray(raw) ? raw : []).map((i) => ({
     ...i,
     color: i.color || '',
     listPrice: i.listPrice ?? i.price,
-    lineId: i.lineId || makeLineKey(i.id, i.color),
+    selections: Array.isArray(i.selections) ? i.selections : [],
+    lineId: i.lineId || makeLineKey(i.id, i.color, i.optionsKey),
   }))
 
 // Initial load. If the saved cart is older than 24h, empty it but stash a
@@ -85,20 +88,30 @@ export function CartProvider({ children }) {
   // per-transaction price set by a master admin on the storefront — it affects
   // only this cart line, never the saved catalog price. `listPrice` keeps the
   // original so a discount can be shown. Never exceed stock. Returns true if added.
-  const addItem = useCallback((product, color = '', priceOverride = null) => {
+  //
+  // `options` carries product-page selection fields (version/upgrades/storage…):
+  //   { unitPrice, selections: [{ groupTitle, optionLabel, priceDelta }], optionsKey }
+  // When `unitPrice` is given it sets this line's price (base + option deltas);
+  // `selections` are stored for display in the cart. Empty by default, so
+  // existing callers (the product card) keep their current behaviour.
+  const addItem = useCallback((product, color = '', priceOverride = null, options = null) => {
     const stock = Number(product.stock) || 0
     if (stock <= 0) return false
     const listPrice = Number(product.price) || 0
+    const selections = Array.isArray(options?.selections) ? options.selections : []
+    const optionsKey = options?.optionsKey || ''
+    const hasUnit = options?.unitPrice != null && !Number.isNaN(Number(options.unitPrice))
     const hasOverride = priceOverride != null && priceOverride !== '' && !Number.isNaN(Number(priceOverride))
-    const price = hasOverride ? Number(priceOverride) : listPrice
-    const key = lineKey(product.id, color)
+    // Precedence: master-admin override > resolved unit price (base + options) > list price.
+    const price = hasOverride ? Number(priceOverride) : hasUnit ? Number(options.unitPrice) : listPrice
+    const key = lineKey(product.id, color, optionsKey)
     setItems((prev) => {
-      const existing = prev.find((i) => (i.lineId || lineKey(i.id, i.color)) === key)
+      const existing = prev.find((i) => (i.lineId || lineKey(i.id, i.color, i.optionsKey)) === key)
       if (existing) {
         if (existing.qty >= stock) return prev // capped at stock
         // Latest override wins (so re-adding with a new price updates the line).
         return prev.map((i) =>
-          (i.lineId || lineKey(i.id, i.color)) === key ? { ...i, qty: i.qty + 1, price, listPrice } : i,
+          (i.lineId || lineKey(i.id, i.color, i.optionsKey)) === key ? { ...i, qty: i.qty + 1, price, listPrice } : i,
         )
       }
       return [
@@ -112,6 +125,8 @@ export function CartProvider({ children }) {
           emoji: product.emoji,
           image: product.image || '',
           color: color || '',
+          optionsKey,
+          selections,
           stock,
           qty: 1,
         },
@@ -129,7 +144,7 @@ export function CartProvider({ children }) {
   const setQty = useCallback((lineId, qty) => {
     setItems((prev) =>
       prev.flatMap((i) => {
-        if ((i.lineId || lineKey(i.id, i.color)) !== lineId) return [i]
+        if ((i.lineId || lineKey(i.id, i.color, i.optionsKey)) !== lineId) return [i]
         const clamped = Math.min(Math.max(1, qty), i.stock || qty)
         return clamped <= 0 ? [] : [{ ...i, qty: clamped }]
       }),
@@ -141,7 +156,7 @@ export function CartProvider({ children }) {
   const changeQty = useCallback((lineId, delta) => {
     setItems((prev) =>
       prev.flatMap((i) => {
-        if ((i.lineId || lineKey(i.id, i.color)) !== lineId) return [i]
+        if ((i.lineId || lineKey(i.id, i.color, i.optionsKey)) !== lineId) return [i]
         const next = i.qty + delta
         if (next <= 0) return []
         return [{ ...i, qty: Math.min(next, i.stock || next) }]
@@ -150,7 +165,7 @@ export function CartProvider({ children }) {
   }, [])
 
   const removeItem = useCallback((lineId) => {
-    setItems((prev) => prev.filter((i) => (i.lineId || lineKey(i.id, i.color)) !== lineId))
+    setItems((prev) => prev.filter((i) => (i.lineId || lineKey(i.id, i.color, i.optionsKey)) !== lineId))
   }, [])
 
   // Clearing here is intentional (e.g. after checkout) — it is NOT a restorable

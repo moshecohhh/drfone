@@ -105,6 +105,17 @@ export default function CartDrawer() {
                         צבע נבחר
                       </span>
                     )}
+                    {/* Chosen product-page options (version / upgrades / storage…). */}
+                    {Array.isArray(it.selections) && it.selections.length > 0 && (
+                      <ul className="mt-0.5 space-y-0.5">
+                        {it.selections.map((s, idx) => (
+                          <li key={idx} className="text-xs text-ink-light">
+                            <span className="font-medium text-ink">{s.groupTitle}:</span> {s.optionLabel}
+                            {s.priceDelta ? <span className="text-brand-600"> (+₪{s.priceDelta})</span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                     <span className="mt-0.5 flex items-center gap-1.5 text-sm font-bold text-brand-600">
                       ₪{it.price}
                       {it.listPrice > it.price && (

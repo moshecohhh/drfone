@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, Trash2, Package, Phone, MapPin, CreditCard } from 'lucide-react'
+import { ChevronDown, Trash2, Package, Phone, MapPin, CreditCard, User, Mail } from 'lucide-react'
 import { useOrders } from '../../context/OrdersContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import PhoneActions from './PhoneActions.jsx'
@@ -122,31 +122,75 @@ export default function OrdersPanel() {
             {/* Details */}
             {isOpen && (
               <div className="grid gap-4 border-t border-black/5 bg-brand-50/30 p-4 sm:grid-cols-2">
-                <div className="space-y-1.5 text-sm">
+                {/* Customer */}
+                <div className="space-y-2 rounded-xl border border-black/5 bg-white p-3 text-sm">
+                  <p className="flex items-center gap-2 font-bold text-ink">
+                    <User size={15} className="text-ink-light" /> {o.customer?.name || '—'}
+                  </p>
                   <p className="flex items-center gap-2 text-ink">
                     <Phone size={14} className="text-ink-light" /> <PhoneActions phone={o.customer?.phone} />
                   </p>
-                  <p className="flex items-center gap-2 text-ink">
-                    <MapPin size={14} className="text-ink-light" /> {o.customer?.address || '—'}
+                  <p className="flex items-start gap-2 text-ink">
+                    <MapPin size={14} className="mt-0.5 shrink-0 text-ink-light" /> {o.customer?.address || '— (איסוף עצמי)'}
                   </p>
-                  <p className="flex items-center gap-2 text-ink">
+                  {o.customer?.email && (
+                    <p className="flex items-center gap-2 text-ink" dir="ltr">
+                      <Mail size={14} className="shrink-0 text-ink-light" /> {o.customer.email}
+                    </p>
+                  )}
+                  <p className="flex items-center gap-2 border-t border-black/5 pt-2 text-ink">
                     <CreditCard size={14} className="text-ink-light" /> {payLabel(o.payment)} · {deliveryLabel(o.delivery)}
                   </p>
-                  {o.customer?.email && <p className="text-xs text-ink-light">{o.customer.email}</p>}
                 </div>
-                <div>
-                  <p className="mb-1 text-xs font-semibold text-ink-light">פריטים</p>
-                  <ul className="space-y-1 text-sm">
-                    {o.items.map((it) => (
-                      <li key={it.id} className="flex justify-between">
-                        <span className="text-ink">
-                          {it.name} × {it.qty}
-                        </span>
-                        <span className="font-semibold text-ink">₪{it.price * it.qty}</span>
+
+                {/* Items — full detail: image, color, chosen options, prices */}
+                <div className="rounded-xl border border-black/5 bg-white p-3">
+                  <p className="mb-2 text-xs font-bold text-ink-light">פריטים ({(o.items || []).reduce((n, it) => n + it.qty, 0)})</p>
+                  <ul className="space-y-2.5">
+                    {(o.items || []).map((it) => (
+                      <li key={it.lineId || it.id} className="flex gap-2.5 border-b border-black/5 pb-2.5 last:border-0 last:pb-0">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-brand-50 text-lg">
+                          {it.image ? <img src={it.image} alt="" className="h-full w-full object-cover" /> : '📦'}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-sm font-semibold text-ink">{it.name}</span>
+                            <span className="shrink-0 text-sm font-bold text-ink">₪{it.price * it.qty}</span>
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-light">
+                            <span>כמות: <b className="text-ink">{it.qty}</b></span>
+                            <span>מחיר יח׳: ₪{it.price}</span>
+                            {it.listPrice > it.price && (
+                              <span className="rounded-full bg-red-50 px-1.5 py-0.5 font-bold text-red-600">
+                                {Math.round((1 - it.price / it.listPrice) * 100)}% הנחה
+                              </span>
+                            )}
+                          </div>
+                          {it.color && (
+                            <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-ink-light">
+                              <span className="h-3.5 w-3.5 rounded-full border border-black/20" style={{ background: it.color }} /> צבע נבחר
+                            </span>
+                          )}
+                          {Array.isArray(it.selections) && it.selections.length > 0 && (
+                            <ul className="mt-1 space-y-0.5">
+                              {it.selections.map((s, idx) => (
+                                <li key={idx} className="text-xs text-ink">
+                                  <span className="font-semibold">{s.groupTitle}:</span> {s.optionLabel}
+                                  {s.priceDelta ? <span className="text-brand-600"> (+₪{s.priceDelta})</span> : null}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>
+                  <div className="mt-2 flex justify-between border-t border-black/5 pt-2 text-sm">
+                    <span className="font-semibold text-ink-light">סה״כ</span>
+                    <span className="font-extrabold text-ink">₪{o.total}</span>
+                  </div>
                 </div>
+
                 <div className="sm:col-span-2 border-t border-black/5 pt-3">
                   <JournalLog entries={o.log} onAdd={(text) => addOrderLog(o.id, text, user?.name)} />
                 </div>

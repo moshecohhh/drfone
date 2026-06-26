@@ -1,5 +1,6 @@
-import { MessageCircle, ShoppingCart, Pencil, Tag, Minus, Plus } from 'lucide-react'
+import { MessageCircle, ShoppingCart, Pencil, Tag, Minus, Plus, SlidersHorizontal } from 'lucide-react'
 import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -11,8 +12,16 @@ import ProductTag from './ProductTag.jsx'
 export default function ItemCard({ item, kind }) {
   const isService = kind === 'service'
   const { addItem, setOpen, items, changeQty } = useCart()
-  const { waLink } = useSettings()
+  const { waLink, productPage } = useSettings()
   const { isMaster } = useAuth()
+  const navigate = useNavigate()
+
+  // A store product gets a dedicated page unless the global toggle is off or the
+  // product opts out. Products with a required selection field can't be added
+  // from the card (the choice must be made on the page first).
+  const hasPage = !isService && productPage.enabledGlobally && item.page?.enabled !== false
+  const productHref = `/product/${item.id}`
+  const requiresChoice = hasPage && Array.isArray(item.page?.optionGroups) && item.page.optionGroups.some((g) => g.required)
 
   // Normalize colors to { hex, image } (older data stored plain hex strings).
   const colors =
@@ -79,7 +88,7 @@ export default function ItemCard({ item, kind }) {
   const available = isService ? item.inStock : stock > 0
 
   return (
-    <article className="group relative flex h-full flex-col rounded-2xl border border-black/5 bg-white shadow-card transition duration-200 hover:-translate-y-1 hover:shadow-card-hover">
+    <article className="group relative flex h-full touch-manipulation flex-col rounded-2xl border border-black/5 bg-white shadow-card transition duration-200 hover:-translate-y-1 hover:shadow-card-hover">
       {/* Visual product tag (deal / importer / custom round image) — pinned to
           the LEFT (with a small gap), poking out the top so ~30% sits OUTSIDE
           the card and ~70% inside. */}
@@ -87,6 +96,13 @@ export default function ItemCard({ item, kind }) {
         <div className="pointer-events-none absolute left-3 top-0 z-20 -translate-y-[30%]">
           <ProductTag tag={item.tag} image={item.tagImage} />
         </div>
+      )}
+
+      {/* Stretched link — makes the WHOLE card open the product page on tap
+          (works reliably on touch, unlike an onClick on a div). Interactive
+          controls below are raised above it with `relative z-10`. */}
+      {hasPage && (
+        <Link to={productHref} aria-label={item.name} className="absolute inset-0 z-[1] rounded-2xl" />
       )}
 
       {/* Visual */}
@@ -111,7 +127,7 @@ export default function ItemCard({ item, kind }) {
 
       {/* Thumbnail strip (multiple images) */}
       {images.length > 1 && (
-        <div className="flex gap-1.5 overflow-x-auto px-3 pt-2 no-scrollbar">
+        <div className="relative z-10 flex gap-1.5 overflow-x-auto px-3 pt-2 no-scrollbar">
           {images.map((src, i) => (
             <button
               key={i}
@@ -130,13 +146,15 @@ export default function ItemCard({ item, kind }) {
 
       {/* Body */}
       <div className="flex flex-1 flex-col p-4">
-        <h3 className="text-base font-bold leading-snug text-ink">{item.name}</h3>
+        <h3 className={`text-base font-bold leading-snug text-ink ${hasPage ? 'transition group-hover:text-brand-600' : ''}`}>
+          {item.name}
+        </h3>
         <p className="mt-1 line-clamp-2 flex-1 text-sm text-ink-light">{item.description}</p>
 
         {/* Color selection — sits ABOVE the price. Always reserves its height on
             store products so prices line up across all cards. */}
         {!isService && (
-          <div className="mt-3 flex min-h-[1.5rem] items-center gap-2">
+          <div className="relative z-10 mt-3 flex min-h-[1.5rem] items-center gap-2">
             {colors.length > 0 && (
               <>
                 <span className="text-xs font-medium text-ink-light">צבע:</span>
@@ -191,7 +209,7 @@ export default function ItemCard({ item, kind }) {
 
         {/* Master-admin only: per-transaction price editor (not saved to catalog) */}
         {isMaster && !isService && (
-          <div className="mt-2 rounded-lg border border-dashed border-brand-300 bg-brand-50/50 p-2">
+          <div className="relative z-10 mt-2 rounded-lg border border-dashed border-brand-300 bg-brand-50/50 p-2">
             {editingPrice ? (
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-ink-light">₪</span>
@@ -238,7 +256,7 @@ export default function ItemCard({ item, kind }) {
           </a>
         ) : cartQty > 0 ? (
           // STORE, already in cart: a ±-stepper to choose how many units.
-          <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-brand-200 bg-brand-50/50 p-1">
+          <div className="relative z-10 mt-3 flex items-center justify-between gap-2 rounded-xl border border-brand-200 bg-brand-50/50 p-1">
             <button
               type="button"
               onClick={decQty}
@@ -261,13 +279,22 @@ export default function ItemCard({ item, kind }) {
               <Plus size={16} />
             </button>
           </div>
+        ) : requiresChoice && !outOfStock ? (
+          // STORE: required selection field(s) — must choose on the product page.
+          <button
+            type="button"
+            onClick={() => navigate(productHref)}
+            className="relative z-10 mt-3 flex items-center justify-center gap-2 rounded-xl bg-brand-500 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-brand-600 active:scale-95"
+          >
+            <SlidersHorizontal size={16} /> בחירת אפשרויות
+          </button>
         ) : (
           // STORE: Add to Cart (disabled when out of stock)
           <button
             type="button"
             onClick={handleAdd}
             disabled={outOfStock}
-            className={`mt-3 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition duration-200 ${
+            className={`relative z-10 mt-3 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition duration-200 ${
               outOfStock
                 ? 'cursor-not-allowed bg-black/10 text-ink-light'
                 : 'bg-brand-500 text-white hover:bg-brand-600 active:scale-95'
@@ -287,7 +314,7 @@ export default function ItemCard({ item, kind }) {
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="mt-2 w-full text-center text-sm font-semibold text-brand-600 underline-offset-2 hover:underline lg:hidden"
+            className="relative z-10 mt-2 w-full text-center text-sm font-semibold text-brand-600 underline-offset-2 hover:underline lg:hidden"
           >
             מעבר לסל הקניות
           </button>

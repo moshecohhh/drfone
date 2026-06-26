@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Menu, Check, Home, Flame, ChevronDown } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { useCatalog } from '../hooks/useCatalog.js'
@@ -36,6 +37,14 @@ function Chip({ cat, active, onClick }) {
 export default function CategoryBar() {
   const { filters, setCategory } = useApp()
   const { categories } = useCatalog()
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+  // Picking a category from any page (e.g. a product page) returns to the
+  // storefront so the filtered results are actually shown.
+  const pick = (id) => {
+    setCategory(id)
+    if (pathname !== '/') navigate('/')
+  }
   const [open, setOpen] = useState(false) // mobile dropdown (logical)
   const [moreOpen, setMoreOpen] = useState(false) // desktop "עוד" dropdown
   const [visible, setVisible] = useState(categories.length) // chips shown on one line
@@ -132,7 +141,7 @@ export default function CategoryBar() {
           key={cat.id}
           type="button"
           onClick={() => {
-            setCategory(cat.id)
+            pick(cat.id)
             onPick()
           }}
           className={`flex w-full items-center justify-between px-4 text-right transition ${
@@ -158,7 +167,7 @@ export default function CategoryBar() {
               key={cat.id}
               cat={cat}
               active={filters.category === cat.id}
-              onClick={() => setCategory(cat.id)}
+              onClick={() => pick(cat.id)}
             />
           ))}
 

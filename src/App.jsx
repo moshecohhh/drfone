@@ -14,6 +14,7 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword.jsx'))
 const Checkout = lazy(() => import('./pages/Checkout.jsx'))
 const Account = lazy(() => import('./pages/Account.jsx'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard.jsx'))
+const ProductPage = lazy(() => import('./pages/ProductPage.jsx'))
 
 // Lightweight fallback while a lazy route's code is being fetched.
 function PageLoading() {
@@ -30,6 +31,7 @@ export default function App() {
       <Suspense fallback={<PageLoading />}>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/product/:id" element={<ProductPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />

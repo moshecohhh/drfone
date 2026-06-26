@@ -1,5 +1,8 @@
 // Shared, lightweight admin UI primitives — keeps every panel clean & consistent.
-import { Search, X } from 'lucide-react'
+import { useState } from 'react'
+import { Search, X, Pencil, Check } from 'lucide-react'
+import { useAdminEdit } from '../../context/AdminEditContext.jsx'
+import { useSettings } from '../../context/SettingsContext.jsx'
 
 export const inputCls =
   'w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-light/60 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20'
@@ -62,12 +65,60 @@ export function Card({ className = '', children }) {
   )
 }
 
-// Section heading with optional action on the side.
-export function PanelHead({ title, subtitle, action }) {
+// An admin label that can be renamed in edit mode. Outside edit mode it's plain
+// text; in edit mode a pencil opens an inline editor and the new value persists
+// to the adminUI label overrides (keyed by `textKey`, which must be stable —
+// pass the DEFAULT text as the fallback so the key never shifts).
+export function EditableText({ textKey, fallback, className = '' }) {
+  const { editMode } = useAdminEdit()
+  const { uiLabel, setUiLabel } = useSettings()
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const display = uiLabel(textKey, fallback)
+
+  if (editMode && editing) {
+    const commit = () => { setUiLabel(textKey, draft.trim() || null); setEditing(false) }
+    return (
+      <span className="inline-flex items-center gap-1">
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
+          className="rounded-lg border border-brand-400 px-2 py-1 text-base outline-none focus:ring-2 focus:ring-brand-500/30"
+        />
+        <button type="button" onClick={commit} aria-label="שמירה" className="rounded-md bg-brand-500 p-1 text-white hover:bg-brand-600"><Check size={14} /></button>
+        <button type="button" onClick={() => setEditing(false)} aria-label="ביטול" className="text-ink-light hover:text-ink"><X size={14} /></button>
+      </span>
+    )
+  }
+  return (
+    <span className={`inline-flex items-center gap-1.5 ${className}`}>
+      {display}
+      {editMode && (
+        <button
+          type="button"
+          onClick={() => { setDraft(display); setEditing(true) }}
+          title="עריכת הכותרת"
+          aria-label="עריכת הכותרת"
+          className="text-ink-light/70 transition hover:text-brand-600"
+        >
+          <Pencil size={14} />
+        </button>
+      )}
+    </span>
+  )
+}
+
+// Section heading with optional action on the side. The title is renamable in
+// edit mode (keyed by its default text so the override stays stable).
+export function PanelHead({ title, subtitle, action, titleKey }) {
   return (
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h2 className="text-xl font-extrabold text-ink">{title}</h2>
+        <h2 className="text-xl font-extrabold text-ink">
+          <EditableText textKey={titleKey || `panel:${title}`} fallback={title} />
+        </h2>
         {subtitle && <p className="mt-0.5 text-sm text-ink-light">{subtitle}</p>}
       </div>
       {action}

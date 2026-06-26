@@ -23,6 +23,27 @@ const DEFAULT_HOME = {
   ],
 }
 
+// Global, admin-controlled product-page configuration (the master enable toggle,
+// gift-wrap default, installments text, payment-icon visibility, and default
+// marketing blocks). A product can override gift-wrap & marketing per-product.
+const DEFAULT_PRODUCT_PAGE = {
+  enabledGlobally: true,
+  giftWrapDefault: { enabled: true, price: 5 },
+  installmentsCount: 6,
+  installmentsText: 'תשלומים',
+  installmentsVisible: true, // global default; a product can override (show/hide)
+  paymentsVisible: true,
+  defaultMarketing: [],
+}
+
+// The standard storage capacities offered when adding a storage field to a
+// product. Shared so the admin always picks from a consistent list.
+export const STORAGE_SIZES = ['16GB', '32GB', '64GB', '128GB', '256GB', '512GB', '1TB', '2TB']
+
+// Admin-panel UI customisation (the "edit mode"): label overrides and custom
+// list ordering. Empty by default — every label falls back to its built-in text.
+const DEFAULT_ADMIN_UI = { labels: {}, navOrder: {} }
+
 const DEFAULTS = {
   name: BUSINESS.name,
   address: BUSINESS.address,
@@ -53,6 +74,7 @@ function saveAppStateCache(m) {
     const snapshot = JSON.stringify({
       settings: m.settings, payments: m.payments, deliveries: m.deliveries,
       orderStatuses: m.orderStatuses, ads: m.ads, home: m.home,
+      productPage: m.productPage, fieldPresets: m.fieldPresets, adminUI: m.adminUI,
     })
     if (snapshot.length < 2_000_000) localStorage.setItem(APP_STATE_CACHE, snapshot)
     else localStorage.removeItem(APP_STATE_CACHE)
@@ -80,6 +102,13 @@ export function SettingsProvider({ children }) {
   )
   const [ads, setAds] = useState(() => (cached?.ads ? { ...DEFAULT_ADS, ...cached.ads } : DEFAULT_ADS))
   const [home, setHome] = useState(() => (cached?.home ? { ...DEFAULT_HOME, ...cached.home } : DEFAULT_HOME))
+  // Global product-page config + the reusable selection-field preset library.
+  const [productPage, setProductPage] = useState(() =>
+    cached?.productPage ? { ...DEFAULT_PRODUCT_PAGE, ...cached.productPage } : DEFAULT_PRODUCT_PAGE,
+  )
+  const [fieldPresets, setFieldPresets] = useState(() => (Array.isArray(cached?.fieldPresets) ? cached.fieldPresets : []))
+  // Admin-panel edit-mode customisation (labels + list ordering).
+  const [adminUI, setAdminUI] = useState(() => (cached?.adminUI ? { ...DEFAULT_ADMIN_UI, ...cached.adminUI } : DEFAULT_ADMIN_UI))
   const [inquiries, setInquiries] = useState([])
   const [loaded, setLoaded] = useState(false)
 
@@ -95,6 +124,9 @@ export function SettingsProvider({ children }) {
       if (Array.isArray(m.orderStatuses)) setOrderStatuses(m.orderStatuses)
       if (m.ads) setAds({ ...DEFAULT_ADS, ...m.ads })
       if (m.home) setHome({ ...DEFAULT_HOME, ...m.home })
+      if (m.productPage) setProductPage({ ...DEFAULT_PRODUCT_PAGE, ...m.productPage })
+      if (Array.isArray(m.fieldPresets)) setFieldPresets(m.fieldPresets)
+      if (m.adminUI) setAdminUI({ ...DEFAULT_ADMIN_UI, ...m.adminUI })
       setLoaded(true)
       saveAppStateCache(m)
     })
@@ -110,6 +142,9 @@ export function SettingsProvider({ children }) {
   useEffect(() => { if (loaded && isMaster) kvSave('app_state', 'orderStatuses', orderStatuses) }, [orderStatuses, loaded, isMaster])
   useEffect(() => { if (loaded && isMaster) kvSave('app_state', 'ads', ads) }, [ads, loaded, isMaster])
   useEffect(() => { if (loaded && isMaster) kvSave('app_state', 'home', home) }, [home, loaded, isMaster])
+  useEffect(() => { if (loaded && isMaster) kvSave('app_state', 'productPage', productPage) }, [productPage, loaded, isMaster])
+  useEffect(() => { if (loaded && isMaster) kvSave('app_state', 'fieldPresets', fieldPresets) }, [fieldPresets, loaded, isMaster])
+  useEffect(() => { if (loaded && isMaster) kvSave('app_state', 'adminUI', adminUI) }, [adminUI, loaded, isMaster])
 
   // Inquiries: the master admin loads them all (RLS hides them from everyone else).
   useEffect(() => {
@@ -199,6 +234,46 @@ export function SettingsProvider({ children }) {
     [],
   )
 
+  // ---- Product page: global config ----
+  const updateProductPage = useCallback((patch) => setProductPage((p) => ({ ...p, ...patch })), [])
+
+  // ---- Product page: reusable selection-field presets ----
+  // A preset's shape matches a per-product option group, so it can be copied
+  // straight into a product's page config (and edited there independently).
+  const addFieldPreset = useCallback(
+    (preset = {}) =>
+      setFieldPresets((list) => [
+        ...list,
+        { id: uid('fp'), title: 'שדה בחירה', required: false, style: 'dropdown', options: [], ...preset },
+      ]),
+    [],
+  )
+  const updateFieldPreset = useCallback(
+    (id, patch) => setFieldPresets((list) => list.map((p) => (p.id === id ? { ...p, ...patch } : p))),
+    [],
+  )
+  const removeFieldPreset = useCallback(
+    (id) => setFieldPresets((list) => list.filter((p) => p.id !== id)),
+    [],
+  )
+
+  // ---- Admin panel edit-mode (label/order overrides) ----
+  const updateAdminUI = useCallback((next) => setAdminUI(next), [])
+  const setUiLabel = useCallback(
+    (key, label) =>
+      setAdminUI((s) => {
+        const labels = { ...s.labels }
+        if (label == null || label === '') delete labels[key]
+        else labels[key] = label
+        return { ...s, labels }
+      }),
+    [],
+  )
+  const setNavOrder = useCallback(
+    (group, ids) => setAdminUI((s) => ({ ...s, navOrder: { ...s.navOrder, [group]: ids } })),
+    [],
+  )
+
   // Generic add/rename/delete for a label list. `extra(prev)` adds default props.
   const makeOps = (setter, prefix, extra) => ({
     add: (label) => {
@@ -244,6 +319,19 @@ export function SettingsProvider({ children }) {
     addAdSlide,
     updateAdSlide,
     removeAdSlide,
+    // product page (global config + reusable field presets)
+    productPage,
+    updateProductPage,
+    fieldPresets,
+    addFieldPreset,
+    updateFieldPreset,
+    removeFieldPreset,
+    // admin edit-mode customisation
+    adminUI,
+    updateAdminUI,
+    setUiLabel,
+    setNavOrder,
+    uiLabel: (key, fallback) => adminUI.labels?.[key] ?? fallback,
     // home page content
     home,
     toggleCategoryHidden,
