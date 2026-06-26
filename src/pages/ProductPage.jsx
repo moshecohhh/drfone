@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Navigate, Link } from 'react-router-dom'
-import { ChevronLeft, ShoppingCart, Gift, Check } from 'lucide-react'
+import { ChevronLeft, ShoppingCart, Gift, Check, Minus, Plus } from 'lucide-react'
 import { DOMAINS, useApp } from '../context/AppContext.jsx'
 import { useCatalogStore } from '../context/CatalogContext.jsx'
 import { useCart } from '../context/CartContext.jsx'
@@ -22,7 +22,7 @@ export default function ProductPage() {
   const navigate = useNavigate()
   const { store, getCategoriesWithAll } = useCatalogStore()
   const { setCategory, switchDomain, goHome } = useApp()
-  const { addItem, setOpen } = useCart()
+  const { addItem, setOpen, items, changeQty } = useCart()
   const { productPage, paymentMethods } = useSettings()
 
   const product = store.find((p) => p.id === id)
@@ -144,6 +144,14 @@ export default function ProductPage() {
     }
     return { unitPrice, selections, optionsKey: keyParts.join('|') }
   }
+
+  // The cart line for the CURRENT configuration (product + color + options), so
+  // once it's in the cart we can show a ± quantity stepper instead of "add".
+  const currentOptionsKey = buildOptions().optionsKey
+  const cartLine = items.find(
+    (i) => i.id === product.id && (i.color || '') === (selectedColor || '') && (i.optionsKey || '') === currentOptionsKey,
+  )
+  const cartQty = cartLine?.qty || 0
 
   const handleAdd = () => {
     if (!canAdd) return false
@@ -361,16 +369,43 @@ export default function ProductPage() {
 
             {/* Actions */}
             <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={handleAdd}
-                disabled={!canAdd}
-                className={`flex items-center justify-center gap-2 rounded-2xl py-3.5 text-base font-bold transition ${
-                  canAdd ? 'bg-brand-500 text-white hover:bg-brand-600 active:scale-95' : 'cursor-not-allowed bg-black/10 text-ink-light'
-                }`}
-              >
-                <ShoppingCart size={20} /> {stock > 0 ? 'הוספה לסל' : 'אזל מהמלאי'}
-              </button>
+              {cartQty > 0 ? (
+                // Already in the cart → ± quantity stepper (replaces "add").
+                <div className="flex items-center justify-between gap-2 rounded-2xl border-2 border-brand-200 bg-brand-50/60 p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => changeQty(cartLine.lineId, -1)}
+                    aria-label="הפחתת כמות"
+                    className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-brand-600 shadow-sm transition hover:bg-brand-100 active:scale-90"
+                  >
+                    <Minus size={18} />
+                  </button>
+                  <span className="flex items-baseline gap-1.5 text-base font-bold text-ink">
+                    {cartQty}
+                    <span className="text-xs font-medium text-ink-light">בסל</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => changeQty(cartLine.lineId, 1)}
+                    disabled={cartQty >= stock}
+                    aria-label="הוספת כמות"
+                    className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-brand-600 shadow-sm transition hover:bg-brand-100 active:scale-90 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Plus size={18} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleAdd}
+                  disabled={!canAdd}
+                  className={`flex items-center justify-center gap-2 rounded-2xl py-3.5 text-base font-bold transition ${
+                    canAdd ? 'bg-brand-500 text-white hover:bg-brand-600 active:scale-95' : 'cursor-not-allowed bg-black/10 text-ink-light'
+                  }`}
+                >
+                  <ShoppingCart size={20} /> {stock > 0 ? 'הוספה לסל' : 'אזל מהמלאי'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleBuyNow}
@@ -382,6 +417,17 @@ export default function ProductPage() {
                 קנה עכשיו
               </button>
             </div>
+            {/* Once in the cart, a shortcut to open it (mobile, where the drawer
+                doesn't auto-open). */}
+            {cartQty > 0 && (
+              <button
+                type="button"
+                onClick={() => setOpen(true)}
+                className="mt-3 w-full text-center text-sm font-semibold text-brand-600 underline-offset-2 hover:underline"
+              >
+                ✓ נוסף לסל · מעבר לסל הקניות ←
+              </button>
+            )}
             {missingRequired.length > 0 && (
               <p className="mt-2 text-sm text-red-500">יש לבחור: {missingRequired.map((g) => g.title).join(', ')}</p>
             )}
