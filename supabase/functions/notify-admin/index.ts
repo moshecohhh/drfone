@@ -13,6 +13,8 @@ const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const NOTIFY_TO = Deno.env.get('NOTIFY_TO') ?? ''
 const NOTIFY_FROM = Deno.env.get('NOTIFY_FROM') ?? 'ד״ר פון <onboarding@resend.dev>'
 const WEBHOOK_SECRET = Deno.env.get('WEBHOOK_SECRET') ?? ''
+// Public site URL for the "open order in admin" button (override via secret).
+const SITE_URL = (Deno.env.get('SITE_URL') ?? 'https://drfone.vercel.app').replace(/\/$/, '')
 
 const esc = (s: unknown) =>
   String(s ?? '-').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -32,10 +34,13 @@ function orderHtml(record: Record<string, unknown>, data: Record<string, unknown
   const rows = items.map((it: Record<string, unknown>) => {
     const lineTotal = (Number(it.price) || 0) * (Number(it.qty) || 0)
     const sels = Array.isArray(it.selections) ? it.selections : []
-    const selHtml = sels
-      .map((s: Record<string, unknown>) =>
-        `<div style="font-size:13px;color:#333;margin-top:2px">• <b>${esc(s.groupTitle)}:</b> ${esc(s.optionLabel)}${s.priceDelta ? ` <span style="color:${BRAND}">(+₪${esc(s.priceDelta)})</span>` : ''}</div>`)
-      .join('')
+    const selHtml = sels.length
+      ? `<div style="margin-top:6px;background:#f0f6f6;border:1px solid #e2eded;border-radius:8px;padding:8px 10px">
+          <div style="font-size:11px;font-weight:bold;color:#7a8a8a;margin-bottom:3px">בחירות הלקוח</div>
+          ${sels.map((s: Record<string, unknown>) =>
+            `<div style="font-size:13px;color:#222;margin:2px 0">▪ <b>${esc(s.groupTitle)}:</b> ${esc(s.optionLabel)}${s.priceDelta ? ` <span style="color:${BRAND};font-weight:bold">(+₪${esc(s.priceDelta)})</span>` : ''}</div>`).join('')}
+        </div>`
+      : ''
     const colorHtml = it.color
       ? `<div style="font-size:13px;color:#666;margin-top:2px">צבע נבחר: <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${esc(it.color)};border:1px solid #ccc;vertical-align:middle"></span></div>`
       : ''
@@ -77,6 +82,9 @@ function orderHtml(record: Record<string, unknown>, data: Record<string, unknown
         <div style="font-size:13px;color:#666;font-weight:bold;border-bottom:2px solid #eee;padding-bottom:6px;margin-bottom:4px">פריטים (${qtyTotal})</div>
         <table width="100%" style="border-collapse:collapse">${rows}</table>
         <div style="text-align:left;margin-top:16px;padding-top:12px;border-top:2px solid #eee;font-size:18px;font-weight:bold;color:#111">סה"כ לתשלום: ${money(data.total)}</div>
+        <div style="text-align:center;margin-top:20px">
+          <a href="${SITE_URL}/admin?order=${esc(record.id)}" style="display:inline-block;background:${BRAND};color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:13px 28px;border-radius:10px">📦 מעבר להזמנה בניהול ←</a>
+        </div>
       </div>
     </div>
   </div>`

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronDown, Trash2, Package, Phone, MapPin, CreditCard, User, Mail } from 'lucide-react'
 import { useOrders } from '../../context/OrdersContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
@@ -10,13 +10,25 @@ import { useAuth } from '../../context/AuthContext.jsx'
 const fmtDate = (iso) =>
   new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 
-export default function OrdersPanel() {
+export default function OrdersPanel({ focusId = null }) {
   const { orders, updateStatus, deleteOrder, addOrderLog, markOrderRead } = useOrders()
   const { orderStatuses, orderStatusMeta, paymentLabel: payLabel, deliveryLabel } = useSettings()
   const { user } = useAuth()
   const [expanded, setExpanded] = useState(null)
   const [sortDir, setSortDir] = useState('newest')
   const [query, setQuery] = useState('')
+
+  // Opened from the order email (/admin?order=<id>) — expand, mark read and
+  // scroll to that order once it's loaded.
+  useEffect(() => {
+    if (!focusId) return
+    const target = orders.find((o) => o.id === focusId || o.number === focusId)
+    if (!target) return
+    setExpanded(target.id)
+    markOrderRead(target.id)
+    const t = setTimeout(() => document.getElementById(`order-${target.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120)
+    return () => clearTimeout(t)
+  }, [focusId, orders, markOrderRead])
 
   const term = query.trim().toLowerCase()
   const matches = (o) =>
@@ -78,56 +90,57 @@ export default function OrdersPanel() {
         return (
           <div
             key={o.id}
+            id={`order-${o.id}`}
             className={`overflow-hidden rounded-2xl border shadow-card ${
               unread
                 ? 'border-red-300 bg-red-50/60 ring-1 ring-red-200'
                 : `border-black/5 ${idx % 2 ? 'bg-brand-50/40' : 'bg-white'}`
             }`}
           >
-            {/* Row header */}
-            <div className="flex flex-wrap items-center gap-3 p-4">
-              <button onClick={toggle} className="flex flex-1 items-center gap-3 text-right">
-                <ChevronDown
-                  size={18}
-                  className={`text-ink-light transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                />
-                <div>
-                  <div className="flex items-center gap-2 font-bold text-ink">
-                    {o.number}
-                    {unread && (
-                      <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">חדש</span>
-                    )}
-                  </div>
-                  <div className="text-xs text-ink-light">{fmtDate(o.createdAt)}</div>
-                </div>
-              </button>
-
-              <div className="text-sm text-ink-light">{o.customer?.name}</div>
-              <div className="font-extrabold text-ink">₪{o.total}</div>
-
-              {/* Status select */}
-              <div className="relative">
-                <select
-                  value={o.status}
-                  onChange={(e) => updateStatus(o.id, e.target.value)}
-                  className={`cursor-pointer appearance-none rounded-full px-3 py-1.5 pl-7 text-xs font-bold outline-none ${meta.color}`}
-                >
-                  {orderStatuses.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={12} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 opacity-60" />
+            {/* Row header — fixed two-row layout so every card is symmetric:
+                top row = number/date (right) + total/customer (left);
+                bottom row = status (right) + delete (left). */}
+            <div className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <button onClick={toggle} className="flex min-w-0 flex-1 items-center gap-2.5 text-right">
+                  <ChevronDown size={18} className={`shrink-0 text-ink-light transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2 font-bold text-ink">
+                      {o.number}
+                      {unread && <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">חדש</span>}
+                    </span>
+                    <span className="block text-xs text-ink-light">{fmtDate(o.createdAt)}</span>
+                  </span>
+                </button>
+                <span className="shrink-0 text-left">
+                  <span className="block font-extrabold text-ink">₪{o.total}</span>
+                  <span className="block max-w-[9rem] truncate text-xs text-ink-light">{o.customer?.name}</span>
+                </span>
               </div>
 
-              <button
-                onClick={() => deleteOrder(o.id)}
-                aria-label="מחיקת הזמנה"
-                className="rounded-lg p-2 text-ink-light hover:bg-red-50 hover:text-red-600"
-              >
-                <Trash2 size={16} />
-              </button>
+              <div className="mt-3 flex items-center justify-between gap-2 border-t border-black/5 pt-3">
+                {/* Status select */}
+                <div className="relative">
+                  <select
+                    value={o.status}
+                    onChange={(e) => updateStatus(o.id, e.target.value)}
+                    className={`cursor-pointer appearance-none rounded-full px-3 py-1.5 pl-7 text-xs font-bold outline-none ${meta.color}`}
+                  >
+                    {orderStatuses.map((s) => (
+                      <option key={s.id} value={s.id}>{s.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={12} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 opacity-60" />
+                </div>
+
+                <button
+                  onClick={() => deleteOrder(o.id)}
+                  aria-label="מחיקת הזמנה"
+                  className="rounded-lg p-2 text-ink-light hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             </div>
 
             {/* Details */}

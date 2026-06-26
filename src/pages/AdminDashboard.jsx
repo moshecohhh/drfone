@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ShoppingBag, Wrench, Smartphone, HardDrive,
@@ -160,7 +160,17 @@ export default function AdminDashboard() {
     setNavOrder(group, ids)
   }
 
-  const [section, setSection] = useState(isMaster ? 'overview' : 'repairs')
+  // Deep link from the order email: /admin?order=<id> opens the Orders section
+  // and focuses that order. Captured once, then the URL is cleaned.
+  const [orderFocus, setOrderFocus] = useState(() => new URLSearchParams(window.location.search).get('order'))
+  useEffect(() => {
+    if (!orderFocus) return
+    window.history.replaceState({}, '', '/admin')
+    const t = setTimeout(() => setOrderFocus(null), 2500)
+    return () => clearTimeout(t)
+  }, [orderFocus])
+
+  const [section, setSection] = useState(isMaster && new URLSearchParams(window.location.search).get('order') ? 'orders' : (isMaster ? 'overview' : 'repairs'))
   const [catalogLowStock, setCatalogLowStock] = useState(false)
   // A product/service to open straight into its edit modal (from global search).
   const [catalogEdit, setCatalogEdit] = useState(null)
@@ -196,7 +206,9 @@ export default function AdminDashboard() {
         }
       : section === 'catalog'
         ? { lowStockInitial: catalogLowStock, editTarget: catalogEdit }
-        : {}
+        : section === 'orders'
+          ? { focusId: orderFocus }
+          : {}
 
   const NavItem = ({ id, label, Icon, group, children }) => {
     const active = section === id
