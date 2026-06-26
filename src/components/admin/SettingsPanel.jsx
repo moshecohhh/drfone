@@ -6,7 +6,7 @@ import {
 import { useSettings } from '../../context/SettingsContext.jsx'
 import { useLab } from '../../context/LabContext.jsx'
 import { downscaleImage } from '../../utils/image.js'
-import { PanelHead, Card, Field, PrimaryBtn, inputCls } from './ui.jsx'
+import { PanelHead, Card, Field, PrimaryBtn, Switch, inputCls } from './ui.jsx'
 import EditableList from './EditableList.jsx'
 import ImageOptimizer from './ImageOptimizer.jsx'
 
@@ -87,11 +87,12 @@ export default function SettingsPanel() {
                 </span>
                 <Field label="לוגו בתחתית">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-black/10 bg-black p-1.5">
+                    {/* Preview reflects the white-background setting */}
+                    <div className={`flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-black/10 p-1.5 ${form.footerLogoWhiteBg !== false ? 'bg-white' : 'bg-black'}`}>
                       {form.footerLogo ? (
                         <img src={form.footerLogo} alt="" className="h-full w-auto object-contain" />
                       ) : (
-                        <img src="/logo.png" alt="" className="h-full w-auto object-contain opacity-80" />
+                        <img src="/logo.png" alt="" className="h-full w-auto object-contain" />
                       )}
                     </div>
                     <div className="flex flex-col gap-1.5">
@@ -107,6 +108,12 @@ export default function SettingsPanel() {
                     <input ref={footerLogoRef} type="file" accept="image/*" onChange={onFooterLogo} className="hidden" />
                   </div>
                 </Field>
+                {/* White-background toggle — persists across re-uploads */}
+                <label className="mt-3 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-ink">רקע לבן מאחורי הלוגו</span>
+                  <Switch checked={form.footerLogoWhiteBg !== false} onChange={(v) => set('footerLogoWhiteBg', v)} label="רקע לבן ללוגו" />
+                </label>
+                <p className="mt-1 text-xs text-ink-light">כבו אם הלוגו שלכם לבן/שקוף — הוא יוצג ישירות על הרקע השחור ללא קופסה.</p>
                 <div className="mt-3">
                   <Field label="טקסט תיאור בתחתית">
                     <textarea rows={3} className={inputCls} value={form.footerTagline} onChange={(e) => set('footerTagline', e.target.value)} />

@@ -51,6 +51,7 @@ const DEFAULTS = {
   whatsappIntl: BUSINESS.whatsappIntl,
   // Footer (the black bottom panel): an optional custom logo + tagline.
   footerLogo: '', // empty → use the main site logo
+  footerLogoWhiteBg: true, // white panel behind the footer logo (off = transparent)
   footerTagline: 'חנות מכשירים כשרים ומסוננים, לצד מעבדה מקצועית לתיקון סמארטפונים בכל הרמות.',
 }
 
