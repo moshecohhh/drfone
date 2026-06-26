@@ -49,6 +49,9 @@ const DEFAULTS = {
   address: BUSINESS.address,
   whatsappDisplay: BUSINESS.whatsappDisplay,
   whatsappIntl: BUSINESS.whatsappIntl,
+  // Footer (the black bottom panel): an optional custom logo + tagline.
+  footerLogo: '', // empty → use the main site logo
+  footerTagline: 'חנות מכשירים כשרים ומסוננים, לצד מעבדה מקצועית לתיקון סמארטפונים בכל הרמות.',
 }
 
 const uid = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`

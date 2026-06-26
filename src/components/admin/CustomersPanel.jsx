@@ -4,6 +4,7 @@ import { useLab } from '../../context/LabContext.jsx'
 import { useAuth, ROLES, ROLE_OPTIONS } from '../../context/AuthContext.jsx'
 import { PanelHead, Table, Card, Field, PrimaryBtn, GhostBtn, IconBtn, EmptyState, PanelSearch, inputCls } from './ui.jsx'
 import PhoneActions from './PhoneActions.jsx'
+import NewsletterPanel from './NewsletterPanel.jsx'
 import { sanitizePhone, isValidPhone, isValidEmail } from '../../utils/validation.js'
 import { exportCsv } from '../../utils/exportCsv.js'
 
@@ -14,6 +15,7 @@ export default function CustomersPanel() {
   const { customers, addCustomer, updateCustomer, deleteCustomer, repairs } = useLab()
   const { isMasterAdminAccount } = useAuth()
   const bypass = isMasterAdminAccount
+  const [view, setView] = useState('customers') // 'customers' | 'newsletter'
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(blank)
@@ -73,6 +75,16 @@ export default function CustomersPanel() {
 
   return (
     <div>
+      {/* Tabs — customer base vs. the newsletter (moved in here) */}
+      <div className="mb-5 flex gap-1 border-b border-black/5">
+        <CustTab active={view === 'customers'} onClick={() => setView('customers')} Icon={Users}>לקוחות</CustTab>
+        <CustTab active={view === 'newsletter'} onClick={() => setView('newsletter')} Icon={Mail}>ניוזלטר</CustTab>
+      </div>
+
+      {view === 'newsletter' ? (
+        <NewsletterPanel />
+      ) : (
+      <>
       <PanelHead
         title="לקוחות"
         subtitle="ניהול מאגר הלקוחות, פרטי התקשרות ופרטי כניסה."
@@ -210,6 +222,22 @@ export default function CustomersPanel() {
           ))}
         </Table>
       )}
+      </>
+      )}
     </div>
+  )
+}
+
+function CustTab({ active, onClick, Icon, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-1.5 rounded-t-lg border-b-2 px-4 py-2 text-sm font-bold transition ${
+        active ? 'border-brand-500 text-brand-600' : 'border-transparent text-ink-light hover:text-ink'
+      }`}
+    >
+      <Icon size={16} /> {children}
+    </button>
   )
 }

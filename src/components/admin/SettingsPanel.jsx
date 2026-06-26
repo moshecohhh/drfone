@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   Save, Building2, ClipboardList, Check, Store, Wrench, CreditCard, Truck, ShoppingBag, ListChecks,
-  User, Smartphone, Lock, Wallet,
+  User, Smartphone, Lock, Wallet, Upload, X, PanelBottom,
 } from 'lucide-react'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import { useLab } from '../../context/LabContext.jsx'
+import { downscaleImage } from '../../utils/image.js'
 import { PanelHead, Card, Field, PrimaryBtn, inputCls } from './ui.jsx'
 import EditableList from './EditableList.jsx'
-import FeatureManager from './FeatureManager.jsx'
 import ImageOptimizer from './ImageOptimizer.jsx'
 
 // Master-only customization hub, split into two areas:
@@ -28,6 +28,15 @@ export default function SettingsPanel() {
   const [form, setForm] = useState(settings)
   const [saved, setSaved] = useState(false)
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+  const footerLogoRef = useRef(null)
+
+  // Upload a footer logo → downscale to a small data-URL stored on the settings.
+  const onFooterLogo = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    downscaleImage(file, 400, 0.9).then((url) => set('footerLogo', url)).catch(() => {})
+  }
 
   const saveBusiness = (e) => {
     e.preventDefault()
@@ -63,13 +72,48 @@ export default function SettingsPanel() {
                 <input className={inputCls} value={form.address} onChange={(e) => set('address', e.target.value)} />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="טלפון לתצוגה">
+                <Field label="טלפון לתצוגה" hint="מוצג בכותרת התחתית">
                   <input className={inputCls} value={form.whatsappDisplay} onChange={(e) => set('whatsappDisplay', e.target.value)} />
                 </Field>
-                <Field label="וואטסאפ (בינלאומי)" hint="לדוגמה 972556802800">
+                <Field label="וואטסאפ (בינלאומי)" hint="מספר כפתור הוואטסאפ · לדוגמה 972556802800">
                   <input className={inputCls} dir="ltr" value={form.whatsappIntl} onChange={(e) => set('whatsappIntl', e.target.value)} />
                 </Field>
               </div>
+
+              {/* Footer (black bottom panel) */}
+              <div className="rounded-xl border border-black/10 bg-brand-50/30 p-3">
+                <span className="mb-3 flex items-center gap-2 text-xs font-bold text-ink-light">
+                  <PanelBottom size={14} className="text-brand-500" /> כותרת תחתית (Footer)
+                </span>
+                <Field label="לוגו בתחתית">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-black/10 bg-black p-1.5">
+                      {form.footerLogo ? (
+                        <img src={form.footerLogo} alt="" className="h-full w-auto object-contain" />
+                      ) : (
+                        <img src="/logo.png" alt="" className="h-full w-auto object-contain opacity-80" />
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <button type="button" onClick={() => footerLogoRef.current?.click()} className="flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-1.5 text-xs font-semibold text-ink hover:bg-black/5">
+                        <Upload size={14} /> העלאת לוגו
+                      </button>
+                      {form.footerLogo && (
+                        <button type="button" onClick={() => set('footerLogo', '')} className="flex items-center gap-1.5 text-xs font-semibold text-ink-light hover:text-red-500">
+                          <X size={13} /> שימוש בלוגו הראשי
+                        </button>
+                      )}
+                    </div>
+                    <input ref={footerLogoRef} type="file" accept="image/*" onChange={onFooterLogo} className="hidden" />
+                  </div>
+                </Field>
+                <div className="mt-3">
+                  <Field label="טקסט תיאור בתחתית">
+                    <textarea rows={3} className={inputCls} value={form.footerTagline} onChange={(e) => set('footerTagline', e.target.value)} />
+                  </Field>
+                </div>
+              </div>
+
               <div className="flex justify-end">
                 <PrimaryBtn type="submit">
                   {saved ? <Check size={16} /> : <Save size={16} />} {saved ? 'נשמר' : 'שמירה'}
@@ -113,9 +157,6 @@ export default function SettingsPanel() {
               placeholder="הוספת סטטוס הזמנה"
             />
           </Card>
-
-          {/* Rotating featured strip (below the brand row) */}
-          <FeatureManager />
 
           {/* One-click image compression to speed up the whole site */}
           <ImageOptimizer />

@@ -7,14 +7,18 @@ export default function Footer() {
   return (
     <footer className="mt-16 border-t border-black/10 bg-black text-white">
       <div className="grid w-full gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-3 xl:px-[3cm]">
-        {/* Brand */}
+        {/* Brand — custom footer logo + tagline when set (admin-editable) */}
         <div>
           <div className="inline-flex rounded-xl bg-white p-3">
-            <Logo className="h-16" withLink={false} />
+            {settings.footerLogo ? (
+              <img src={settings.footerLogo} alt={settings.name} className="h-16 w-auto select-none" draggable={false} />
+            ) : (
+              <Logo className="h-16" withLink={false} />
+            )}
           </div>
-          <p className="mt-3 max-w-xs text-sm text-white/60">
-            חנות מכשירים כשרים ומסוננים, לצד מעבדה מקצועית לתיקון סמארטפונים בכל הרמות.
-          </p>
+          {settings.footerTagline && (
+            <p className="mt-3 max-w-xs whitespace-pre-line text-sm text-white/60">{settings.footerTagline}</p>
+          )}
         </div>
 
         {/* What we do */}

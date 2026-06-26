@@ -5,6 +5,7 @@ import { useCatalogStore } from '../../context/CatalogContext.jsx'
 import { DOMAINS } from '../../context/AppContext.jsx'
 import { PanelHead, Card, Switch, inputCls } from './ui.jsx'
 import { downscaleImage } from '../../utils/image.js'
+import FeatureManager from './FeatureManager.jsx'
 
 // "ניהול דף ראשי": choose which categories appear in the home showcase (and set
 // their images), and edit the customer reviews shown on the home page.
@@ -28,9 +29,12 @@ export default function HomePanel() {
 
   return (
     <div>
-      <PanelHead title="ניהול דף ראשי" subtitle="בחירת הקטגוריות והתמונות שיוצגו בדף הראשי, וביקורות הלקוחות." />
+      <PanelHead title="ניהול דף ראשי" subtitle="רצועת המבצעים, הקטגוריות והתמונות שיוצגו בדף הראשי, וביקורות הלקוחות." />
 
       <div className="grid gap-5 lg:grid-cols-2">
+        {/* Promo strip — "מבצעים והטבות" (moved here from Settings) */}
+        <FeatureManager />
+
         {/* Showcase categories — image + show/hide */}
         <Card>
           <h3 className="mb-1 flex items-center gap-2 text-base font-extrabold text-ink">

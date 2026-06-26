@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ShoppingBag, Wrench, Smartphone, HardDrive,
   Tags, Users, UserCog, Settings as SettingsIcon, LogOut, Home, Tag, Mail,
-  LayoutTemplate, Inbox, DatabaseBackup, PenSquare, GripVertical, RotateCcw, Check,
+  LayoutTemplate, Inbox, DatabaseBackup, PenSquare, GripVertical, RotateCcw, Check, ChevronDown,
 } from 'lucide-react'
 import { useAuth, ROLE_LABELS } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
@@ -17,35 +17,44 @@ import DashboardSummary from '../components/admin/DashboardSummary.jsx'
 import HomePanel from '../components/admin/HomePanel.jsx'
 import InquiriesPanel from '../components/admin/InquiriesPanel.jsx'
 import CatalogPanel from '../components/admin/CatalogPanel.jsx'
+import BrandsPanel from '../components/admin/BrandsPanel.jsx'
 import ProductPagePanel from '../components/admin/ProductPagePanel.jsx'
 import OrdersPanel from '../components/admin/OrdersPanel.jsx'
 import RepairsPanel from '../components/admin/RepairsPanel.jsx'
 import LoanersPanel from '../components/admin/LoanersPanel.jsx'
 import DevicesPanel from '../components/admin/DevicesPanel.jsx'
 import CategoriesPanel from '../components/admin/CategoriesPanel.jsx'
-import BrandsPanel from '../components/admin/BrandsPanel.jsx'
-import UsersPanel from '../components/admin/UsersPanel.jsx'
+import UsersPanelGate from '../components/admin/UsersPanelGate.jsx'
 import CustomersPanel from '../components/admin/CustomersPanel.jsx'
-import NewsletterPanel from '../components/admin/NewsletterPanel.jsx'
 import SettingsPanel from '../components/admin/SettingsPanel.jsx'
-import BackupPanel from '../components/admin/BackupPanel.jsx'
+import BackupPanelGate from '../components/admin/BackupPanelGate.jsx'
+
+// Catalog sub-pages — shown BOTH as expandable children in the sidebar AND as a
+// tab row at the top of each of these pages.
+const CATALOG_TABS = [
+  { id: 'catalog', label: 'מוצרים', Icon: Package },
+  { id: 'brands', label: 'מותגים', Icon: Tag },
+  { id: 'product-page', label: 'דף מוצר', Icon: LayoutTemplate },
+  { id: 'categories', label: 'קטגוריות', Icon: Tags },
+]
 
 // `store: true` marks the only sections a STORE account may see. The master
 // admin sees everything; STORE sees Repairs only; CUSTOMER has no admin access.
 const NAV = [
   {
     group: 'ראשי',
-    items: [{ id: 'overview', label: 'סקירה', Icon: LayoutDashboard }],
+    items: [
+      { id: 'overview', label: 'סקירה', Icon: LayoutDashboard },
+      { id: 'orders', label: 'הזמנות', Icon: ShoppingBag },
+      { id: 'inquiries', label: 'פניות', Icon: Inbox },
+    ],
   },
   {
     group: 'חנות',
     items: [
       { id: 'home-page', label: 'דף ראשי', Icon: LayoutTemplate },
-      { id: 'catalog', label: 'קטלוג', Icon: Package },
-      { id: 'product-page', label: 'דף מוצר', Icon: LayoutTemplate },
-      { id: 'brands', label: 'מותגים', Icon: Tag },
-      { id: 'orders', label: 'הזמנות', Icon: ShoppingBag },
-      { id: 'inquiries', label: 'פניות', Icon: Inbox },
+      // "קטלוג" expands (via the chevron) to its sub-pages.
+      { id: 'catalog', label: 'קטלוג', Icon: Package, children: CATALOG_TABS },
     ],
   },
   {
@@ -60,9 +69,7 @@ const NAV = [
   {
     group: 'ניהול',
     items: [
-      { id: 'categories', label: 'קטגוריות', Icon: Tags },
       { id: 'users', label: 'משתמשים והרשאות', Icon: UserCog },
-      { id: 'newsletter', label: 'ניוזלטר', Icon: Mail },
       { id: 'backup', label: 'גיבוי ושחזור', Icon: DatabaseBackup },
       { id: 'settings', label: 'הגדרות', Icon: SettingsIcon },
     ],
@@ -73,8 +80,8 @@ const PANELS = {
   overview: DashboardSummary,
   'home-page': HomePanel,
   catalog: CatalogPanel,
-  'product-page': ProductPagePanel,
   brands: BrandsPanel,
+  'product-page': ProductPagePanel,
   orders: OrdersPanel,
   inquiries: InquiriesPanel,
   repairs: RepairsPanel,
@@ -82,9 +89,8 @@ const PANELS = {
   loaners: LoanersPanel,
   devices: DevicesPanel,
   categories: CategoriesPanel,
-  users: UsersPanel,
-  newsletter: NewsletterPanel,
-  backup: BackupPanel,
+  users: UsersPanelGate,
+  backup: BackupPanelGate,
   settings: SettingsPanel,
 }
 
@@ -128,7 +134,8 @@ export default function AdminDashboard() {
     ...g,
     items: orderItems(g.group, g.items.filter((it) => isMaster || it.store)),
   })).filter((g) => g.items.length > 0)
-  const flat = groups.flatMap((g) => g.items)
+  // Mobile strip shows every navigable leaf (a parent's children, not the parent).
+  const flat = groups.flatMap((g) => g.items.flatMap((it) => (it.children ? it.children : [it])))
 
   // Drop a dragged nav item before the target, persisting the new order.
   const handleNavDrop = (targetId, group) => {
@@ -147,6 +154,9 @@ export default function AdminDashboard() {
 
   const [section, setSection] = useState(isMaster ? 'overview' : 'repairs')
   const [catalogLowStock, setCatalogLowStock] = useState(false)
+  // Which parent items (e.g. "קטלוג") are expanded to reveal their sub-pages.
+  // undefined → follow the active section; explicit true/false overrides it.
+  const [expandedItems, setExpandedItems] = useState({})
 
   // Navigate to a section; clears the low-stock drilldown flag unless requested.
   const go = (id, lowStock = false) => {
@@ -166,7 +176,7 @@ export default function AdminDashboard() {
         ? { lowStockInitial: catalogLowStock }
         : {}
 
-  const NavItem = ({ id, label, Icon, group }) => {
+  const NavItem = ({ id, label, Icon, group, children }) => {
     const active = section === id
     const badge =
       id === 'inquiries' && unreadInquiries > 0 ? unreadInquiries
@@ -191,6 +201,52 @@ export default function AdminDashboard() {
             <Icon size={16} />
           </button>
           <EditableText textKey={`nav:${id}`} fallback={label} className="font-semibold text-ink" />
+        </div>
+      )
+    }
+
+    // Parent item with sub-pages (e.g. "קטלוג") — expandable via the chevron.
+    if (children?.length) {
+      const childIds = children.map((c) => c.id)
+      const activeInside = section === id || childIds.includes(section)
+      const open = expandedItems[id] ?? activeInside
+      return (
+        <div>
+          <div className={`flex w-full items-center rounded-xl transition ${activeInside ? 'bg-brand-50' : 'hover:bg-black/5'}`}>
+            <button
+              onClick={() => { go(id); setExpandedItems((e) => ({ ...e, [id]: true })) }}
+              className={`flex flex-1 items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${section === id ? 'text-brand-700' : 'text-ink-light hover:text-ink'}`}
+            >
+              <Icon size={18} /> <span className="whitespace-nowrap">{uiLabel(`nav:${id}`, label)}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setExpandedItems((e) => ({ ...e, [id]: !open }))}
+              aria-label={open ? 'כיווץ' : 'הרחבה'}
+              aria-expanded={open}
+              className="shrink-0 rounded-lg p-2 text-ink-light hover:bg-black/10 hover:text-ink"
+            >
+              <ChevronDown size={16} className={`transition-transform ${open ? '' : '-rotate-90'}`} />
+            </button>
+          </div>
+          {open && (
+            <div className="mr-4 mt-0.5 space-y-0.5 border-r border-black/10 pr-2">
+              {children.map((c) => {
+                const cActive = section === c.id
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => go(c.id)}
+                    className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                      cActive ? 'bg-brand-500 text-white shadow-sm' : 'text-ink-light hover:bg-black/5 hover:text-ink'
+                    }`}
+                  >
+                    <c.Icon size={15} /> <span className="whitespace-nowrap">{uiLabel(`nav:${c.id}`, c.label)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       )
     }
@@ -326,6 +382,23 @@ export default function AdminDashboard() {
 
         {/* Content */}
         <main className="min-w-0 flex-1 px-4 py-6 pb-24 lg:px-8 lg:pb-6">
+          {/* Catalog tab row — shown at the top of every catalog sub-page */}
+          {CATALOG_TABS.some((t) => t.id === section) && (
+            <div className="mb-5 flex flex-wrap gap-1 border-b border-black/5">
+              {CATALOG_TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => go(t.id)}
+                  className={`flex items-center gap-1.5 rounded-t-lg border-b-2 px-4 py-2 text-sm font-bold transition ${
+                    section === t.id ? 'border-brand-500 text-brand-600' : 'border-transparent text-ink-light hover:text-ink'
+                  }`}
+                >
+                  <t.Icon size={16} /> {uiLabel(`nav:${t.id}`, t.label)}
+                </button>
+              ))}
+            </div>
+          )}
           <Panel {...panelProps} />
         </main>
       </div>
