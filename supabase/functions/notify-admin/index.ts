@@ -16,6 +16,64 @@ const WEBHOOK_SECRET = Deno.env.get('WEBHOOK_SECRET') ?? ''
 // Public site URL for the "open order in admin" button (override via secret).
 const SITE_URL = (Deno.env.get('SITE_URL') ?? 'https://drfone.vercel.app').replace(/\/$/, '')
 
+// Supabase Storage — used to host product images so the email references real
+// URLs (email clients can't render embedded base64 `data:` images, and they
+// bloat the email past Gmail's clip limit). These two vars are injected into
+// every edge function by Supabase automatically.
+const SUPABASE_URL = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/$/, '')
+const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+const IMG_BUCKET = 'order-images'
+
+// Create the public bucket if it doesn't exist yet (idempotent).
+async function ensureBucket(): Promise<boolean> {
+  if (!SUPABASE_URL || !SERVICE_KEY) return false
+  try {
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${SERVICE_KEY}`, apikey: SERVICE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: IMG_BUCKET, name: IMG_BUCKET, public: true }),
+    })
+    return res.ok || res.status === 400 || res.status === 409 // created OR already exists
+  } catch {
+    return false
+  }
+}
+
+// Upload a base64 data-URL image to Storage and return its public URL (or null).
+async function uploadImage(dataUrl: string): Promise<string | null> {
+  try {
+    const m = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i.exec(dataUrl)
+    if (!m) return null
+    const contentType = m[1]
+    const ext = (contentType.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
+    const bytes = Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0))
+    const digest = await crypto.subtle.digest('SHA-1', bytes)
+    const hash = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16)
+    const path = `${hash}.${ext}`
+    const up = await fetch(`${SUPABASE_URL}/storage/v1/object/${IMG_BUCKET}/${path}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${SERVICE_KEY}`, apikey: SERVICE_KEY, 'Content-Type': contentType, 'x-upsert': 'true' },
+      body: bytes,
+    })
+    if (!up.ok && up.status !== 409) return null // 409 = already uploaded
+    return `${SUPABASE_URL}/storage/v1/object/public/${IMG_BUCKET}/${path}`
+  } catch {
+    return null
+  }
+}
+
+// Resolve each order item's image to a public URL (uploading base64 ones).
+async function resolveItemImages(items: Record<string, unknown>[]): Promise<void> {
+  if (!items.length) return
+  await ensureBucket()
+  for (const it of items) {
+    const src = it.image
+    if (typeof src === 'string' && /^https?:\/\//i.test(src)) it._imgUrl = src
+    else if (typeof src === 'string' && src.startsWith('data:')) it._imgUrl = await uploadImage(src)
+    else it._imgUrl = null
+  }
+}
+
 const esc = (s: unknown) =>
   String(s ?? '-').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
@@ -44,8 +102,10 @@ function orderHtml(record: Record<string, unknown>, data: Record<string, unknown
     const colorHtml = it.color
       ? `<div style="font-size:13px;color:#666;margin-top:2px">צבע נבחר: <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${esc(it.color)};border:1px solid #ccc;vertical-align:middle"></span></div>`
       : ''
-    const img = it.image
-      ? `<img src="${esc(it.image)}" width="56" height="56" style="border-radius:8px;object-fit:cover;border:1px solid #eee" alt="" />`
+    // Use the resolved public URL (never inline base64 — Gmail blocks it).
+    const imgUrl = typeof it._imgUrl === 'string' ? it._imgUrl : ''
+    const img = imgUrl
+      ? `<img src="${esc(imgUrl)}" width="56" height="56" style="border-radius:8px;object-fit:cover;border:1px solid #eee" alt="" />`
       : `<div style="width:56px;height:56px;border-radius:8px;background:#f0f5f5;text-align:center;line-height:56px;font-size:22px">📦</div>`
     return `<tr>
       <td style="padding:10px 8px;border-bottom:1px solid #eee;vertical-align:top;width:56px">${img}</td>
@@ -115,6 +175,8 @@ Deno.serve(async (req) => {
     } else if (table === 'orders') {
       const name = data.customer?.name ?? 'לקוח'
       subject = `🛒 הזמנה חדשה ${record.number ?? ''} · ${name} · ₪${data.total ?? ''}`
+      // Host the product images (so the email shows real images, not base64).
+      await resolveItemImages(Array.isArray(data.items) ? data.items : [])
       html = orderHtml(record, data)
     } else {
       html = `<pre dir="ltr">${esc(JSON.stringify(data, null, 2))}</pre>`
