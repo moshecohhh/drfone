@@ -19,13 +19,14 @@ const rowToOrder = (row) => ({
 })
 
 // Extract the jsonb `data` payload from a flat order object.
-const orderToData = ({ customer, payment, delivery, items, total, log }) => ({
+const orderToData = ({ customer, payment, delivery, items, total, log, read }) => ({
   customer,
   payment,
   delivery,
   items,
   total,
   log: log || [],
+  read: !!read, // whether an admin has opened this order yet
 })
 
 const OrdersContext = createContext(null)
@@ -64,6 +65,7 @@ export function OrdersProvider({ children }) {
         number,
         createdAt: new Date().toISOString(),
         status: 'new',
+        read: false, // new orders start unread (red) until an admin opens them
         customer,
         payment,
         delivery,
@@ -94,6 +96,17 @@ export function OrdersProvider({ children }) {
     })
   }, [])
 
+  // Mark an order as read (the admin opened it). Persists into the jsonb `data`.
+  const markOrderRead = useCallback((id) => {
+    const current = ordersRef.current.find((o) => o.id === id)
+    if (!current || current.read) return
+    const merged = { ...current, read: true }
+    setOrders((prev) => prev.map((o) => (o.id === id ? merged : o)))
+    supabase.from('orders').update({ data: orderToData(merged) }).eq('id', id).then(({ error }) => {
+      if (error) console.warn('[orders] markOrderRead failed:', error.message)
+    })
+  }, [])
+
   // Append a timestamped journal entry for documentation.
   const addOrderLog = useCallback((id, text, author) => {
     if (!text.trim()) return
@@ -112,7 +125,7 @@ export function OrdersProvider({ children }) {
     })
   }, [])
 
-  const value = { orders, addOrder, updateStatus, deleteOrder, addOrderLog }
+  const value = { orders, addOrder, updateStatus, deleteOrder, addOrderLog, markOrderRead }
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>
 }

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { ZoomIn, Search, ChevronRight, ChevronLeft } from 'lucide-react'
 
 // Product image gallery with a main image + thumbnail strip and a cursor-following
@@ -12,7 +12,17 @@ export default function ProductGallery({ images = [], active, onSelect, emoji = 
   const current = list.includes(active) ? active : list[0] || ''
   const currentIndex = Math.max(0, list.indexOf(current))
   const [zoom, setZoom] = useState({ on: false, x: 50, y: 50 })
+  // On touch devices the zoom is OFF by default (so a normal touch just scrolls
+  // the page); it only turns on when the zoom button is tapped. Desktop keeps
+  // the hover-zoom regardless.
+  const [touchZoom, setTouchZoom] = useState(false)
   const frameRef = useRef(null)
+
+  // Switching images exits zoom so the new photo shows normally.
+  useEffect(() => {
+    setTouchZoom(false)
+    setZoom((z) => ({ ...z, on: false }))
+  }, [current])
 
   // Step the main image (wraps around) — drives the on-image prev/next arrows.
   const step = (dir) => {
@@ -39,20 +49,23 @@ export default function ProductGallery({ images = [], active, onSelect, emoji = 
       <div
         ref={frameRef}
         className="group relative aspect-square w-full overflow-hidden rounded-3xl border border-black/5 bg-gradient-to-br from-brand-50 to-brand-100"
+        // When touch-zoom is on, capture the gesture (pan the zoom); otherwise
+        // leave it to the browser so the page scrolls normally.
+        style={{ touchAction: touchZoom ? 'none' : 'auto' }}
         onMouseEnter={() => hasImage && setZoom((z) => ({ ...z, on: true }))}
         onMouseLeave={() => setZoom((z) => ({ ...z, on: false }))}
         onMouseMove={(e) => hasImage && moveZoom(e.clientX, e.clientY)}
         onTouchStart={(e) => {
-          if (!hasImage) return
-          setZoom((z) => ({ ...z, on: true }))
+          if (!hasImage || !touchZoom) return // off by default on touch
           const t = e.touches[0]
           if (t) moveZoom(t.clientX, t.clientY)
         }}
         onTouchMove={(e) => {
+          if (!touchZoom) return
+          e.preventDefault()
           const t = e.touches[0]
           if (t) moveZoom(t.clientX, t.clientY)
         }}
-        onTouchEnd={() => setZoom((z) => ({ ...z, on: false }))}
       >
         {hasImage ? (
           <img
@@ -75,9 +88,29 @@ export default function ProductGallery({ images = [], active, onSelect, emoji = 
           </span>
         )}
 
-        {/* Magnifier affordance (top-left, like the reference) */}
+        {/* Zoom button (top-left). On touch it toggles zoom on/off — off by
+            default so the page scrolls normally; on desktop hover already zooms,
+            so this is hidden there. */}
         {hasImage && (
-          <span className="pointer-events-none absolute left-4 top-4 text-ink-light/70">
+          <button
+            type="button"
+            onClick={() => {
+              const next = !touchZoom
+              setTouchZoom(next)
+              setZoom((z) => ({ ...z, on: next }))
+            }}
+            aria-label={touchZoom ? 'כיבוי הגדלה' : 'הגדלת התמונה'}
+            aria-pressed={touchZoom}
+            className={`absolute left-4 top-4 flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition lg:hidden ${
+              touchZoom ? 'bg-brand-500 text-white' : 'bg-white/90 text-ink-light'
+            }`}
+          >
+            <Search size={18} />
+          </button>
+        )}
+        {/* Desktop decorative magnifier */}
+        {hasImage && (
+          <span className="pointer-events-none absolute left-4 top-4 hidden text-ink-light/70 lg:block">
             <Search size={20} />
           </span>
         )}

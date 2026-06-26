@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useAuth, ROLE_LABELS } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
+import { useOrders } from '../context/OrdersContext.jsx'
 import { AdminEditProvider } from '../context/AdminEditContext.jsx'
 import { EditableText } from '../components/admin/ui.jsx'
 import Logo from '../components/Logo.jsx'
@@ -90,7 +91,9 @@ const PANELS = {
 export default function AdminDashboard() {
   const { user, logout, isMaster } = useAuth()
   const { inquiries, adminUI, updateAdminUI, setNavOrder, uiLabel } = useSettings()
+  const { orders } = useOrders()
   const unreadInquiries = inquiries.filter((i) => !i.read).length
+  const unreadOrders = orders.filter((o) => !o.read).length
 
   // ---- Edit mode (rename labels / reorder lists) ----
   const RESTORE_KEY = 'drfone_adminui_restore'
@@ -165,7 +168,10 @@ export default function AdminDashboard() {
 
   const NavItem = ({ id, label, Icon, group }) => {
     const active = section === id
-    const badge = id === 'inquiries' && unreadInquiries > 0 ? unreadInquiries : null
+    const badge =
+      id === 'inquiries' && unreadInquiries > 0 ? unreadInquiries
+      : id === 'orders' && unreadOrders > 0 ? unreadOrders
+      : null
 
     // Edit mode: a draggable row with an inline-renamable label (no navigation).
     if (editMode) {

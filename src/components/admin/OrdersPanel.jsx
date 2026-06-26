@@ -11,7 +11,7 @@ const fmtDate = (iso) =>
   new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 export default function OrdersPanel() {
-  const { orders, updateStatus, deleteOrder, addOrderLog } = useOrders()
+  const { orders, updateStatus, deleteOrder, addOrderLog, markOrderRead } = useOrders()
   const { orderStatuses, orderStatusMeta, paymentLabel: payLabel, deliveryLabel } = useSettings()
   const { user } = useAuth()
   const [expanded, setExpanded] = useState(null)
@@ -68,25 +68,36 @@ export default function OrdersPanel() {
       {sorted.map((o, idx) => {
         const meta = orderStatusMeta(o.status)
         const isOpen = expanded === o.id
+        const unread = !o.read // not opened yet → highlighted red
+        // Open/close; opening an unread order marks it read (and drops the badge).
+        const toggle = () => {
+          const opening = !isOpen
+          setExpanded(isOpen ? null : o.id)
+          if (opening && unread) markOrderRead(o.id)
+        }
         return (
           <div
             key={o.id}
-            className={`overflow-hidden rounded-2xl border border-black/5 shadow-card ${
-              idx % 2 ? 'bg-brand-50/40' : 'bg-white'
+            className={`overflow-hidden rounded-2xl border shadow-card ${
+              unread
+                ? 'border-red-300 bg-red-50/60 ring-1 ring-red-200'
+                : `border-black/5 ${idx % 2 ? 'bg-brand-50/40' : 'bg-white'}`
             }`}
           >
             {/* Row header */}
             <div className="flex flex-wrap items-center gap-3 p-4">
-              <button
-                onClick={() => setExpanded(isOpen ? null : o.id)}
-                className="flex flex-1 items-center gap-3 text-right"
-              >
+              <button onClick={toggle} className="flex flex-1 items-center gap-3 text-right">
                 <ChevronDown
                   size={18}
                   className={`text-ink-light transition-transform ${isOpen ? 'rotate-180' : ''}`}
                 />
                 <div>
-                  <div className="font-bold text-ink">{o.number}</div>
+                  <div className="flex items-center gap-2 font-bold text-ink">
+                    {o.number}
+                    {unread && (
+                      <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">חדש</span>
+                    )}
+                  </div>
                   <div className="text-xs text-ink-light">{fmtDate(o.createdAt)}</div>
                 </div>
               </button>
@@ -155,16 +166,13 @@ export default function OrdersPanel() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <span className="text-sm font-semibold text-ink">{it.name}</span>
+                            {/* Line total — base + add-ons, all of it */}
                             <span className="shrink-0 text-sm font-bold text-ink">₪{it.price * it.qty}</span>
                           </div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-light">
                             <span>כמות: <b className="text-ink">{it.qty}</b></span>
-                            <span>מחיר יח׳: ₪{it.price}</span>
-                            {it.listPrice > it.price && (
-                              <span className="rounded-full bg-red-50 px-1.5 py-0.5 font-bold text-red-600">
-                                {Math.round((1 - it.price / it.listPrice) * 100)}% הנחה
-                              </span>
-                            )}
+                            {/* Product's own (default) price, without the option add-ons */}
+                            <span>מחיר מוצר: ₪{it.listPrice ?? it.price}</span>
                           </div>
                           {it.color && (
                             <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-ink-light">
