@@ -103,13 +103,21 @@ export default function AdminDashboard() {
 
   // ---- Edit mode (rename labels / reorder lists) ----
   const RESTORE_KEY = 'drfone_adminui_restore'
+  const EDIT_CODE = '2800'
   const [editMode, setEditMode] = useState(false)
+  const [editPrompt, setEditPrompt] = useState(false) // access-code prompt before editing
+  const [editCode, setEditCode] = useState('')
+  const [editErr, setEditErr] = useState(false)
   const dragRef = useRef(null)
-  // Entering edit mode silently snapshots the current customisation so it can be
-  // restored if the changes don't work out.
-  const enterEdit = () => {
+  // Entering edit mode requires the access code, then silently snapshots the
+  // current customisation so it can be restored if the changes don't work out.
+  const enterEdit = () => { setEditCode(''); setEditErr(false); setEditPrompt(true) }
+  const confirmEdit = (e) => {
+    e.preventDefault()
+    if (editCode.trim() !== EDIT_CODE) { setEditErr(true); setEditCode(''); return }
     try { localStorage.setItem(RESTORE_KEY, JSON.stringify(adminUI)) } catch { /* ignore */ }
     setEditMode(true)
+    setEditPrompt(false)
   }
   const restoreUI = () => {
     try {
@@ -154,6 +162,8 @@ export default function AdminDashboard() {
 
   const [section, setSection] = useState(isMaster ? 'overview' : 'repairs')
   const [catalogLowStock, setCatalogLowStock] = useState(false)
+  // A product/service to open straight into its edit modal (from global search).
+  const [catalogEdit, setCatalogEdit] = useState(null)
   // Which parent items (e.g. "קטלוג") are expanded to reveal their sub-pages.
   // undefined → follow the active section; explicit true/false overrides it.
   const [expandedItems, setExpandedItems] = useState({})
@@ -162,6 +172,18 @@ export default function AdminDashboard() {
   const go = (id, lowStock = false) => {
     setCatalogLowStock(lowStock)
     setSection(id)
+  }
+
+  // Global-search result click: a product/service jumps into the catalog AND
+  // opens its edit modal; everything else just navigates to its section.
+  const handleSearchNavigate = (r) => {
+    if (r?.editId) {
+      setCatalogLowStock(false)
+      setCatalogEdit({ id: r.editId, domain: r.domain, nonce: Date.now() })
+      setSection('catalog')
+    } else {
+      go(typeof r === 'string' ? r : r.section)
+    }
   }
 
   const Panel = PANELS[section] || (() => null)
@@ -173,7 +195,7 @@ export default function AdminDashboard() {
           onGoToLowStock: () => go('catalog', true),
         }
       : section === 'catalog'
-        ? { lowStockInitial: catalogLowStock }
+        ? { lowStockInitial: catalogLowStock, editTarget: catalogEdit }
         : {}
 
   const NavItem = ({ id, label, Icon, group, children }) => {
@@ -271,6 +293,30 @@ export default function AdminDashboard() {
   return (
     <AdminEditProvider editMode={editMode}>
     <div className="min-h-screen bg-brand-50/30">
+      {/* Access-code prompt before entering edit mode */}
+      {editPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={(e) => e.target === e.currentTarget && setEditPrompt(false)}>
+          <form onSubmit={confirmEdit} className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
+            <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-brand-600"><PenSquare size={26} /></span>
+            <h2 className="text-lg font-extrabold text-ink">עריכת הפאנל</h2>
+            <p className="mt-1 text-sm text-ink-light">להמשך יש להזין את קוד הגישה.</p>
+            <input
+              type="password"
+              inputMode="numeric"
+              autoFocus
+              value={editCode}
+              onChange={(e) => { setEditCode(e.target.value); setEditErr(false) }}
+              placeholder="קוד גישה"
+              className="mt-4 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-center tracking-widest text-ink outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+            />
+            {editErr && <p className="mt-2 text-sm font-medium text-red-600">קוד שגוי, נסו שוב.</p>}
+            <div className="mt-4 flex gap-2">
+              <button type="submit" className="flex-1 rounded-xl bg-brand-500 py-2.5 text-sm font-bold text-white hover:bg-brand-600">כניסה</button>
+              <button type="button" onClick={() => setEditPrompt(false)} className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-semibold text-ink hover:bg-black/5">ביטול</button>
+            </div>
+          </form>
+        </div>
+      )}
       {/* Edit-mode banner */}
       {editMode && (
         <div className="bg-brand-600 px-4 py-1.5 text-center text-xs font-semibold text-white">
@@ -291,7 +337,7 @@ export default function AdminDashboard() {
           {isMaster && section === 'overview' && (
             <div className="hidden min-w-0 flex-1 justify-center px-4 md:flex">
               <div className="w-full max-w-md">
-                <AdminSearch onNavigate={go} />
+                <AdminSearch onNavigate={handleSearchNavigate} />
               </div>
             </div>
           )}

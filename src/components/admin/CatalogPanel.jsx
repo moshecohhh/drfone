@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { Store, Wrench, Plus, Pencil, Trash2, RotateCcw, AlertTriangle, ImagePlus, Tags, Flame } from 'lucide-react'
 import { DOMAINS } from '../../context/AppContext.jsx'
 import { useCatalogStore } from '../../context/CatalogContext.jsx'
@@ -20,7 +20,7 @@ const LOW_STOCK_THRESHOLD = 3
 
 // Store/Lab item management — kept strictly per-domain via the domain toggle.
 // `lowStockInitial` (from the dashboard drilldown) pre-enables the low-stock filter.
-export default function CatalogPanel({ lowStockInitial = false }) {
+export default function CatalogPanel({ lowStockInitial = false, editTarget = null }) {
   const { getItems, getCategories, getCategoriesWithAll, addItem, updateItem, deleteItem, resetDomain } =
     useCatalogStore()
   const { brands, brandLabel } = useBrands()
@@ -35,6 +35,20 @@ export default function CatalogPanel({ lowStockInitial = false }) {
   const [showCategories, setShowCategories] = useState(false)
   const imgInputRef = useRef(null)
   const uploadIdRef = useRef(null)
+
+  // Launched from the global search → jump to the right domain and open the
+  // item's edit modal directly. `nonce` lets the same item re-trigger.
+  useEffect(() => {
+    if (!editTarget?.id) return
+    const dom = editTarget.domain || DOMAINS.STORE
+    setDomain(dom)
+    const item = getItems(dom).find((it) => it.id === editTarget.id)
+    if (item) {
+      setEditing(item)
+      setModalOpen(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTarget?.nonce])
 
   // Quick image edit straight from the list — append uploaded files to the
   // product's gallery without opening the full edit modal.

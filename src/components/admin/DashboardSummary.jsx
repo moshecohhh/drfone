@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { ShoppingBag, Banknote, AlertTriangle, Package, Users, PieChart } from 'lucide-react'
+import { ShoppingBag, Banknote, AlertTriangle, Package, Users, PieChart, BarChart3, ArrowLeft } from 'lucide-react'
 import { useOrders } from '../../context/OrdersContext.jsx'
 import { useCatalogStore } from '../../context/CatalogContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import { useLab } from '../../context/LabContext.jsx'
+import StatisticsPanel from './StatisticsPanel.jsx'
 
 const LOW_STOCK_THRESHOLD = 3
 // Colors for the order-status donut (falls back to a palette for custom statuses).
@@ -20,6 +21,10 @@ export default function DashboardSummary() {
   const { orderStatusMeta, orderStatuses } = useSettings()
   const { customers, repairs } = useLab()
   const [view, setView] = useState('orders')
+  const [showStats, setShowStats] = useState(false)
+
+  // The full statistics system opens over the overview.
+  if (showStats) return <StatisticsPanel onBack={() => setShowStats(false)} />
 
   const totalOrders = orders.length
   const totalRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0)
@@ -54,6 +59,24 @@ export default function DashboardSummary() {
 
   return (
     <div className="space-y-6">
+      {/* Statistics system entry */}
+      <button
+        type="button"
+        onClick={() => setShowStats(true)}
+        className="group flex w-full items-center justify-between gap-3 rounded-2xl bg-gradient-to-l from-brand-600 to-brand-500 p-5 text-right text-white shadow-card transition hover:shadow-card-hover"
+      >
+        <span className="flex items-center gap-3">
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20">
+            <BarChart3 size={26} />
+          </span>
+          <span>
+            <span className="block text-lg font-extrabold">מערכת סטטיסטיקה</span>
+            <span className="block text-sm text-white/80">ניתוח מתקדם של הכנסות, מוצרים מובילים, מגמות ומלאי</span>
+          </span>
+        </span>
+        <ArrowLeft size={22} className="transition-transform group-hover:-translate-x-1" />
+      </button>
+
       {/* Cards (stay visible — act as tabs) */}
       <div className="grid gap-4 sm:grid-cols-3">
         {cards.map((c) => {

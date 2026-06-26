@@ -4,6 +4,7 @@ import { useCatalogStore } from '../../context/CatalogContext.jsx'
 import { useLab } from '../../context/LabContext.jsx'
 import { useOrders } from '../../context/OrdersContext.jsx'
 import { useBrands } from '../../context/BrandsContext.jsx'
+import { DOMAINS } from '../../context/AppContext.jsx'
 
 // Global admin search — one box that finds products, services, customers,
 // repairs, orders, loaners and registered devices across every panel, and
@@ -36,11 +37,11 @@ export default function AdminSearch({ onNavigate }) {
     const out = []
 
     store.forEach((p) => {
-      if (has(p.name, brandLabel(p.brand), p.badge, p.category))
-        out.push({ key: 'p' + p.id, type: 'מוצר', Icon: Package, label: p.name, sub: `${brandLabel(p.brand)} · ₪${p.price}`, section: 'catalog' })
+      if (has(p.name, brandLabel(p.brand), p.badge, p.category, p.barcode))
+        out.push({ key: 'p' + p.id, type: 'מוצר', Icon: Package, label: p.name, sub: `${brandLabel(p.brand)} · ₪${p.price}`, section: 'catalog', editId: p.id, domain: DOMAINS.STORE })
     })
     lab.forEach((s) => {
-      if (has(s.name, s.badge)) out.push({ key: 's' + s.id, type: 'שירות', Icon: Wrench, label: s.name, sub: 'מעבדה', section: 'catalog' })
+      if (has(s.name, s.badge, s.barcode)) out.push({ key: 's' + s.id, type: 'שירות', Icon: Wrench, label: s.name, sub: 'מעבדה', section: 'catalog', editId: s.id, domain: DOMAINS.LAB })
     })
     customers.forEach((c) => {
       if (has(c.name, c.phone1, c.phone2, c.address))
@@ -65,10 +66,10 @@ export default function AdminSearch({ onNavigate }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, store, lab, customers, repairs, orders, loaners, models, deviceBrands])
 
-  const pick = (section) => {
+  const pick = (r) => {
     setOpen(false)
     setQ('')
-    onNavigate(section)
+    onNavigate(r)
   }
 
   const showDropdown = open && q.trim().length >= 2
@@ -81,7 +82,7 @@ export default function AdminSearch({ onNavigate }) {
           value={q}
           onChange={(e) => { setQ(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
-          placeholder="חיפוש מוצר, לקוח, תיקון, הזמנה…"
+          placeholder="חיפוש מוצר, ברקוד, לקוח, תיקון, הזמנה…"
           className="w-full rounded-xl border border-black/10 bg-brand-50/40 py-2 pr-9 pl-8 text-sm text-ink outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20"
         />
         {q && (
@@ -105,7 +106,7 @@ export default function AdminSearch({ onNavigate }) {
               <button
                 key={r.key}
                 type="button"
-                onClick={() => pick(r.section)}
+                onClick={() => pick(r)}
                 className="flex w-full items-center gap-3 px-3 py-2 text-right transition hover:bg-brand-50"
               >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
