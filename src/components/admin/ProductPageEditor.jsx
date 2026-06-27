@@ -1,6 +1,8 @@
 import { Plus, Trash2, X, LayoutList, ListChecks, Tag, Megaphone, ChevronDown, Eye, EyeOff, BookmarkPlus, HardDrive, CreditCard, Search } from 'lucide-react'
 import { useState } from 'react'
 import { Switch, inputCls } from './ui.jsx'
+import RichTextEditor from './RichTextEditor.jsx'
+import { textToHtml } from '../../utils/sanitizeHtml.js'
 import { useSettings, STORAGE_SIZES } from '../../context/SettingsContext.jsx'
 
 // Editor for a single product's page config (the "דף המוצר" tab in the product
@@ -269,15 +271,13 @@ export default function ProductPageEditor({ value, onChange, presets = [] }) {
           <Plus size={14} /> הוספת שורת מפרט
         </button>
 
-        {/* Free-text alternative — paste a ready-made list; line breaks kept. */}
+        {/* Free-text alternative — now a rich-text field (bold / colour / etc.). */}
         <div className="mt-4 border-t border-black/5 pt-3">
-          <span className="mb-1 block text-xs font-semibold text-ink-light">טקסט מפרט חופשי (לחלופין) — כל שורה = פריט, אפשר להדביק רשימה מוכנה</span>
-          <textarea
-            value={page.specsText || ''}
-            onChange={(e) => patch({ specsText: e.target.value })}
-            rows={5}
-            placeholder={'רשת: דור 4 LTE\nגודל מסך: 2.8 אינץ׳\nאחסון פנימי: 32GB'}
-            className={`${inputCls} leading-relaxed`}
+          <span className="mb-1 block text-xs font-semibold text-ink-light">טקסט מפרט חופשי — אפשר להדגיש, לצבוע ולעצב את הטקסט</span>
+          <RichTextEditor
+            value={page.specsHtml ?? textToHtml(page.specsText)}
+            onChange={(html) => patch({ specsHtml: html, specsText: '' })}
+            placeholder={'רשת: דור 4 LTE · גודל מסך: 2.8 אינץ׳ · אחסון: 32GB'}
           />
         </div>
       </Section>
