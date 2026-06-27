@@ -7,7 +7,8 @@ import {
 import { useAuth } from '../context/AuthContext.jsx'
 import { useOrders } from '../context/OrdersContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
-import { sanitizePhone, isValidPhone, luhnValid } from '../utils/validation.js'
+import { sanitizePhone, isValidPhone, luhnValid, passwordIssue } from '../utils/validation.js'
+import CitySelect from '../components/CitySelect.jsx'
 import Logo from '../components/Logo.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 
@@ -129,10 +130,18 @@ function OrdersTab({ email }) {
   )
 }
 
-// ---- Personal details ----
+// ---- Personal details (incl. default delivery address) + password ----
 function DetailsTab() {
   const { user, updateProfile } = useAuth()
-  const [form, setForm] = useState({ name: user.name || '', phone: user.phone || '', address: user.address || '' })
+  const ap = user.addressParts || {}
+  const [form, setForm] = useState({
+    name: user.name || '',
+    phone: user.phone || '',
+    city: ap.city || '',
+    street: ap.street || '',
+    house: ap.house || '',
+    apartment: ap.apartment || '',
+  })
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const set = (k, v) => setForm((f) => ({ ...f, [k]: k === 'phone' ? sanitizePhone(v) : v }))
@@ -142,30 +151,110 @@ function DetailsTab() {
     if (!form.name.trim()) return setError('יש להזין שם.')
     if (form.phone && !isValidPhone(form.phone)) return setError('מספר טלפון חייב להכיל 10 ספרות.')
     setError('')
-    updateProfile({ name: form.name.trim(), phone: form.phone, address: form.address })
+    const parts = { city: form.city.trim(), street: form.street.trim(), house: form.house.trim(), apartment: form.apartment.trim() }
+    // Compose a single readable address string for display elsewhere.
+    const address = parts.street || parts.city
+      ? `${parts.street} ${parts.house}${parts.apartment ? ', ' + parts.apartment : ''}${parts.city ? ', ' + parts.city : ''}`.replace(/\s+/g, ' ').trim()
+      : ''
+    updateProfile({ name: form.name.trim(), phone: form.phone, address, addressParts: parts })
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
   }
 
   return (
+    <div className="space-y-5">
+      <Card>
+        <h3 className="mb-4 text-base font-extrabold text-ink">פרטים אישיים</h3>
+        {error && <Banner>{error}</Banner>}
+        <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
+          <Field label="שם מלא">
+            <input className={inputCls} value={form.name} onChange={(e) => set('name', e.target.value)} autoComplete="name" />
+          </Field>
+          <Field label="אימייל (לא ניתן לשינוי)">
+            <input className={`${inputCls} bg-black/5`} dir="ltr" value={user.email} disabled />
+          </Field>
+          <Field label="טלפון">
+            <input className={inputCls} dir="ltr" inputMode="numeric" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="0500000000" autoComplete="tel" />
+          </Field>
+
+          {/* Default delivery address — same structured fields as checkout. */}
+          <div className="sm:col-span-2 mt-1 border-t border-black/5 pt-4">
+            <p className="mb-3 text-sm font-bold text-ink">כתובת ברירת מחדל למשלוח</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <span className="mb-1 block text-xs font-semibold text-ink-light">עיר</span>
+                <CitySelect value={form.city} onChange={(v) => set('city', v)} />
+              </div>
+              <Field label="רחוב">
+                <input className={inputCls} value={form.street} onChange={(e) => set('street', e.target.value)} autoComplete="address-line1" />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="מס׳ בית">
+                  <input className={inputCls} value={form.house} onChange={(e) => set('house', e.target.value)} />
+                </Field>
+                <Field label="דירה / כניסה">
+                  <input className={inputCls} value={form.apartment} onChange={(e) => set('apartment', e.target.value)} />
+                </Field>
+              </div>
+            </div>
+          </div>
+
+          <div className="sm:col-span-2 flex justify-end">
+            <button type="submit" className="flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600">
+              <Check size={16} /> {saved ? 'נשמר ✓' : 'שמירת פרטים'}
+            </button>
+          </div>
+        </form>
+      </Card>
+
+      <PasswordCard />
+    </div>
+  )
+}
+
+// ---- Change password ----
+function PasswordCard() {
+  const { updatePassword } = useAuth()
+  const [pw, setPw] = useState({ password: '', confirm: '' })
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    setSaved(false)
+    const issue = passwordIssue(pw.password)
+    if (issue) return setError(issue)
+    if (pw.password !== pw.confirm) return setError('הסיסמאות אינן תואמות.')
+    setError('')
+    setBusy(true)
+    const res = await updatePassword(pw.password)
+    setBusy(false)
+    if (!res.ok) return setError(res.error)
+    setPw({ password: '', confirm: '' })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  return (
     <Card>
+      <h3 className="mb-4 text-base font-extrabold text-ink">החלפת סיסמה</h3>
       {error && <Banner>{error}</Banner>}
+      {saved && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+          <Check size={16} /> הסיסמה עודכנה בהצלחה.
+        </div>
+      )}
       <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-        <Field label="שם מלא">
-          <input className={inputCls} value={form.name} onChange={(e) => set('name', e.target.value)} />
+        <Field label="סיסמה חדשה (לפחות 6 תווים)">
+          <input type="password" className={inputCls} value={pw.password} onChange={(e) => setPw((p) => ({ ...p, password: e.target.value }))} autoComplete="new-password" />
         </Field>
-        <Field label="אימייל (לא ניתן לשינוי)">
-          <input className={`${inputCls} bg-black/5`} dir="ltr" value={user.email} disabled />
-        </Field>
-        <Field label="טלפון">
-          <input className={inputCls} dir="ltr" inputMode="numeric" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="0500000000" />
-        </Field>
-        <Field label="כתובת">
-          <input className={inputCls} value={form.address} onChange={(e) => set('address', e.target.value)} />
+        <Field label="אימות סיסמה">
+          <input type="password" className={inputCls} value={pw.confirm} onChange={(e) => setPw((p) => ({ ...p, confirm: e.target.value }))} autoComplete="new-password" />
         </Field>
         <div className="sm:col-span-2 flex justify-end">
-          <button type="submit" className="flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600">
-            <Check size={16} /> {saved ? 'נשמר' : 'שמירת פרטים'}
+          <button type="submit" disabled={busy} className="flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-60">
+            <Check size={16} /> {busy ? 'שומר…' : 'עדכון סיסמה'}
           </button>
         </div>
       </form>

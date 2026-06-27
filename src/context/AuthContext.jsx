@@ -40,6 +40,7 @@ function rowToUser(row, email) {
     role: row.role || ROLES.CUSTOMER,
     phone: row.phone || '',
     address: row.address || '',
+    addressParts: row.address_parts || {}, // { city, street, house, apartment }
     newsletter: !!row.newsletter,
     savedPayments: row.saved_payments || [],
   }
@@ -78,6 +79,7 @@ export function AuthProvider({ children }) {
       role: ROLES.CUSTOMER,
       phone: '',
       address: '',
+      addressParts: {},
       newsletter: false,
       savedPayments: [],
     }
@@ -200,6 +202,7 @@ export function AuthProvider({ children }) {
       if (patch.name !== undefined) dbPatch.name = patch.name
       if (patch.phone !== undefined) dbPatch.phone = patch.phone
       if (patch.address !== undefined) dbPatch.address = patch.address
+      if (patch.addressParts !== undefined) dbPatch.address_parts = patch.addressParts
       if (patch.newsletter !== undefined) dbPatch.newsletter = patch.newsletter
       if (patch.savedPayments !== undefined) dbPatch.saved_payments = patch.savedPayments
       // Optimistic local update so the UI feels instant.

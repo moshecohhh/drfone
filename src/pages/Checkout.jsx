@@ -53,29 +53,40 @@ export default function Checkout() {
     setForm((f) => ({ ...f, [k]: val }))
   }
 
-  // Pre-fill from a registered customer's most recent order (orders are sorted
-  // newest-first and RLS-scoped to the signed-in user). Runs once, and only
-  // fills fields the customer hasn't already typed, so it never overwrites input.
+  // Pre-fill a signed-in customer's details: the saved default address on their
+  // profile takes priority, falling back to their most recent order (orders are
+  // sorted newest-first and RLS-scoped to the user). Runs once and only fills
+  // fields the customer hasn't already typed, so it never overwrites input.
   const lastOrder = user
     ? orders.find((o) => o.customer?.email?.toLowerCase() === String(user.email || '').toLowerCase())
     : null
   const prefilled = useRef(false)
   useEffect(() => {
-    if (prefilled.current || !lastOrder) return
+    if (prefilled.current || !user) return
+    const ap = user.addressParts || {}
+    const c = lastOrder?.customer || {}
+    const src = {
+      name: user.name || c.name || '',
+      phone: user.phone || c.phone || '',
+      city: ap.city || c.city || '',
+      street: ap.street || c.street || '',
+      house: ap.house || c.house || '',
+      apartment: ap.apartment || c.apartment || '',
+    }
+    if (!src.name && !src.phone && !src.city && !src.street) return // data not ready yet
     prefilled.current = true
-    const c = lastOrder.customer || {}
-    const savedDelivery = deliveryMethods.some((d) => d.id === lastOrder.delivery) ? lastOrder.delivery : null
+    const savedDelivery = lastOrder && deliveryMethods.some((d) => d.id === lastOrder.delivery) ? lastOrder.delivery : null
     setForm((f) => ({
       ...f,
-      name: f.name || c.name || '',
-      phone: f.phone || c.phone || '',
-      city: f.city || c.city || '',
-      street: f.street || c.street || '',
-      house: f.house || c.house || '',
-      apartment: f.apartment || c.apartment || '',
+      name: f.name || src.name,
+      phone: f.phone || src.phone,
+      city: f.city || src.city,
+      street: f.street || src.street,
+      house: f.house || src.house,
+      apartment: f.apartment || src.apartment,
       ...(savedDelivery ? { delivery: savedDelivery } : {}),
     }))
-  }, [lastOrder, deliveryMethods])
+  }, [user, lastOrder, deliveryMethods])
 
   // The selected delivery method drives the price and whether an address is
   // needed (self-collect options don't ship anywhere).
