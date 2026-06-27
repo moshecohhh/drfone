@@ -127,14 +127,14 @@ export default function ItemCard({ item, kind }) {
 
       {/* Thumbnail strip (multiple images) */}
       {images.length > 1 && (
-        <div className="relative z-10 flex gap-1.5 overflow-x-auto px-3 pt-2 no-scrollbar">
+        <div className="pointer-events-none relative z-10 flex gap-1.5 overflow-x-auto px-3 pt-2 no-scrollbar">
           {images.map((src, i) => (
             <button
               key={i}
               type="button"
               onClick={() => setActiveImage(src)}
               aria-label={`תמונה ${i + 1}`}
-              className={`h-10 w-10 shrink-0 overflow-hidden rounded-lg border transition ${
+              className={`pointer-events-auto h-10 w-10 shrink-0 cursor-pointer overflow-hidden rounded-lg border transition ${
                 src === activeImage ? 'border-brand-500 ring-1 ring-brand-500' : 'border-black/10 hover:border-brand-300'
               }`}
             >
@@ -154,7 +154,7 @@ export default function ItemCard({ item, kind }) {
         {/* Color selection — sits ABOVE the price. Always reserves its height on
             store products so prices line up across all cards. */}
         {!isService && (
-          <div className="relative z-10 mt-3 flex min-h-[1.5rem] items-center gap-2">
+          <div className="pointer-events-none relative z-10 mt-3 flex min-h-[1.5rem] select-none items-center gap-2">
             {colors.length > 0 && (
               <>
                 <span className="text-xs font-medium text-ink-light">צבע:</span>
@@ -169,7 +169,7 @@ export default function ItemCard({ item, kind }) {
                         title={c.hex}
                         aria-label={`בחירת צבע ${c.hex}`}
                         aria-pressed={sel}
-                        className={`h-6 w-6 rounded-full border transition ${
+                        className={`pointer-events-auto h-6 w-6 cursor-pointer rounded-full border transition ${
                           sel ? 'border-brand-500 ring-2 ring-brand-500 ring-offset-1' : 'border-black/15 hover:scale-110'
                         }`}
                         style={{ background: c.hex }}
