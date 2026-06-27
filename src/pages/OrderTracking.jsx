@@ -73,9 +73,10 @@ export default function OrderTracking() {
                   const current = i === currentIdx
                   return (
                     <div key={s.id} className="relative flex flex-1 flex-col items-center text-center">
-                      {/* Connector line to the previous step */}
+                      {/* Connector line to the previous step (sits to the RIGHT
+                          in this RTL layout, so extend rightward from centre). */}
                       {i > 0 && (
-                        <span className={`absolute right-1/2 top-5 -z-0 h-0.5 w-full ${i <= currentIdx ? 'bg-brand-500' : 'bg-black/10'}`} />
+                        <span className={`absolute left-1/2 top-5 -z-0 h-0.5 w-full ${i <= currentIdx ? 'bg-brand-500' : 'bg-black/10'}`} />
                       )}
                       <span className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 transition ${
                         done ? 'border-brand-500 bg-brand-500 text-white' : 'border-black/15 bg-white text-ink-light'
