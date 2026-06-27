@@ -22,6 +22,9 @@ create table if not exists public.profiles (
 -- list can show it; `saved_payments` keeps the (mock) saved cards.
 alter table public.profiles add column if not exists email text;
 alter table public.profiles add column if not exists saved_payments jsonb not null default '[]'::jsonb;
+-- Structured default delivery address ({ city, street, house, apartment }) so the
+-- customer can save it in their account and have checkout pre-fill from it.
+alter table public.profiles add column if not exists address_parts jsonb not null default '{}'::jsonb;
 
 alter table public.profiles enable row level security;
 
