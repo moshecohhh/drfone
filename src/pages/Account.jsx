@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import {
   ArrowRight, LogOut, ShoppingBag, UserCog, CreditCard, Mail, Package,
-  Plus, Trash2, Check, AlertCircle, BellRing, BellOff,
+  Plus, Trash2, Check, AlertCircle, BellRing, BellOff, ChevronDown,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useOrders } from '../context/OrdersContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
 import { sanitizePhone, isValidPhone, luhnValid, passwordIssue } from '../utils/validation.js'
 import CitySelect from '../components/CitySelect.jsx'
+import OrderStatusTimeline from '../components/OrderStatusTimeline.jsx'
 import Logo from '../components/Logo.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 
@@ -82,10 +83,11 @@ export default function Account() {
   )
 }
 
-// ---- Orders ----
+// ---- Orders (click an order to expand its status timeline) ----
 function OrdersTab({ email }) {
   const { orders } = useOrders()
   const { orderStatusMeta } = useSettings()
+  const [openId, setOpenId] = useState(null)
   const mine = orders.filter((o) => o.customer?.email?.toLowerCase() === String(email).toLowerCase())
 
   if (mine.length === 0) {
@@ -100,29 +102,45 @@ function OrdersTab({ email }) {
 
   return (
     <div className="space-y-3">
+      <p className="text-sm text-ink-light">לחצו על הזמנה כדי לראות את הסטטוס שלה.</p>
       {mine.map((o) => {
         const meta = orderStatusMeta(o.status)
+        const open = openId === o.id
+        const items = o.items || []
         return (
-          <div key={o.id} className="rounded-2xl border border-black/5 bg-white p-4 shadow-card">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <span className="font-bold text-ink">{o.number}</span>
-                <span className="mr-2 text-xs text-ink-light">{fmtDate(o.createdAt)}</span>
-              </div>
+          <div key={o.id} className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-card">
+            <button
+              type="button"
+              onClick={() => setOpenId(open ? null : o.id)}
+              className="flex w-full flex-wrap items-center justify-between gap-2 p-4 text-right transition hover:bg-black/[.02]"
+            >
+              <span className="flex items-center gap-2">
+                <ChevronDown size={16} className={`shrink-0 text-ink-light transition ${open ? 'rotate-180' : ''}`} />
+                <span>
+                  <span className="font-bold text-ink">{o.number}</span>
+                  <span className="mr-2 text-xs text-ink-light">{fmtDate(o.createdAt)}</span>
+                </span>
+              </span>
               <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${meta.color}`}>{meta.label}</span>
-            </div>
-            <ul className="mt-3 space-y-1 border-t border-black/5 pt-3 text-sm">
-              {o.items.map((it) => (
-                <li key={it.id} className="flex justify-between">
-                  <span className="text-ink-light">{it.name} × {it.qty}</span>
-                  <span className="font-semibold text-ink">₪{it.price * it.qty}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-3 flex justify-between border-t border-black/5 pt-3">
-              <span className="text-sm font-semibold text-ink-light">סה״כ</span>
-              <span className="text-lg font-extrabold text-ink">₪{o.total}</span>
-            </div>
+            </button>
+
+            {open && (
+              <div className="border-t border-black/5 p-4 pt-5">
+                <OrderStatusTimeline status={o.status} />
+                <ul className="mt-5 space-y-1 border-t border-black/5 pt-4 text-sm">
+                  {items.map((it) => (
+                    <li key={it.lineId || it.id} className="flex justify-between">
+                      <span className="text-ink-light">{it.name} × {it.qty}</span>
+                      <span className="font-semibold text-ink">₪{it.price * it.qty}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-3 flex justify-between border-t border-black/5 pt-3">
+                  <span className="text-sm font-semibold text-ink-light">סה״כ</span>
+                  <span className="text-lg font-extrabold text-ink">₪{o.total}</span>
+                </div>
+              </div>
+            )}
           </div>
         )
       })}
