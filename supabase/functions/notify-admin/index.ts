@@ -246,6 +246,7 @@ Deno.serve(async (req) => {
         <h2>פנייה חדשה מהאתר</h2>
         <p><b>שם:</b> ${esc(data.name)}</p>
         <p><b>טלפון:</b> ${esc(data.phone)}</p>
+        ${data.email ? `<p><b>אימייל:</b> <a href="mailto:${esc(data.email)}">${esc(data.email)}</a></p>` : ''}
         <p><b>הודעה:</b><br>${esc(data.message).replace(/\n/g, '<br>')}</p>
       </div>`
     } else if (table === 'orders') {
