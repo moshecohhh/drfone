@@ -5,6 +5,7 @@ import { DOMAINS, useApp } from '../context/AppContext.jsx'
 import { useCatalogStore } from '../context/CatalogContext.jsx'
 import { useCart } from '../context/CartContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
+import { sanitizeRichHtml } from '../utils/sanitizeHtml.js'
 import Header from '../components/Header.jsx'
 import CartDrawer from '../components/CartDrawer.jsx'
 import Footer from '../components/Footer.jsx'
@@ -433,7 +434,7 @@ export default function ProductPage() {
             )}
 
             {/* Spec / feature list — row items and/or a free-text block */}
-            {(specs.length > 0 || (page.specsText || '').trim()) && (
+            {(specs.length > 0 || (page.specsHtml || '').trim() || (page.specsText || '').trim()) && (
               <div className="mt-8 rounded-2xl border border-black/5 p-5">
                 <h2 className="mb-3 text-lg font-extrabold text-ink">מפרט המוצר</h2>
                 {specs.length > 0 && (
@@ -446,7 +447,13 @@ export default function ProductPage() {
                     ))}
                   </ul>
                 )}
-                {(page.specsText || '').trim() && (
+                {/* Rich-text spec (preferred) falls back to the legacy plain text. */}
+                {(page.specsHtml || '').trim() ? (
+                  <div
+                    className={`text-sm leading-relaxed text-ink [&_*]:max-w-full ${specs.length > 0 ? 'mt-3 border-t border-black/5 pt-3' : ''}`}
+                    dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(page.specsHtml) }}
+                  />
+                ) : (page.specsText || '').trim() && (
                   <p className={`whitespace-pre-line text-sm leading-relaxed text-ink ${specs.length > 0 ? 'mt-3 border-t border-black/5 pt-3' : ''}`}>
                     {page.specsText}
                   </p>
