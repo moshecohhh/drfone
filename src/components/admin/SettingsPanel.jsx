@@ -143,13 +143,14 @@ export default function SettingsPanel() {
 
           {/* Delivery methods */}
           <Card>
-            <CardTitle icon={Truck} title="אופני קבלה ומשלוח" />
+            <CardTitle icon={Truck} title="אופני קבלה ומשלוח" hint="המחיר מתווסף לסה״כ ההזמנה · 0 = חינם" />
             <EditableList
               items={deliveryMethods}
               onAdd={deliveries.add}
               onUpdate={deliveries.update}
               onDelete={deliveries.remove}
               placeholder="הוספת אופן קבלה"
+              withPrice
             />
           </Card>
 

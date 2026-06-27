@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronDown, Trash2, Package, Phone, MapPin, CreditCard, User, Mail } from 'lucide-react'
+import { ChevronDown, Trash2, Package, Phone, MapPin, CreditCard, User, Mail, MessageSquare } from 'lucide-react'
 import { useOrders } from '../../context/OrdersContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import PhoneActions from './PhoneActions.jsx'
@@ -164,7 +164,13 @@ export default function OrdersPanel({ focusId = null }) {
                   )}
                   <p className="flex items-center gap-2 border-t border-black/5 pt-2 text-ink">
                     <CreditCard size={14} className="text-ink-light" /> {payLabel(o.payment)} · {deliveryLabel(o.delivery)}
+                    {Number(o.deliveryPrice) > 0 && <span className="text-ink-light">(₪{o.deliveryPrice})</span>}
                   </p>
+                  {o.notes && (
+                    <p className="flex items-start gap-2 border-t border-black/5 pt-2 text-ink">
+                      <MessageSquare size={14} className="mt-0.5 shrink-0 text-ink-light" /> {o.notes}
+                    </p>
+                  )}
                 </div>
 
                 {/* Items — full detail: image, color, chosen options, prices */}
