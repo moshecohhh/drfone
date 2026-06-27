@@ -269,7 +269,7 @@ export default function ProductPage() {
                             onClick={() => pickColor(c)}
                             aria-pressed={sel}
                             title={c.hex}
-                            className={`h-9 w-9 rounded-full border transition ${
+                            className={`h-9 w-9 cursor-pointer select-none rounded-full border transition ${
                               sel ? 'border-brand-500 ring-2 ring-brand-500 ring-offset-2' : 'border-black/15 hover:scale-110'
                             }`}
                             style={{ background: c.hex }}
