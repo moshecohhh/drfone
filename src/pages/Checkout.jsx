@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   User, Phone, Mail, MapPin, Home, Hash, CreditCard, Smartphone, Headset,
@@ -20,7 +20,7 @@ const money = (n) => '₪' + Number(n || 0).toLocaleString('he-IL')
 
 export default function Checkout() {
   const { items, subtotal, clear } = useCart()
-  const { addOrder } = useOrders()
+  const { addOrder, orders } = useOrders()
   const { decrementStock } = useCatalogStore()
   const { user, isMasterAdminAccount } = useAuth()
   const { paymentMethods, deliveryMethods } = useSettings()
@@ -52,6 +52,30 @@ export default function Checkout() {
     const val = k === 'phone' || k === 'bitPhone' ? sanitizePhone(v) : v
     setForm((f) => ({ ...f, [k]: val }))
   }
+
+  // Pre-fill from a registered customer's most recent order (orders are sorted
+  // newest-first and RLS-scoped to the signed-in user). Runs once, and only
+  // fills fields the customer hasn't already typed, so it never overwrites input.
+  const lastOrder = user
+    ? orders.find((o) => o.customer?.email?.toLowerCase() === String(user.email || '').toLowerCase())
+    : null
+  const prefilled = useRef(false)
+  useEffect(() => {
+    if (prefilled.current || !lastOrder) return
+    prefilled.current = true
+    const c = lastOrder.customer || {}
+    const savedDelivery = deliveryMethods.some((d) => d.id === lastOrder.delivery) ? lastOrder.delivery : null
+    setForm((f) => ({
+      ...f,
+      name: f.name || c.name || '',
+      phone: f.phone || c.phone || '',
+      city: f.city || c.city || '',
+      street: f.street || c.street || '',
+      house: f.house || c.house || '',
+      apartment: f.apartment || c.apartment || '',
+      ...(savedDelivery ? { delivery: savedDelivery } : {}),
+    }))
+  }, [lastOrder, deliveryMethods])
 
   // The selected delivery method drives the price and whether an address is
   // needed (self-collect options don't ship anywhere).
@@ -142,6 +166,9 @@ export default function Checkout() {
         phone: form.phone,
         address,
         city: isPickup ? '' : form.city.trim(),
+        street: isPickup ? '' : form.street.trim(),
+        house: isPickup ? '' : form.house.trim(),
+        apartment: isPickup ? '' : form.apartment.trim(),
         email: user?.email || form.email.trim() || null,
       },
       delivery: form.delivery,
