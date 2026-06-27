@@ -20,7 +20,7 @@ const NOTIFY_TO = Deno.env.get('NOTIFY_TO') ?? 'drfone4949@gmail.com'
 const NOTIFY_FROM = Deno.env.get('NOTIFY_FROM') ?? 'ד״ר פון <orders@drfone.co.il>'
 const WEBHOOK_SECRET = Deno.env.get('WEBHOOK_SECRET') ?? ''
 // Public site URL for the "open order in admin" button (override via secret).
-const SITE_URL = (Deno.env.get('SITE_URL') ?? 'https://drfone.vercel.app').replace(/\/$/, '')
+const SITE_URL = (Deno.env.get('SITE_URL') ?? 'https://drfone.co.il').replace(/\/$/, '')
 
 // Supabase Storage — used to host product images so the email references real
 // URLs (email clients can't render embedded base64 `data:` images, and they
@@ -195,6 +195,10 @@ function customerHtml(record: Record<string, unknown>, data: Record<string, unkn
         <div style="font-size:13px;color:#666;font-weight:bold;border-bottom:2px solid #eee;padding-bottom:6px;margin-bottom:4px">סיכום ההזמנה (${qtyTotal})</div>
         <table width="100%" style="border-collapse:collapse">${rows}</table>
         <div style="text-align:left;margin-top:16px;padding-top:12px;border-top:2px solid #eee;font-size:18px;font-weight:bold;color:#111">סה"כ: ${money(data.total)}</div>
+        ${data.trackToken ? `<div style="text-align:center;margin-top:20px">
+          <a href="${SITE_URL}/track/${esc(data.trackToken)}" style="display:inline-block;background:${BRAND};color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:13px 28px;border-radius:10px">📦 מעקב אחר ההזמנה ←</a>
+          <div style="font-size:12px;color:#999;margin-top:8px">לחצו כדי לראות את הסטטוס העדכני של ההזמנה בכל רגע</div>
+        </div>` : ''}
         <table width="100%" style="border-collapse:collapse;margin-top:18px;background:#f9fbfb;border-radius:10px">
           <tr><td style="padding:14px 16px">
             <div style="font-size:14px;font-weight:bold;color:#111;margin-bottom:6px">צריך עזרה או רוצה לעדכן משהו?</div>

@@ -19,7 +19,7 @@ const rowToOrder = (row) => ({
 })
 
 // Extract the jsonb `data` payload from a flat order object.
-const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items, total, log, read }) => ({
+const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items, total, log, read, trackToken }) => ({
   customer,
   payment,
   delivery,
@@ -27,9 +27,20 @@ const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items,
   notes: notes || '', // optional customer note
   items,
   total,
+  trackToken: trackToken || '', // unguessable token for the public order-tracking link
   log: log || [],
   read: !!read, // whether an admin has opened this order yet
 })
+
+// Unguessable token for the public order-tracking page (in the order email).
+const makeTrackToken = () => {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '')
+  } catch {
+    /* fall through */
+  }
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`
+}
 
 const OrdersContext = createContext(null)
 
@@ -75,6 +86,7 @@ export function OrdersProvider({ children }) {
         notes: notes || '',
         items,
         total,
+        trackToken: makeTrackToken(),
         log: [],
       }
       setOrders((prev) => [order, ...prev])
