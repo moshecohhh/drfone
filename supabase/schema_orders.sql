@@ -37,3 +37,27 @@ create policy orders_update on public.orders
 drop policy if exists orders_delete on public.orders;
 create policy orders_delete on public.orders
   for delete using (public.is_master_admin());
+
+-- Public order tracking: a guest (or anyone) can fetch a SINGLE order's
+-- non-sensitive status by presenting its secret per-order token (emailed to the
+-- customer). SECURITY DEFINER bypasses RLS but only ever returns the one row
+-- whose token matches — and never the customer's personal details.
+create or replace function public.get_order_by_token(p_token text)
+returns table (number text, status text, created_at timestamptz, items jsonb, total numeric)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select o.number,
+         o.status,
+         o.created_at,
+         coalesce(o.data->'items', '[]'::jsonb) as items,
+         coalesce((o.data->>'total')::numeric, 0) as total
+  from public.orders o
+  where length(p_token) >= 16
+    and o.data->>'trackToken' = p_token
+  limit 1;
+$$;
+
+grant execute on function public.get_order_by_token(text) to anon, authenticated;
