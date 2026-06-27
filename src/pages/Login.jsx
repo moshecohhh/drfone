@@ -62,7 +62,12 @@ export default function Login() {
           autoComplete="current-password"
         />
         <div className="text-left">
-          <Link to="/forgot-password" className="text-sm font-medium text-brand-600 hover:underline">
+          {/* Carry the typed email over so the reset page is ready to send. */}
+          <Link
+            to="/forgot-password"
+            state={{ email: form.email }}
+            className="text-sm font-medium text-brand-600 hover:underline"
+          >
             שכחתי סיסמה?
           </Link>
         </div>

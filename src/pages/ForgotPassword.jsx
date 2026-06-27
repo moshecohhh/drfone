@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Mail, Send } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { AuthShell, Field, FormError } from './Login.jsx'
@@ -7,7 +7,10 @@ import { AuthShell, Field, FormError } from './Login.jsx'
 // "שכחתי סיסמה" — asks Supabase to email a reset link (→ /reset-password).
 export default function ForgotPassword() {
   const { requestPasswordReset } = useAuth()
-  const [email, setEmail] = useState('')
+  const location = useLocation()
+  // Pre-fill the email carried over from the login page, so the customer only
+  // has to press send.
+  const [email, setEmail] = useState(location.state?.email || '')
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
