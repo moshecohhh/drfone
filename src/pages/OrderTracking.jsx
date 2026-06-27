@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Package, Check, Truck, ClipboardList, PackageCheck, ArrowRight, AlertCircle } from 'lucide-react'
+import { ArrowRight, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
-import { ORDER_STATUSES } from '../data/orderMeta.js'
 import Logo from '../components/Logo.jsx'
+import OrderStatusTimeline from '../components/OrderStatusTimeline.jsx'
 
-// Icon per status step (keyed by id from ORDER_STATUSES).
-const STEP_ICONS = { new: ClipboardList, processing: Package, shipped: Truck, completed: PackageCheck }
 const money = (n) => '₪' + Number(n || 0).toLocaleString('he-IL')
 const fmtDate = (iso) =>
   iso ? new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
@@ -27,7 +25,6 @@ export default function OrderTracking() {
   }, [token])
 
   const { loading, order } = state
-  const currentIdx = order ? Math.max(0, ORDER_STATUSES.findIndex((s) => s.id === order.status)) : 0
   const items = Array.isArray(order?.items) ? order.items : []
   const qtyTotal = items.reduce((n, it) => n + (Number(it.qty) || 0), 0)
 
@@ -66,28 +63,7 @@ export default function OrderTracking() {
 
             {/* Status timeline */}
             <div className="mt-6 rounded-2xl border border-black/5 bg-white p-6 shadow-card">
-              <div className="flex items-start justify-between">
-                {ORDER_STATUSES.map((s, i) => {
-                  const Icon = STEP_ICONS[s.id] || Package
-                  const done = i <= currentIdx
-                  const current = i === currentIdx
-                  return (
-                    <div key={s.id} className="relative flex flex-1 flex-col items-center text-center">
-                      {/* Connector line to the previous step (sits to the RIGHT
-                          in this RTL layout, so extend rightward from centre). */}
-                      {i > 0 && (
-                        <span className={`absolute left-1/2 top-5 -z-0 h-0.5 w-full ${i <= currentIdx ? 'bg-brand-500' : 'bg-black/10'}`} />
-                      )}
-                      <span className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 transition ${
-                        done ? 'border-brand-500 bg-brand-500 text-white' : 'border-black/15 bg-white text-ink-light'
-                      } ${current ? 'ring-4 ring-brand-500/20' : ''}`}>
-                        {done && !current ? <Check size={18} /> : <Icon size={18} />}
-                      </span>
-                      <span className={`mt-2 text-xs font-semibold ${done ? 'text-brand-700' : 'text-ink-light'}`}>{s.label}</span>
-                    </div>
-                  )
-                })}
-              </div>
+              <OrderStatusTimeline status={order.status} />
             </div>
 
             {/* Items */}
