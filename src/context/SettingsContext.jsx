@@ -278,21 +278,24 @@ export function SettingsProvider({ children }) {
     [],
   )
 
-  // Generic add/rename/delete for a label list. `extra(prev)` adds default props.
+  // Generic add/rename/delete for a label list. `extra()` adds default props.
+  // `add`/`update` accept an optional `patch` object to set extra fields
+  // (e.g. a delivery method's `price`), so the same ops serve plain and
+  // priced lists without breaking existing label-only callers.
   const makeOps = (setter, prefix, extra) => ({
-    add: (label) => {
+    add: (label, patch) => {
       if (!label.trim()) return
-      setter((prev) => [...prev, { id: uid(prefix), label: label.trim(), ...(extra ? extra() : {}) }])
+      setter((prev) => [...prev, { id: uid(prefix), label: label.trim(), ...(extra ? extra() : {}), ...(patch || {}) }])
     },
-    update: (id, label) => {
+    update: (id, label, patch) => {
       if (!label.trim()) return
-      setter((prev) => prev.map((x) => (x.id === id ? { ...x, label: label.trim() } : x)))
+      setter((prev) => prev.map((x) => (x.id === id ? { ...x, label: label.trim(), ...(patch || {}) } : x)))
     },
     remove: (id) => setter((prev) => prev.filter((x) => x.id !== id)),
   })
 
   const payments = useMemo(() => makeOps(setPaymentMethods, 'pay', () => ({ hint: '' })), [])
-  const deliveries = useMemo(() => makeOps(setDeliveryMethods, 'del', () => ({ hint: '' })), [])
+  const deliveries = useMemo(() => makeOps(setDeliveryMethods, 'del', () => ({ hint: '', price: 0, pickup: false })), [])
   const orderStatusOps = useMemo(
     () => makeOps(setOrderStatuses, 'ostat', () => ({ color: 'bg-slate-100 text-slate-700' })),
     [],

@@ -19,10 +19,12 @@ const rowToOrder = (row) => ({
 })
 
 // Extract the jsonb `data` payload from a flat order object.
-const orderToData = ({ customer, payment, delivery, items, total, log, read }) => ({
+const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items, total, log, read }) => ({
   customer,
   payment,
   delivery,
+  deliveryPrice: deliveryPrice || 0, // shipping cost included in `total`
+  notes: notes || '', // optional customer note
   items,
   total,
   log: log || [],
@@ -57,7 +59,7 @@ export function OrdersProvider({ children }) {
   // Create an order. Returns the created order (with its generated number) so
   // the checkout can show a confirmation immediately.
   const addOrder = useCallback(
-    ({ customer, payment, delivery, items, total }) => {
+    ({ customer, payment, delivery, deliveryPrice, notes, items, total }) => {
       const id = `ord-${Date.now()}`
       const number = `#${String(Date.now()).slice(-6)}`
       const order = {
@@ -69,6 +71,8 @@ export function OrdersProvider({ children }) {
         customer,
         payment,
         delivery,
+        deliveryPrice: deliveryPrice || 0,
+        notes: notes || '',
         items,
         total,
         log: [],

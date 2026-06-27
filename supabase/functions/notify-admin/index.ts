@@ -147,7 +147,8 @@ function orderHtml(record: Record<string, unknown>, data: Record<string, unknown
               ${line('טלפון', esc(cust.phone))}
               ${cust.email ? line('אימייל', esc(cust.email)) : ''}
               ${line('כתובת', cust.address ? esc(cust.address) : 'איסוף עצמי')}
-              ${line('תשלום ומשלוח', `${esc(PAY[String(data.payment)] ?? data.payment)} · ${esc(DEL[String(data.delivery)] ?? data.delivery)}`)}
+              ${line('תשלום ומשלוח', `${esc(PAY[String(data.payment)] ?? data.payment)} · ${esc(DEL[String(data.delivery)] ?? data.delivery)}${Number(data.deliveryPrice) > 0 ? ` (₪${esc(data.deliveryPrice)})` : ''}`)}
+              ${data.notes ? line('הערות', esc(data.notes)) : ''}
             </table>
           </td></tr>
         </table>

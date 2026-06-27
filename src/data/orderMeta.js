@@ -16,7 +16,9 @@ export const PAYMENT_METHODS = [
   { id: 'representative', label: 'תיאום מול נציג', hint: 'נציג יחזור אליכם לתיאום תשלום' },
 ]
 
+// `price` (₪) is added to the order total. `pickup: true` marks a self-collect
+// option that needs no shipping address. Both are editable from the admin panel.
 export const DELIVERY_METHODS = [
-  { id: 'pickup', label: 'איסוף עצמי', hint: 'רשבי 49, מודיעין עילית' },
-  { id: 'delivery', label: 'משלוח עד הבית', hint: 'בתיאום מול נציג' },
+  { id: 'pickup', label: 'איסוף עצמי', hint: 'רשבי 49, מודיעין עילית', price: 0, pickup: true },
+  { id: 'delivery', label: 'משלוח עד הבית', hint: 'משלוח עד פתח הבית', price: 0, pickup: false },
 ]
