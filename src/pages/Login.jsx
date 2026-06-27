@@ -77,7 +77,13 @@ export default function Login() {
 
       <p className="mt-6 text-center text-sm text-ink-light">
         אין לך חשבון?{' '}
-        <Link to="/register" className="font-semibold text-brand-600 hover:underline">
+        {/* Carry what was already typed over to registration so the customer
+            doesn't re-enter their email/password. */}
+        <Link
+          to="/register"
+          state={{ email: form.email, password: form.password }}
+          className="font-semibold text-brand-600 hover:underline"
+        >
           הרשמה
         </Link>
       </p>

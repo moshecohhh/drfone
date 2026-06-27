@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { UserPlus, User, Mail, Lock, Phone, LogIn } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { savePasswordCredential } from '../utils/credentials.js'
@@ -9,8 +9,15 @@ import { AuthShell, Field, FormError } from './Login.jsx'
 export default function Register() {
   const { register } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  // Arriving from "not registered → sign up": pre-fill the email & password the
+  // customer already typed on the login page. They still confirm the password.
   const [form, setForm] = useState({
-    firstName: '', lastName: '', email: '', phone: '', password: '', confirm: '',
+    firstName: '', lastName: '',
+    email: location.state?.email || '',
+    phone: '',
+    password: location.state?.password || '',
+    confirm: '',
   })
   const [remember, setRemember] = useState(true)
   const [error, setError] = useState('')
