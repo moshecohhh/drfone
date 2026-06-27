@@ -1,8 +1,15 @@
 // Shared validation & formatting helpers.
 
 // Keep only digits, capped at 10 — unless `bypass` (master admin) is set.
-export const sanitizePhone = (v, bypass = false) =>
-  bypass ? v : String(v ?? '').replace(/\D/g, '').slice(0, 10)
+// Browser autofill often supplies Israeli numbers in international form
+// (+972 / 972 / 00972, sometimes with a redundant extra 0). We convert that
+// prefix to the local leading 0 so the value fits the 10-digit "05…" rule and
+// the customer never has to edit it by hand.
+export const sanitizePhone = (v, bypass = false) => {
+  if (bypass) return v
+  const digits = String(v ?? '').replace(/\D/g, '')
+  return digits.replace(/^(?:00)?9720?/, '0').slice(0, 10)
+}
 
 // Exactly 10 digits.
 export const isValidPhone = (v) => /^\d{10}$/.test(String(v ?? ''))
