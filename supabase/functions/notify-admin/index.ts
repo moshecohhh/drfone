@@ -191,7 +191,7 @@ function customerHtml(record: Record<string, unknown>, data: Record<string, unkn
       </div>
       <div style="padding:22px">
         <p style="font-size:16px;color:#111;margin:0 0 6px">שלום ${esc(cust.name)},</p>
-        <p style="font-size:15px;color:#444;line-height:1.6;margin:0 0 18px">קיבלנו את הזמנתך והיא בטיפול. ${nextStep}</p>
+        <p style="font-size:15px;color:#444;line-height:1.6;margin:0 0 18px">ההזמנה התקבלה ומועברת לאישור החנות ✅ נעדכן אותך מיד כשתאושר — ורק אז יתבצע התשלום. ${nextStep}</p>
         <div style="font-size:13px;color:#666;font-weight:bold;border-bottom:2px solid #eee;padding-bottom:6px;margin-bottom:4px">סיכום ההזמנה (${qtyTotal})</div>
         <table width="100%" style="border-collapse:collapse">${rows}</table>
         <div style="text-align:left;margin-top:16px;padding-top:12px;border-top:2px solid #eee;font-size:18px;font-weight:bold;color:#111">סה"כ: ${money(data.total)}</div>

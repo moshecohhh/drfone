@@ -137,7 +137,7 @@ export default function Checkout() {
             מספר הזמנה <span className="font-bold text-ink">{placedOrder.number}</span>
           </p>
           <p className="mt-1 text-sm text-ink-light">
-            מייל אישור נשלח אליך, ופרטי ההזמנה הועברו לצוות. ניצור איתך קשר בהקדם.
+            ההזמנה מועברת לאישור החנות. נעדכן אותך מיד כשתאושר — ורק אז יתבצע התשלום. שלחנו לך גם מייל אישור.
           </p>
           <Link
             to="/"
