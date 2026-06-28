@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, Navigate, useLocation } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowRight, LogOut, ShoppingBag, UserCog, CreditCard, Mail, Package,
   Plus, Trash2, Check, AlertCircle, BellRing, BellOff, ChevronDown, RotateCcw, Headset, MapPin, Star, FileText,
@@ -93,25 +93,46 @@ function OrdersTab({ email }) {
   const { orderStatusMeta } = useSettings()
   const { store } = useCatalogStore()
   const { addItem, setOpen } = useCart()
+  const navigate = useNavigate()
   const [openId, setOpenId] = useState(null)
   const [serviceOrder, setServiceOrder] = useState(null) // order whose service-request modal is open
+  const [reorderOrder, setReorderOrder] = useState(null) // multi-item order whose re-order picker is open
   const mine = orders.filter((o) => o.customer?.email?.toLowerCase() === String(email).toLowerCase())
 
   const prodById = (id) => (Array.isArray(store) ? store.find((p) => p.id === id) : null)
-  // Re-order is possible only when every line's product is still in stock.
-  const canReorder = (o) =>
-    (o.items || []).length > 0 &&
-    (o.items || []).every((it) => {
-      const p = prodById(it.id)
-      return p && (Number(p.stock) || 0) > 0
-    })
-  const reorder = (o) => {
-    let added = false
-    ;(o.items || []).forEach((it) => {
-      const p = prodById(it.id)
-      if (p) for (let k = 0; k < (Number(it.qty) || 1); k++) if (addItem(p, it.color || '')) added = true
-    })
-    if (added) setOpen(true)
+  const lineInStock = (it) => {
+    const p = prodById(it.id)
+    return !!(p && (Number(p.stock) || 0) > 0)
+  }
+  // The button is active as long as at least one line can still be re-ordered.
+  const canReorder = (o) => (o.items || []).some(lineInStock)
+
+  // Re-add a previously ordered line to the cart, preserving its chosen options
+  // (so required-field products don't end up in the cart without a selection).
+  const addLineToCart = (it) => {
+    const p = prodById(it.id)
+    if (!p) return
+    const selections = Array.isArray(it.selections) ? it.selections : []
+    const options = {
+      unitPrice: Number(it.price) || 0,
+      selections,
+      optionsKey: selections.map((s) => `${s.groupTitle}:${s.optionLabel}`).join('|'),
+    }
+    for (let k = 0; k < (Number(it.qty) || 1); k++) addItem(p, it.color || '', null, options)
+  }
+
+  // Single-line order → go to the product page (with the previous selections
+  // pre-applied). Multi-line → open a picker so the customer chooses what to
+  // re-order; out-of-stock lines are shown but can't be selected.
+  const startReorder = (o) => {
+    const items = o.items || []
+    if (items.length === 1) {
+      const it = items[0]
+      if (!lineInStock(it)) return
+      navigate(`/product/${it.id}`, { state: { reorder: { selections: it.selections || [], color: it.color || '' } } })
+      return
+    }
+    setReorderOrder(o)
   }
 
   if (mine.length === 0) {
@@ -181,9 +202,9 @@ function OrdersTab({ email }) {
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-black/5 pt-4">
                   <button
                     type="button"
-                    onClick={() => reorderable && reorder(o)}
+                    onClick={() => reorderable && startReorder(o)}
                     disabled={!reorderable}
-                    title={reorderable ? '' : 'אחד המוצרים אינו זמין במלאי'}
+                    title={reorderable ? '' : 'המוצרים אינם זמינים במלאי'}
                     className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition ${
                       reorderable ? 'bg-brand-500 text-white hover:bg-brand-600' : 'cursor-not-allowed bg-black/10 text-ink-light'
                     }`}
@@ -214,6 +235,84 @@ function OrdersTab({ email }) {
         )
       })}
       {serviceOrder && <ServiceRequestModal order={serviceOrder} onClose={() => setServiceOrder(null)} />}
+      {reorderOrder && (
+        <ReorderModal
+          order={reorderOrder}
+          lineInStock={lineInStock}
+          onConfirm={(lines) => {
+            lines.forEach(addLineToCart)
+            setReorderOrder(null)
+            setOpen(true)
+          }}
+          onClose={() => setReorderOrder(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ---- Re-order picker (multi-item orders): choose which lines to buy again ----
+function ReorderModal({ order, lineInStock, onConfirm, onClose }) {
+  const lines = order.items || []
+  // Pre-select every in-stock line; out-of-stock lines can't be chosen.
+  const [chosen, setChosen] = useState(() => {
+    const init = {}
+    lines.forEach((it, i) => { init[it.lineId || i] = lineInStock(it) })
+    return init
+  })
+  const keyOf = (it, i) => it.lineId || i
+  const toggle = (k) => setChosen((c) => ({ ...c, [k]: !c[k] }))
+  const selected = lines.filter((it, i) => lineInStock(it) && chosen[keyOf(it, i)])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white shadow-card-hover" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-black/5 p-4">
+          <RotateCcw size={18} className="text-brand-500" />
+          <h3 className="text-base font-extrabold text-ink">בחירת מוצרים לקנייה חוזרת</h3>
+        </div>
+        <ul className="flex-1 space-y-2 overflow-y-auto p-4">
+          {lines.map((it, i) => {
+            const ok = lineInStock(it)
+            const k = keyOf(it, i)
+            return (
+              <li
+                key={k}
+                className={`flex items-center gap-3 rounded-xl border p-3 ${ok ? 'border-black/10' : 'border-black/5 bg-black/[0.03] opacity-70'}`}
+              >
+                <input
+                  type="checkbox"
+                  disabled={!ok}
+                  checked={!!chosen[k] && ok}
+                  onChange={() => toggle(k)}
+                  className="h-5 w-5 shrink-0 rounded border-black/20 text-brand-500 focus:ring-brand-500 disabled:opacity-40"
+                />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-brand-50 text-lg">
+                  {it.image ? <img src={it.image} alt="" className="h-full w-full object-cover" /> : '📦'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-sm font-semibold text-ink">{it.name}</p>
+                  <p className="text-xs text-ink-light">כמות: {it.qty}</p>
+                </div>
+                {!ok && <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-600">אזל מהמלאי</span>}
+              </li>
+            )
+          })}
+        </ul>
+        <div className="flex justify-end gap-2 border-t border-black/5 p-4">
+          <button type="button" onClick={onClose} className="rounded-xl border border-black/10 px-4 py-2 text-sm font-semibold text-ink hover:bg-black/5">
+            ביטול
+          </button>
+          <button
+            type="button"
+            disabled={selected.length === 0}
+            onClick={() => onConfirm(selected)}
+            className="flex items-center gap-1.5 rounded-xl bg-brand-500 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-60"
+          >
+            <RotateCcw size={15} /> הוספה לסל ({selected.length})
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

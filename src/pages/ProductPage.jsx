@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useParams, useNavigate, Navigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, Navigate, Link } from 'react-router-dom'
 import { ChevronLeft, ShoppingCart, Gift, Check, Minus, Plus } from 'lucide-react'
 import { DOMAINS, useApp } from '../context/AppContext.jsx'
 import { useCatalogStore } from '../context/CatalogContext.jsx'
@@ -21,6 +21,7 @@ const normColors = (arr) =>
 export default function ProductPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { store, getCategoriesWithAll } = useCatalogStore()
   const { setCategory, switchDomain, goHome } = useApp()
   const { addItem, setOpen, items, changeQty } = useCart()
@@ -79,6 +80,29 @@ export default function ProductPage() {
   const rawMarketing = Array.isArray(page.marketing) && page.marketing.length ? page.marketing : productPage.defaultMarketing || []
   const marketing = rawMarketing.filter((m) => m.enabled !== false)
   const giftCfg = page.giftWrap || productPage.giftWrapDefault || { enabled: false, price: 0 }
+
+  // Re-order: when arriving from "קנייה חוזרת" with the previous selections,
+  // pre-apply them (matched by group title + option label) so required fields
+  // are already chosen. Runs once per product.
+  const reorderState = location.state?.reorder
+  useEffect(() => {
+    if (!reorderState || !product) return
+    const sels = Array.isArray(reorderState.selections) ? reorderState.selections : []
+    const next = {}
+    let gift = false
+    sels.forEach((s) => {
+      if (s.groupTitle === 'עטיפת מתנה') { gift = true; return }
+      const g = optionGroups.find((gr) => gr.title === s.groupTitle)
+      const opt = g && (g.options || []).find((o) => o.label === s.optionLabel)
+      if (!g || !opt) return
+      if (g.multi) next[g.id] = [...(next[g.id] || []), opt.id]
+      else next[g.id] = opt.id
+    })
+    setSelected(next)
+    if (gift) setGiftWrap(true)
+    if (reorderState.color) setSelectedColor(reorderState.color)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id])
 
   // Installments: a product can hide them or override the count; otherwise the
   // global default applies.
