@@ -77,7 +77,9 @@ Deno.serve(async (req) => {
   const payload = {
     Credentials: { CompanyID: SUMIT_COMPANY_ID, APIKey: SUMIT_API_KEY },
     Details: {
-      IsDraft: false,
+      // TESTING: issue a DRAFT (not a finalized tax document) so the shop can
+      // verify the data safely. Flip to false to issue real tax invoices.
+      IsDraft: true,
       Customer: {
         Name: String(cust.name ?? 'לקוח'),
         Phone: String(cust.phone ?? ''),
