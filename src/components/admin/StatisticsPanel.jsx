@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import {
   ArrowRight, TrendingUp, TrendingDown, Banknote, ShoppingBag, Users, Package,
-  CreditCard, BarChart3, Boxes, Trophy, LayoutGrid, CalendarDays,
+  CreditCard, BarChart3, Boxes, Trophy, LayoutGrid, CalendarDays, ChevronDown, Receipt,
 } from 'lucide-react'
 import { useOrders } from '../../context/OrdersContext.jsx'
 import { useCatalogStore } from '../../context/CatalogContext.jsx'
@@ -27,7 +27,15 @@ const startOfDay = (ts) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); ret
 const VAT_RATE = 0.18
 const VAT_FRACTION = VAT_RATE / (1 + VAT_RATE)
 // Clearing (סליקה) fee as a % of the transaction, per number of payments.
+// Applied only to credit-card orders, at the rate for that order's installments.
 const CLEARING_RATES = { 1: 0.65, 2: 0.576, 3: 0.864, 4: 1.151 }
+const HE_MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר']
+// Per-order clearing fee in ₪ — only credit-card orders incur it.
+const clearingFeeFor = (o) => {
+  if (o.payment !== 'credit') return 0
+  const rate = (CLEARING_RATES[o.payments] || CLEARING_RATES[1]) / 100
+  return (Number(o.total) || 0) * rate
+}
 
 // A comprehensive statistics dashboard built entirely from the live data
 // (orders, catalog, customers) — no external charting dependency.
@@ -37,10 +45,10 @@ export default function StatisticsPanel({ onBack }) {
   const { orderStatuses, paymentLabel } = useSettings()
   const { customers } = useLab()
   const [range, setRange] = useState(30)
-  const [payments, setPayments] = useState(1) // assumed payment count for clearing fee
   const [customFrom, setCustomFrom] = useState('') // custom date-range (overrides range)
   const [customTo, setCustomTo] = useState('')
-  const clearingPct = (CLEARING_RATES[payments] || CLEARING_RATES[1]) / 100
+  const [expanded, setExpanded] = useState({}) // order id -> open breakdown row
+  const toggleExpanded = (id) => setExpanded((m) => ({ ...m, [id]: !m[id] }))
 
   const stats = useMemo(() => {
     const now = Date.now()
@@ -95,25 +103,53 @@ export default function StatisticsPanel({ onBack }) {
     const catLabels = Object.fromEntries(getCategories(DOMAINS.STORE).map((c) => [c.id, c.label]))
     const prodMap = {}
     const catMap = {}
-    let totalCost = 0 // sum of product costs for the items sold (admin-only)
-    cur.forEach((o) => (o.items || []).forEach((it) => {
-      const key = it.id || it.name
-      const qty = Number(it.qty) || 0
-      const lineRev = (Number(it.price) || 0) * qty
-      if (!prodMap[key]) prodMap[key] = { name: it.name, qty: 0, revenue: 0 }
-      prodMap[key].qty += qty
-      prodMap[key].revenue += lineRev
-      totalCost += (Number(getCost(it.id)) || 0) * qty
-      const cat = storeById[it.id]?.category
-      const catLabel = catLabels[cat] || 'אחר'
-      catMap[catLabel] = (catMap[catLabel] || 0) + lineRev
-    }))
+    // Per-order financial breakdown — every figure (VAT, clearing, net profit)
+    // is computed from that order alone, so the totals are the exact sum of the
+    // real costs incurred on each individual sale.
+    const orderDetails = cur.map((o) => {
+      const total = Number(o.total) || 0 // total the customer was charged
+      let cost = 0
+      ;(o.items || []).forEach((it) => {
+        const key = it.id || it.name
+        const qty = Number(it.qty) || 0
+        const lineRev = (Number(it.price) || 0) * qty
+        if (!prodMap[key]) prodMap[key] = { name: it.name, qty: 0, revenue: 0 }
+        prodMap[key].qty += qty
+        prodMap[key].revenue += lineRev
+        cost += (Number(getCost(it.id)) || 0) * qty
+        const cat = storeById[it.id]?.category
+        const catLabel = catLabels[cat] || 'אחר'
+        catMap[catLabel] = (catMap[catLabel] || 0) + lineRev
+      })
+      const gross = total - cost // margin before VAT + clearing
+      const oVat = Math.max(0, gross) * VAT_FRACTION // VAT owed on this order's margin
+      const oClearing = clearingFeeFor(o) // card-clearing fee (credit only)
+      const net = gross - oVat - oClearing // final profit on this order
+      return {
+        id: o.id, number: o.number, createdAt: o.createdAt,
+        name: o.customer?.name || '—', payment: o.payment, payments: o.payments || 1,
+        total, cost, gross, vat: oVat, clearing: oClearing, net,
+      }
+    })
+    const totalCost = orderDetails.reduce((s, d) => s + d.cost, 0)
     const profit = revenue - totalCost // gross profit (after product cost)
-    const vat = Math.max(0, profit) * VAT_FRACTION // VAT owed on the margin
-    const clearing = revenue * clearingPct // card-clearing fee
-    const netProfit = profit - vat - clearing // final profit after VAT + clearing
+    const vat = orderDetails.reduce((s, d) => s + d.vat, 0) // VAT owed across orders
+    const clearing = orderDetails.reduce((s, d) => s + d.clearing, 0) // card-clearing fees
+    const netProfit = orderDetails.reduce((s, d) => s + d.net, 0) // final profit
+    orderDetails.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     const topProducts = Object.values(prodMap).sort((a, b) => b.revenue - a.revenue).slice(0, 8)
     const byCategory = Object.entries(catMap).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value)
+
+    // ---- Monthly breakdown (ינואר, פברואר …) sorted chronologically ----
+    const monthMap = {}
+    orderDetails.forEach((d) => {
+      const dt = new Date(d.createdAt)
+      const key = `${dt.getFullYear()}-${String(dt.getMonth()).padStart(2, '0')}`
+      if (!monthMap[key]) monthMap[key] = { key, label: `${HE_MONTHS[dt.getMonth()]} ${dt.getFullYear()}`, orders: 0, revenue: 0, vat: 0, clearing: 0, net: 0 }
+      const m = monthMap[key]
+      m.orders += 1; m.revenue += d.total; m.vat += d.vat; m.clearing += d.clearing; m.net += d.net
+    })
+    const monthly = Object.values(monthMap).sort((a, b) => a.key.localeCompare(b.key))
 
     // ---- Status / payment / weekday breakdowns ----
     const byStatus = orderStatuses
@@ -136,10 +172,11 @@ export default function StatisticsPanel({ onBack }) {
       netMargin: revenue > 0 ? Math.round((netProfit / revenue) * 100) : null,
       trendRevenue: trend(revenue, prevRevenue), trendOrders: trend(ordersN, prev.length), trendAov: trend(aov, prevAov),
       buckets, topProducts, byCategory, byStatus, byPayment, weekday,
+      orderDetails, monthly,
       inventoryValue, outOfStock, lowStock, productCount: store.length,
       hasData: cur.length > 0,
     }
-  }, [orders, store, range, customFrom, customTo, clearingPct, orderStatuses, paymentLabel, getCategories, getCost])
+  }, [orders, store, range, customFrom, customTo, orderStatuses, paymentLabel, getCategories, getCost])
 
   return (
     <div className="space-y-5">
@@ -171,7 +208,7 @@ export default function StatisticsPanel({ onBack }) {
         </div>
       </div>
 
-      {/* Custom date range + clearing-fee assumption */}
+      {/* Custom date range */}
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-black/5 bg-white p-3 shadow-card">
         <label className="text-xs font-semibold text-ink-light">
           מתאריך
@@ -186,15 +223,6 @@ export default function StatisticsPanel({ onBack }) {
             ניקוי טווח
           </button>
         )}
-        <label className="ms-auto text-xs font-semibold text-ink-light">
-          עלות סליקה לפי
-          <select value={payments} onChange={(e) => setPayments(Number(e.target.value))} className="mt-1 block rounded-lg border border-black/10 px-2 py-1.5 text-sm text-ink outline-none focus:border-brand-500">
-            <option value={1}>תשלום אחד ({CLEARING_RATES[1]}%)</option>
-            <option value={2}>2 תשלומים ({CLEARING_RATES[2]}%)</option>
-            <option value={3}>3 תשלומים ({CLEARING_RATES[3]}%)</option>
-            <option value={4}>4 תשלומים ({CLEARING_RATES[4]}%)</option>
-          </select>
-        </label>
       </div>
 
       {/* KPI cards */}
@@ -215,13 +243,87 @@ export default function StatisticsPanel({ onBack }) {
           <ProfitRow label="רווח גולמי" value={ils(stats.profit)} bold />
           <div className="my-2 border-t border-black/5" />
           <ProfitRow label={`מע״מ לתשלום (${Math.round(VAT_RATE * 100)}% על הרווח)`} value={`−${ils(stats.vat)}`} muted />
-          <ProfitRow label={`עלות סליקה (${CLEARING_RATES[payments]}%)`} value={`−${ils(stats.clearing)}`} muted />
+          <ProfitRow label="עלות סליקה (אשראי)" value={`−${ils(stats.clearing)}`} muted />
           <div className="my-2 border-t border-black/5" />
           <ProfitRow label="רווח נקי סופי" value={ils(stats.netProfit)} bold tone="emerald" />
         </div>
         <p className="mt-3 text-[11px] leading-relaxed text-ink-light">
-          המע״מ מחושב על פער הרווח (יש לך זיכוי על המע״מ בחשבונית הרכישה). עלות הסליקה לפי מספר התשלומים שבחרת למעלה.
+          המע״מ מחושב על פער הרווח (יש לך זיכוי על המע״מ בחשבונית הרכישה). עלות הסליקה מחושבת לכל הזמנת אשראי בנפרד לפי מספר התשלומים שלה.
         </p>
+      </Card>
+
+      {/* Monthly breakdown (ינואר, פברואר …) */}
+      <Card title="פירוט לפי חודשים" Icon={CalendarDays}>
+        {stats.monthly.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-black/10 text-ink-light">
+                  <th className="py-2 text-right font-semibold">חודש</th>
+                  <th className="py-2 text-center font-semibold">הזמנות</th>
+                  <th className="py-2 text-left font-semibold">הכנסות</th>
+                  <th className="py-2 text-left font-semibold">מע״מ</th>
+                  <th className="py-2 text-left font-semibold">סליקה</th>
+                  <th className="py-2 text-left font-semibold">רווח נקי</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.monthly.map((m) => (
+                  <tr key={m.key} className="border-b border-black/5 last:border-0">
+                    <td className="py-2 text-right font-semibold text-ink">{m.label}</td>
+                    <td className="py-2 text-center text-ink-light">{m.orders}</td>
+                    <td className="py-2 text-left text-ink">{ils(m.revenue)}</td>
+                    <td className="py-2 text-left text-ink-light">{ils(m.vat)}</td>
+                    <td className="py-2 text-left text-ink-light">{ils(m.clearing)}</td>
+                    <td className="py-2 text-left font-bold text-emerald-600">{ils(m.net)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <Empty />}
+      </Card>
+
+      {/* Per-order breakdown — click an order to expand its profit details */}
+      <Card title="הזמנות בתקופה" Icon={Receipt}>
+        {stats.orderDetails.length ? (
+          <ul className="divide-y divide-black/5">
+            {stats.orderDetails.map((d) => {
+              const open = !!expanded[d.id]
+              return (
+                <li key={d.id}>
+                  <button
+                    onClick={() => toggleExpanded(d.id)}
+                    className="flex w-full items-center gap-3 py-2.5 text-right hover:bg-black/[0.02]"
+                  >
+                    <ChevronDown size={16} className={`shrink-0 text-ink-light transition-transform ${open ? 'rotate-180' : ''}`} />
+                    <span className="font-semibold text-ink">{d.number}</span>
+                    <span className="min-w-0 flex-1 truncate text-ink-light">{d.name}</span>
+                    <span className="shrink-0 text-xs text-ink-light">{new Date(d.createdAt).toLocaleDateString('he-IL')}</span>
+                    <span className="shrink-0 font-bold text-ink">{ils(d.total)}</span>
+                  </button>
+                  {open && (
+                    <div className="mb-2 rounded-xl bg-brand-50/50 p-3">
+                      <div className="space-y-1.5">
+                        <ProfitRow label="חיוב כולל של הלקוח" value={ils(d.total)} bold />
+                        <ProfitRow label="עלות המוצרים" value={`−${ils(d.cost)}`} muted />
+                        <ProfitRow label="רווח גולמי" value={ils(d.gross)} />
+                        <ProfitRow label={`מע״מ (${Math.round(VAT_RATE * 100)}%)`} value={`−${ils(d.vat)}`} muted />
+                        <ProfitRow
+                          label={d.payment === 'credit' ? `עלות סליקה (${d.payments} תש׳ · ${CLEARING_RATES[d.payments] || CLEARING_RATES[1]}%)` : 'עלות סליקה'}
+                          value={d.payment === 'credit' ? `−${ils(d.clearing)}` : '—'}
+                          muted
+                        />
+                        <div className="my-1 border-t border-black/5" />
+                        <ProfitRow label="רווח סופי" value={ils(d.net)} bold tone="emerald" />
+                      </div>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        ) : <Empty />}
       </Card>
 
       {/* Revenue trend */}

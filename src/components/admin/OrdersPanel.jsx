@@ -12,7 +12,7 @@ const fmtDate = (iso) =>
   new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 export default function OrdersPanel({ focusId = null }) {
-  const { orders, updateStatus, updateOrderItems, issueInvoice, setOrderDraft, getInvoicePdf, deleteOrder, addOrderLog, markOrderRead } = useOrders()
+  const { orders, updateStatus, updateOrderItems, issueInvoice, setOrderDraft, setOrderPayments, getInvoicePdf, deleteOrder, addOrderLog, markOrderRead } = useOrders()
   const { orderStatuses, orderStatusMeta, paymentLabel: payLabel, deliveryLabel } = useSettings()
   const { user } = useAuth()
   const [expanded, setExpanded] = useState(null)
@@ -172,6 +172,21 @@ export default function OrdersPanel({ focusId = null }) {
                     <CreditCard size={14} className="text-ink-light" /> {payLabel(o.payment)} · {deliveryLabel(o.delivery)}
                     {Number(o.deliveryPrice) > 0 && <span className="text-ink-light">(₪{o.deliveryPrice})</span>}
                   </p>
+                  {o.payment === 'credit' && (
+                    <label className="flex items-center gap-2 text-xs text-ink-light">
+                      מספר תשלומים בסליקה
+                      <select
+                        value={o.payments || 1}
+                        onChange={(e) => setOrderPayments(o.id, Number(e.target.value))}
+                        className="rounded-lg border border-black/10 px-2 py-1 text-sm text-ink outline-none focus:border-brand-500"
+                      >
+                        <option value={1}>תשלום אחד</option>
+                        <option value={2}>2 תשלומים</option>
+                        <option value={3}>3 תשלומים</option>
+                        <option value={4}>4 תשלומים</option>
+                      </select>
+                    </label>
+                  )}
                   {o.notes && (
                     <p className="flex items-start gap-2 border-t border-black/5 pt-2 text-ink">
                       <MessageSquare size={14} className="mt-0.5 shrink-0 text-ink-light" /> {o.notes}
