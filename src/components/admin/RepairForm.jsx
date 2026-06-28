@@ -3,7 +3,7 @@ import {
   Check, ArrowRight, User, Smartphone, ClipboardList, Wallet, ShieldCheck, Lock, AlertCircle,
 } from 'lucide-react'
 import { useLab } from '../../context/LabContext.jsx'
-import { useAuth } from '../../context/AuthContext.jsx'
+import { useAuth, ROLES } from '../../context/AuthContext.jsx'
 import { Card, Field, PrimaryBtn, GhostBtn, inputCls } from './ui.jsx'
 import PatternLock from './PatternLock.jsx'
 import ComboBox from './ComboBox.jsx'
@@ -16,8 +16,11 @@ const emptyCustomer = { name: '', address: '', phone1: '', phone2: '' }
 export default function RepairForm({ repair, onDone }) {
   const isEdit = !!repair
   const lab = useLab()
-  const { user, isMasterAdminAccount } = useAuth()
+  const { user, isMasterAdminAccount, users } = useAuth()
   const bypass = isMasterAdminAccount // master admin skips all validation
+  // Customers who registered on the site (selectable here too, alongside the
+  // lab's own customer list).
+  const registered = (users || []).filter((u) => u.role === ROLES.CUSTOMER)
   const {
     customers, brands, models, modelsForBrand, loaners, conditionOptions, labSettings,
     addBrand, addModel, addCustomer, addRepair, updateRepair,
@@ -25,6 +28,7 @@ export default function RepairForm({ repair, onDone }) {
 
   // Customer
   const [customerId, setCustomerId] = useState(repair?.customerId || '')
+  const [selValue, setSelValue] = useState(repair?.customerId || '') // picker value (lab id or reg:<id>)
   const [cust, setCust] = useState(
     repair
       ? { name: repair.customerName || '', address: repair.address || '', phone1: repair.phone1 || '', phone2: repair.phone2 || '' }
@@ -84,15 +88,31 @@ export default function RepairForm({ repair, onDone }) {
     return opts
   }, [loaners, repair])
 
-  const onPickCustomer = (id) => {
-    setCustomerId(id)
-    const c = customers.find((x) => x.id === id)
+  // Build a readable address string from a registered profile's saved address.
+  const profileAddress = (u) => {
+    const a = Array.isArray(u.addresses) && u.addresses[0]
+    if (a) return `${a.street || ''} ${a.house || ''}${a.apartment ? ', ' + a.apartment : ''}, ${a.city || ''}`.trim()
+    return u.address || ''
+  }
+  const onPickCustomer = (val) => {
+    setSelValue(val)
+    // A registered site customer → fill the fields; a lab customer is created
+    // (or matched) on save, like a manually-typed customer.
+    if (val.startsWith('reg:')) {
+      const u = registered.find((x) => x.id === val.slice(4))
+      setCustomerId('')
+      setCust(u ? { name: u.name || '', address: profileAddress(u), phone1: u.phone || '', phone2: '' } : emptyCustomer)
+      return
+    }
+    setCustomerId(val)
+    const c = customers.find((x) => x.id === val)
     setCust(c ? { name: c.name, address: c.address || '', phone1: c.phone1 || '', phone2: c.phone2 || '' } : emptyCustomer)
   }
   const setC = (k, v) => {
     const val = k === 'phone1' || k === 'phone2' ? sanitizePhone(v, bypass) : v
     setCust((c) => ({ ...c, [k]: val }))
     setCustomerId('')
+    setSelValue('')
   }
 
   const toggleCond = (k) => setCondition((c) => ({ ...c, [k]: !c[k] }))
@@ -107,7 +127,10 @@ export default function RepairForm({ repair, onDone }) {
       if (hasCode === '') return setError('יש לבחור האם יש קוד למכשיר.')
       if (hasCode === 'yes') {
         if (codeType === 'text' && !codeText.trim()) return setError('יש להזין קוד טקסט.')
-        if (codeType === 'pattern' && !codePattern) return setError('יש לשרטט קוד דפוס.')
+        if (codeType === 'pattern') {
+          const dots = codePattern ? codePattern.split('-').filter(Boolean).length : 0
+          if (dots < 4) return setError('קוד דפוס חייב לכלול לפחות 4 נקודות.')
+        }
       }
       // Custom "required" condition options must be checked.
       const missingReq = conditionOptions.filter((o) => o.required && !condition[o.id])
@@ -197,13 +220,22 @@ export default function RepairForm({ repair, onDone }) {
         <Card>
           <SectionTitle icon={User} title="פרטי לקוח" />
           <Field label="בחירת לקוח קיים">
-            <select className={inputCls} value={customerId} onChange={(e) => onPickCustomer(e.target.value)}>
+            <select className={inputCls} value={selValue} onChange={(e) => onPickCustomer(e.target.value)}>
               <option value="">— לקוח חדש / בחר מהרשימה —</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} · {c.phone1}
-                </option>
-              ))}
+              {customers.length > 0 && (
+                <optgroup label="לקוחות מעבדה">
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name} · {c.phone1}</option>
+                  ))}
+                </optgroup>
+              )}
+              {registered.length > 0 && (
+                <optgroup label="לקוחות רשומים באתר">
+                  {registered.map((u) => (
+                    <option key={u.id} value={`reg:${u.id}`}>{u.name} · {u.phone || u.email}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </Field>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -277,7 +309,7 @@ export default function RepairForm({ repair, onDone }) {
                 </Field>
               ) : (
                 <div>
-                  <span className="mb-2 block text-xs font-semibold text-ink-light">שרטט את התבנית</span>
+                  <span className="mb-2 block text-xs font-semibold text-ink-light">שרטט את התבנית (לפחות 4 נקודות)</span>
                   <PatternLock value={codePattern} onChange={setCodePattern} />
                 </div>
               )}

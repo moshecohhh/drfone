@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trash2, Pencil, MapPin, X, Users, Check, Eye, EyeOff, Mail, AlertCircle, Download, Ticket } from 'lucide-react'
+import { Plus, Trash2, Pencil, MapPin, X, Users, Check, Eye, EyeOff, Mail, AlertCircle, Download, Ticket, UserCheck, BellRing } from 'lucide-react'
 import { useLab } from '../../context/LabContext.jsx'
 import { useCoupons } from '../../context/CouponsContext.jsx'
 import { useAuth, ROLES, ROLE_OPTIONS } from '../../context/AuthContext.jsx'
@@ -14,7 +14,8 @@ const blank = { name: '', phone1: '', phone2: '', address: '', email: '', passwo
 // Customers (client base) — view, create & edit, with credentials.
 export default function CustomersPanel() {
   const { customers, addCustomer, updateCustomer, deleteCustomer, repairs } = useLab()
-  const { isMasterAdminAccount } = useAuth()
+  const { isMasterAdminAccount, users } = useAuth()
+  const registered = (users || []).filter((u) => u.role === ROLES.CUSTOMER)
   const bypass = isMasterAdminAccount
   const [view, setView] = useState('customers') // 'customers' | 'newsletter'
   const [showForm, setShowForm] = useState(false)
@@ -77,14 +78,17 @@ export default function CustomersPanel() {
 
   return (
     <div>
-      {/* Tabs — customer base vs. the newsletter (moved in here) */}
+      {/* Tabs — lab customers / registered site customers / newsletter */}
       <div className="mb-5 flex gap-1 border-b border-black/5">
-        <CustTab active={view === 'customers'} onClick={() => setView('customers')} Icon={Users}>לקוחות</CustTab>
+        <CustTab active={view === 'customers'} onClick={() => setView('customers')} Icon={Users}>לקוחות מעבדה</CustTab>
+        <CustTab active={view === 'registered'} onClick={() => setView('registered')} Icon={UserCheck}>לקוחות רשומים</CustTab>
         <CustTab active={view === 'newsletter'} onClick={() => setView('newsletter')} Icon={Mail}>ניוזלטר</CustTab>
       </div>
 
       {view === 'newsletter' ? (
         <NewsletterPanel />
+      ) : view === 'registered' ? (
+        <RegisteredCustomers list={registered} />
       ) : (
       <>
       <PanelHead
@@ -300,6 +304,62 @@ function GiveCouponModal({ customer, onClose }) {
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+// Read-only list of customers who registered on the site (managed as accounts
+// under "משתמשים והרשאות"). Searchable + exportable.
+function RegisteredCustomers({ list }) {
+  const [query, setQuery] = useState('')
+  const term = query.trim().toLowerCase()
+  const filtered = term
+    ? list.filter((u) => [u.name, u.email, u.phone].some((f) => (f || '').toLowerCase().includes(term)))
+    : list
+
+  const exportList = () => {
+    const today = new Date().toISOString().slice(0, 10)
+    exportCsv(
+      `registered-customers-${today}.csv`,
+      ['שם', 'אימייל', 'טלפון', 'ניוזלטר'],
+      list.map((u) => [u.name || '', u.email || '', u.phone || '', u.newsletter ? 'כן' : 'לא']),
+    )
+  }
+
+  return (
+    <div>
+      <PanelHead
+        title="לקוחות רשומים באתר"
+        subtitle={`${list.length} לקוחות שפתחו חשבון באתר. ניהול החשבונות עצמם תחת "משתמשים והרשאות".`}
+        action={list.length > 0 && (
+          <GhostBtn onClick={exportList}><Download size={16} /> ייצוא לאקסל</GhostBtn>
+        )}
+      />
+      {list.length > 0 && (
+        <PanelSearch value={query} onChange={setQuery} placeholder="חיפוש לקוח / אימייל / טלפון…" className="mb-4 sm:max-w-xs" />
+      )}
+      {list.length === 0 ? (
+        <EmptyState icon={UserCheck} title="אין לקוחות רשומים עדיין" hint="לקוחות שיירשמו לאתר יופיעו כאן." />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={UserCheck} title="לא נמצאו לקוחות" hint={`אין תוצאות עבור “${query.trim()}”.`} />
+      ) : (
+        <Table columns={['שם', 'אימייל', 'טלפון', 'ניוזלטר']}>
+          {filtered.map((u) => (
+            <tr key={u.id} className="hover:bg-brand-50/40">
+              <td className="px-4 py-3 font-semibold text-ink">{u.name || '—'}</td>
+              <td className="px-4 py-3 text-ink-light">
+                {u.email ? <span className="flex items-center gap-1.5" dir="ltr"><Mail size={14} /> {u.email}</span> : '—'}
+              </td>
+              <td className="px-4 py-3 text-ink-light">{u.phone ? <PhoneActions phone={u.phone} /> : '—'}</td>
+              <td className="px-4 py-3">
+                {u.newsletter
+                  ? <span className="flex items-center gap-1 text-xs font-bold text-brand-700"><BellRing size={14} /> רשום</span>
+                  : <span className="text-xs text-ink-light">—</span>}
+              </td>
+            </tr>
+          ))}
+        </Table>
+      )}
     </div>
   )
 }
