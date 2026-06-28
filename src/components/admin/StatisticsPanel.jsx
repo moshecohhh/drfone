@@ -65,40 +65,38 @@ export default function StatisticsPanel({ onBack }) {
   const [customTo, setCustomTo] = useState('')
   const [expanded, setExpanded] = useState({}) // order id -> open breakdown row
   const toggleExpanded = (id) => setExpanded((m) => ({ ...m, [id]: !m[id] }))
-  const [openMonth, setOpenMonth] = useState('') // month key whose order list is expanded
-  const toggleMonth = (key) => setOpenMonth((k) => (k === key ? '' : key))
+  const [month, setMonth] = useState('') // 'YYYY-MM' single-month filter for the whole page
+  const [monthMenu, setMonthMenu] = useState(false) // months dropdown open?
 
-  // Last 12 calendar months as an expandable accordion (newest first). Each
-  // month groups its own orders so it can be opened to reveal every operation.
-  // Labelled by month name only — within a 12-month window each name is unique.
-  const monthGroups = useMemo(() => {
-    const groups = []
+  // The last 12 calendar months (newest first). Labelled by month name only —
+  // within a 12-month window each name is unique, so no year is needed.
+  const monthOptions = useMemo(() => {
+    const opts = []
     const d = new Date()
     d.setDate(1)
     for (let i = 0; i < 12; i++) {
-      groups.push({ key: `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`, label: HE_MONTHS[d.getMonth()], orders: [], revenue: 0, vat: 0, clearing: 0, net: 0 })
+      opts.push({ key: `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`, label: HE_MONTHS[d.getMonth()] })
       d.setMonth(d.getMonth() - 1)
     }
-    const byKey = Object.fromEntries(groups.map((g) => [g.key, g]))
-    orders.forEach((o) => {
-      const dt = new Date(o.createdAt)
-      const g = byKey[`${dt.getFullYear()}-${String(dt.getMonth()).padStart(2, '0')}`]
-      if (!g) return
-      const det = buildOrderDetail(o, getCost)
-      g.orders.push(det); g.revenue += det.total; g.vat += det.vat; g.clearing += det.clearing; g.net += det.net
-    })
-    groups.forEach((g) => g.orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
-    return groups
-  }, [orders, getCost])
+    return opts
+  }, [])
+  const selectedMonthLabel = monthOptions.find((m) => m.key === month)?.label
 
   const stats = useMemo(() => {
     const now = Date.now()
-    const custom = !!(customFrom && customTo)
-    const days = custom ? null : range === 'all' ? null : range
+    const monthMode = !!month
+    const [my, mm] = monthMode ? month.split('-').map(Number) : []
+    const custom = !monthMode && !!(customFrom && customTo)
+    const days = monthMode || custom ? null : range === 'all' ? null : range
     const ts = (o) => new Date(o.createdAt).getTime()
-    const fromTs = custom ? new Date(customFrom).getTime() : days == null ? 0 : now - days * DAY
-    const toTs = custom ? new Date(customTo).getTime() + DAY : Infinity
-    const prevStart = !custom && days != null ? now - 2 * days * DAY : null
+    const fromTs = monthMode ? new Date(my, mm, 1).getTime()
+      : custom ? new Date(customFrom).getTime()
+      : days == null ? 0 : now - days * DAY
+    const toTs = monthMode ? new Date(my, mm + 1, 1).getTime() - 1
+      : custom ? new Date(customTo).getTime() + DAY
+      : Infinity
+    const prevStart = monthMode ? new Date(my, mm - 1, 1).getTime()
+      : !custom && days != null ? now - 2 * days * DAY : null
 
     const cur = orders.filter((o) => ts(o) >= fromTs && ts(o) <= toTs)
     const prev = prevStart == null ? [] : orders.filter((o) => ts(o) >= prevStart && ts(o) < fromTs)
@@ -119,8 +117,9 @@ export default function StatisticsPanel({ onBack }) {
 
     // ---- Revenue over time (daily buckets; monthly when "all") ----
     let buckets = []
-    const dailyDays = custom ? Math.min(120, Math.max(1, Math.round((toTs - fromTs) / DAY))) : days
-    const anchorTs = custom ? toTs - 1 : now
+    const dailyDays = monthMode ? new Date(my, mm + 1, 0).getDate() // days in the selected month
+      : custom ? Math.min(120, Math.max(1, Math.round((toTs - fromTs) / DAY))) : days
+    const anchorTs = monthMode ? toTs : custom ? toTs - 1 : now
     if (dailyDays != null) {
       for (let i = dailyDays - 1; i >= 0; i--) {
         const d0 = startOfDay(anchorTs - i * DAY)
@@ -192,7 +191,7 @@ export default function StatisticsPanel({ onBack }) {
       inventoryValue, outOfStock, lowStock, productCount: store.length,
       hasData: cur.length > 0,
     }
-  }, [orders, store, range, customFrom, customTo, orderStatuses, paymentLabel, getCategories, getCost])
+  }, [orders, store, range, customFrom, customTo, month, orderStatuses, paymentLabel, getCategories, getCost])
 
   return (
     <div className="space-y-5">
@@ -208,19 +207,56 @@ export default function StatisticsPanel({ onBack }) {
             <BarChart3 size={22} className="text-brand-500" /> מערכת סטטיסטיקה
           </h2>
         </div>
-        <div className="inline-flex rounded-full bg-white p-1 shadow-card">
-          {RANGES.map((r) => {
-            const active = !customFrom && !customTo && range === r.id
-            return (
-              <button
-                key={r.id}
-                onClick={() => { setRange(r.id); setCustomFrom(''); setCustomTo('') }}
-                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${active ? 'bg-brand-500 text-white shadow-sm' : 'text-ink-light hover:text-ink'}`}
-              >
-                {r.label}
-              </button>
-            )
-          })}
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-full bg-white p-1 shadow-card">
+            {RANGES.map((r) => {
+              const active = !month && !customFrom && !customTo && range === r.id
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => { setRange(r.id); setCustomFrom(''); setCustomTo(''); setMonth('') }}
+                  className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${active ? 'bg-brand-500 text-white shadow-sm' : 'text-ink-light hover:text-ink'}`}
+                >
+                  {r.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Months dropdown — pick one month to filter the whole overview */}
+          <div className="relative">
+            <button
+              onClick={() => setMonthMenu((v) => !v)}
+              className={`flex items-center gap-1 rounded-full px-4 py-1.5 text-sm font-semibold shadow-card transition ${month ? 'bg-brand-500 text-white' : 'bg-white text-ink-light hover:text-ink'}`}
+            >
+              {month ? selectedMonthLabel : 'לפי חודש'}
+              <ChevronDown size={15} className={`transition-transform ${monthMenu ? 'rotate-180' : ''}`} />
+            </button>
+            {monthMenu && (
+              <>
+                <button className="fixed inset-0 z-10 cursor-default" onClick={() => setMonthMenu(false)} aria-label="סגירה" />
+                <div className="absolute left-0 z-20 mt-1 max-h-72 w-44 overflow-auto rounded-xl border border-black/10 bg-white p-1 shadow-lg">
+                  {month && (
+                    <button
+                      onClick={() => { setMonth(''); setMonthMenu(false) }}
+                      className="mb-1 block w-full rounded-lg px-3 py-1.5 text-right text-sm font-semibold text-ink-light hover:bg-black/5"
+                    >
+                      כל התקופה
+                    </button>
+                  )}
+                  {monthOptions.map((m) => (
+                    <button
+                      key={m.key}
+                      onClick={() => { setMonth(m.key); setCustomFrom(''); setCustomTo(''); setMonthMenu(false) }}
+                      className={`block w-full rounded-lg px-3 py-1.5 text-right text-sm font-semibold transition ${month === m.key ? 'bg-brand-500 text-white' : 'text-ink hover:bg-black/5'}`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -228,11 +264,11 @@ export default function StatisticsPanel({ onBack }) {
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-black/5 bg-white p-3 shadow-card">
         <label className="text-xs font-semibold text-ink-light">
           מתאריך
-          <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="mt-1 block rounded-lg border border-black/10 px-2 py-1.5 text-sm text-ink outline-none focus:border-brand-500" />
+          <input type="date" value={customFrom} onChange={(e) => { setCustomFrom(e.target.value); setMonth('') }} className="mt-1 block rounded-lg border border-black/10 px-2 py-1.5 text-sm text-ink outline-none focus:border-brand-500" />
         </label>
         <label className="text-xs font-semibold text-ink-light">
           עד תאריך
-          <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="mt-1 block rounded-lg border border-black/10 px-2 py-1.5 text-sm text-ink outline-none focus:border-brand-500" />
+          <input type="date" value={customTo} onChange={(e) => { setCustomTo(e.target.value); setMonth('') }} className="mt-1 block rounded-lg border border-black/10 px-2 py-1.5 text-sm text-ink outline-none focus:border-brand-500" />
         </label>
         {(customFrom || customTo) && (
           <button onClick={() => { setCustomFrom(''); setCustomTo('') }} className="rounded-lg border border-black/10 px-3 py-1.5 text-xs font-semibold text-ink-light hover:bg-black/5">
@@ -268,45 +304,8 @@ export default function StatisticsPanel({ onBack }) {
         </p>
       </Card>
 
-      {/* Monthly accordion — open a month (›) to reveal all its operations */}
-      <Card title="פירוט לפי חודשים" Icon={CalendarDays}>
-        <ul className="divide-y divide-black/5">
-          {monthGroups.map((m) => {
-            const mo = openMonth === m.key
-            return (
-              <li key={m.key}>
-                <button onClick={() => toggleMonth(m.key)} className="flex w-full items-center gap-3 py-3 text-right hover:bg-black/[0.02]">
-                  <ChevronDown size={18} className={`shrink-0 text-ink-light transition-transform ${mo ? 'rotate-180' : ''}`} />
-                  <span className="font-extrabold text-ink">{m.label}</span>
-                  <span className="rounded-full bg-black/5 px-2 py-0.5 text-xs font-semibold text-ink-light">{m.orders.length}</span>
-                  <span className="min-w-0 flex-1" />
-                  <span className="shrink-0 text-xs text-ink-light">הכנסות {ils(m.revenue)}</span>
-                  <span className="shrink-0 font-bold text-emerald-600">{ils(m.net)}</span>
-                </button>
-                {mo && (
-                  m.orders.length ? (
-                    <div className="mb-2 rounded-xl bg-brand-50/40 p-2">
-                      <div className="mb-2 grid grid-cols-3 gap-2">
-                        <Mini label="מע״מ" value={ils(m.vat)} />
-                        <Mini label="עלות סליקה" value={ils(m.clearing)} />
-                        <Mini label="רווח נקי" value={ils(m.net)} tone="emerald" />
-                      </div>
-                      <ul className="divide-y divide-black/5 rounded-lg bg-white px-2">
-                        {m.orders.map((d) => (
-                          <OrderRow key={d.id} d={d} open={!!expanded[d.id]} onToggle={() => toggleExpanded(d.id)} />
-                        ))}
-                      </ul>
-                    </div>
-                  ) : <p className="px-3 pb-3 text-sm text-ink-light">אין פעולות בחודש זה.</p>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      </Card>
-
-      {/* Per-order breakdown for the selected date range */}
-      <Card title="הזמנות בתקופה" Icon={Receipt}>
+      {/* Per-order breakdown for the selected range / month */}
+      <Card title={month ? `הזמנות · ${selectedMonthLabel}` : 'הזמנות בתקופה'} Icon={Receipt}>
         {stats.orderDetails.length ? (
           <ul className="divide-y divide-black/5">
             {stats.orderDetails.map((d) => (
