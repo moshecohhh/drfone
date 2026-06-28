@@ -163,9 +163,7 @@ export function OrdersProvider({ children }) {
   // single write, so no orphan draft is left behind after the document is final.
   const issueInvoice = useCallback(async (order, opts = {}) => {
     const draft = !!opts.draft
-    // Finalizing a real invoice from an existing draft: link & retire the draft.
-    const originalDocumentId = !draft && order.draftInvoice?.id ? order.draftInvoice.id : undefined
-    const { data, error } = await supabase.functions.invoke('sumit-invoice', { body: { ...order, draft, originalDocumentId } })
+    const { data, error } = await supabase.functions.invoke('sumit-invoice', { body: { ...order, draft } })
     if (error) return { ok: false, error: error.message }
     if (!data?.ok) return { ok: false, error: data?.error || 'יצירת החשבונית נכשלה' }
     if (!draft) {

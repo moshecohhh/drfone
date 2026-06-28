@@ -139,12 +139,11 @@ Deno.serve(async (req) => {
   const payload = {
     Credentials: { CompanyID: SUMIT_COMPANY_ID, APIKey: SUMIT_API_KEY },
     Details: {
-      // The admin chooses: a draft (preview, deletable, not a tax document) or a
-      // real finalized tax invoice. Controlled per request via `draft`.
+      // The admin chooses: a draft (preview, not a tax document) or a real
+      // finalized tax invoice. Controlled per request via `draft`. We do NOT
+      // link/cancel any previous draft: SUMIT has no draft-delete and "cancel"
+      // would issue a real credit document, so a superseded draft is just left.
       IsDraft: order.draft === true,
-      // When finalizing from a draft, link the invoice to its source draft so
-      // the relationship is recorded in SUMIT ("produced from the draft").
-      ...(order.originalDocumentId ? { OriginalDocumentID: Number(order.originalDocumentId) } : {}),
       Customer: {
         Name: String(cust.name ?? 'לקוח'),
         Phone: String(cust.phone ?? ''),
@@ -175,12 +174,6 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: body?.UserErrorMessage || body?.TechnicalErrorDetails || `SUMIT error (${res.status})` }, 200)
     }
     const d = body.Data ?? {}
-
-    // Finalizing a real invoice from a draft: retire the source draft so no
-    // open draft is left behind. Best-effort — never fail the invoice over it.
-    if (order.draft !== true && order.originalDocumentId) {
-      await cancelDocument(Number(order.originalDocumentId), `הופקה חשבונית ${d.DocumentNumber ?? ''}`).catch(() => {})
-    }
 
     // Fetch the actual PDF so the admin previews the real document (not SUMIT's
     // customer payment page).
