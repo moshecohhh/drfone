@@ -249,6 +249,7 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
   const [invBusy, setInvBusy] = useState(false)
   const [invErr, setInvErr] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [draftCache, setDraftCache] = useState(null) // { sig, invoice } — last draft for the unchanged order
 
   // Open the document PDF (preferred), falling back to SUMIT's document page.
   const openInvoicePreview = (inv) => {
@@ -263,14 +264,27 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
     if (inv?.url) window.open(inv.url, '_blank')
   }
 
-  const doIssue = async (draft) => {
+  // Signature of the order's billable content — a saved change to the order
+  // invalidates the cached draft, so a fresh one is generated next time.
+  const orderSig = JSON.stringify({ id: order.id, items: order.items, total: order.total })
+  const draftValid = draftCache && draftCache.sig === orderSig
+
+  const createDocument = async (draft) => {
     setInvErr('')
     setInvBusy(true)
     const res = await issueInvoice(order, { draft })
     setInvBusy(false)
-    if (!res.ok) { setInvErr(res.error || 'יצירת החשבונית נכשלה'); return }
-    if (draft) openInvoicePreview(res.invoice) // preview the draft as a PDF
+    if (!res.ok) { setInvErr(res.error || 'יצירת החשבונית נכשלה'); return null }
+    return res.invoice
   }
+
+  // Draft: re-open the existing draft if the order is unchanged, else create one.
+  const onDraft = async () => {
+    if (draftValid) { openInvoicePreview(draftCache.invoice); return }
+    const inv = await createDocument(true)
+    if (inv) { setDraftCache({ sig: orderSig, invoice: inv }); openInvoicePreview(inv) }
+  }
+  const onReal = () => createDocument(false)
 
   // Re-sync if the order changes underneath us (e.g. another save).
   useEffect(() => { setItems(order.items || []) }, [order.items])
@@ -319,9 +333,9 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
               <Pencil size={14} /> עריכת פריטים
             </button>
           )}
-          {/* Draft (preview) — always available. */}
-          <button type="button" onClick={() => doIssue(true)} disabled={invBusy} className="flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-ink hover:bg-black/5 disabled:opacity-60">
-            <FileText size={14} /> {invBusy ? '…' : 'טיוטה'}
+          {/* Draft: create a preview, or re-open the existing one if unchanged. */}
+          <button type="button" onClick={onDraft} disabled={invBusy} className="flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-ink hover:bg-black/5 disabled:opacity-60">
+            <FileText size={14} /> {invBusy ? '…' : draftValid ? 'צפייה בטיוטה' : 'טיוטה'}
           </button>
           {/* Real invoice — open the issued one, or open the confirm dialog. */}
           {order.invoice?.url ? (
@@ -412,11 +426,11 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
               <p className="mt-1 text-sm text-ink-light">האם אתה בטוח שברצונך להפיק את המסמך? פעולה זו אינה ניתנת לביטול.</p>
             </div>
             <div className="mt-5 space-y-2">
-              <button type="button" onClick={() => { setConfirmOpen(false); doIssue(false) }} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-ink py-2.5 text-sm font-bold text-white hover:bg-ink-dark">
+              <button type="button" onClick={() => { setConfirmOpen(false); onReal() }} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-ink py-2.5 text-sm font-bold text-white hover:bg-ink-dark">
                 <Check size={16} /> כן, הפק את החשבונית
               </button>
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => { setConfirmOpen(false); doIssue(true) }} className="flex items-center justify-center gap-1.5 rounded-xl border border-black/10 py-2.5 text-sm font-bold text-ink hover:bg-black/5">
+                <button type="button" onClick={() => { setConfirmOpen(false); onDraft() }} className="flex items-center justify-center gap-1.5 rounded-xl border border-black/10 py-2.5 text-sm font-bold text-ink hover:bg-black/5">
                   <FileText size={15} /> צפייה בטיוטה
                 </button>
                 <button type="button" onClick={() => { setConfirmOpen(false); setEditing(true) }} className="flex items-center justify-center gap-1.5 rounded-xl border border-black/10 py-2.5 text-sm font-bold text-ink hover:bg-black/5">
