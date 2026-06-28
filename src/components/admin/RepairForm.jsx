@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import {
   Check, ArrowRight, User, Smartphone, ClipboardList, Wallet, ShieldCheck, Lock, AlertCircle,
 } from 'lucide-react'
@@ -74,6 +74,18 @@ export default function RepairForm({ repair, onDone }) {
   const [loanerId, setLoanerId] = useState(repair?.loanerId || '')
 
   const [error, setError] = useState('')
+
+  // Unsaved-changes guard: snapshot every field and compare to the baseline, so
+  // leaving with edits asks for confirmation (like the product editor).
+  const snapshot = JSON.stringify({
+    customerId, cust, brandText, modelText, imei, hasCode, codeType, codeText, codePattern,
+    custom, condition, advance, warranty, warrantyImei, loanerGiven, loanerId,
+  })
+  const baseline = useRef(snapshot)
+  const requestExit = () => {
+    if (snapshot !== baseline.current && !window.confirm('יש שינויים שלא נשמרו בכרטיס. לצאת בלי לשמור?')) return
+    onDone()
+  }
 
   // Model suggestions filter by the typed brand when it matches a known brand.
   const matchedBrand = brands.find((b) => b.label.toLowerCase() === brandText.trim().toLowerCase())
@@ -204,7 +216,7 @@ export default function RepairForm({ repair, onDone }) {
         <h2 className="text-xl font-extrabold text-ink">
           {isEdit ? `עריכת תיקון #${repair.repairNo}` : 'טופס פתיחת תיקון'}
         </h2>
-        <GhostBtn onClick={onDone}>
+        <GhostBtn onClick={requestExit}>
           <ArrowRight size={16} /> חזרה לרשימה
         </GhostBtn>
       </div>
@@ -378,7 +390,7 @@ export default function RepairForm({ repair, onDone }) {
         </div>
 
         <div className="flex justify-end gap-2">
-          <GhostBtn type="button" onClick={onDone}>ביטול</GhostBtn>
+          <GhostBtn type="button" onClick={requestExit}>ביטול</GhostBtn>
           <PrimaryBtn type="submit">
             <Check size={16} /> {isEdit ? 'שמירת שינויים' : 'פתיחת תיקון'}
           </PrimaryBtn>
