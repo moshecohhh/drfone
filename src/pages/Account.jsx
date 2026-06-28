@@ -138,12 +138,10 @@ function OrdersTab({ email }) {
               onClick={() => setOpenId(open ? null : o.id)}
               className="flex w-full flex-wrap items-center justify-between gap-2 p-4 text-right transition hover:bg-black/[.02]"
             >
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-2.5">
                 <ChevronDown size={16} className={`shrink-0 text-ink-light transition ${open ? 'rotate-180' : ''}`} />
-                <span>
-                  <span className="font-bold text-ink">{o.number}</span>
-                  <span className="mr-2 text-xs text-ink-light">{fmtDate(o.createdAt)}</span>
-                </span>
+                <span className="font-bold text-ink">{o.number}</span>
+                <span className="text-sm font-extrabold text-ink">₪{o.total}</span>
               </span>
               <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${meta.color}`}>{meta.label}</span>
             </button>
@@ -169,7 +167,7 @@ function OrdersTab({ email }) {
                           {it.image ? <img src={it.image} alt="" className="h-full w-full object-cover" /> : '📦'}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-ink">{it.name}</p>
+                          <p className="text-sm font-semibold leading-snug text-ink break-words">{it.name}</p>
                           <p className="text-xs text-ink-light">כמות: {it.qty}{sku ? ` · מק״ט: ${sku}` : ''}</p>
                         </div>
                         <span className="shrink-0 text-sm font-bold text-ink">₪{it.price * it.qty}</span>
