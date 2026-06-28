@@ -1,13 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { MapPin, ChevronDown, Check, Search, X } from 'lucide-react'
 import { useSettings } from '../context/SettingsContext.jsx'
+import { supabase } from '../lib/supabase.js'
 
-// Street picker — mirrors CitySelect. The list comes from the admin-defined
-// street list (Settings → "רשימת רחובות למשלוח"); while typing it also tries to
-// pull live suggestions from the Israeli open-data API for the chosen city.
-// A "street not listed" escape switches to free text so nothing is ever blocked.
-const RESOURCE_ID = '1b14e41c-85b3-4c21-bdce-9fe48185ffca'
-
+// Street picker — mirrors CitySelect. Streets come from the national CBS dataset
+// (via the `streets` edge function, scoped to the chosen city), plus any
+// admin-defined streets (Settings → "רשימת רחובות למשלוח"). A "street not listed"
+// escape switches to free text so nothing is ever blocked.
 export default function StreetSelect({ value, onChange, city, id, invalid }) {
   const { settings } = useSettings()
   const baseList = Array.isArray(settings?.streets) ? settings.streets : []
@@ -15,6 +14,7 @@ export default function StreetSelect({ value, onChange, city, id, invalid }) {
   const [query, setQuery] = useState('')
   const [other, setOther] = useState(false)
   const [remote, setRemote] = useState([])
+  const [loading, setLoading] = useState(false)
   const boxRef = useRef(null)
   const timer = useRef(null)
 
@@ -24,22 +24,24 @@ export default function StreetSelect({ value, onChange, city, id, invalid }) {
     return () => document.removeEventListener('mousedown', onDoc)
   }, [])
 
-  // Best-effort online suggestions for the typed query (browser → data.gov.il).
+  // Load the chosen city's streets from the national dataset (server-side proxy
+  // → no browser CORS issues). Reloads as the city changes or the search refines.
   useEffect(() => {
     clearTimeout(timer.current)
-    const q = query.trim()
-    if (!city || q.length < 1) { setRemote([]); return }
+    if (!city) { setRemote([]); return }
+    let active = true
+    setLoading(true)
     timer.current = setTimeout(async () => {
       try {
-        const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${RESOURCE_ID}` +
-          `&limit=30&filters=${encodeURIComponent(JSON.stringify({ city_name: city }))}&q=${encodeURIComponent(q)}`
-        const res = await fetch(url)
-        const json = await res.json()
-        const names = (json?.result?.records || []).map((r) => String(r.street_name || '').trim()).filter(Boolean)
-        setRemote([...new Set(names)])
-      } catch { setRemote([]) }
-    }, 300)
-    return () => clearTimeout(timer.current)
+        const { data } = await supabase.functions.invoke('streets', { body: { city, q: query.trim() } })
+        if (active) setRemote(Array.isArray(data?.streets) ? data.streets : [])
+      } catch {
+        if (active) setRemote([])
+      } finally {
+        if (active) setLoading(false)
+      }
+    }, 250)
+    return () => { active = false; clearTimeout(timer.current) }
   }, [query, city])
 
   const q = query.trim()
@@ -91,7 +93,11 @@ export default function StreetSelect({ value, onChange, city, id, invalid }) {
                 </button>
               </li>
             ))}
-            {matches.length === 0 && <li className="px-4 py-3 text-center text-sm text-ink-light">{city ? 'לא נמצא רחוב תואם' : 'בחרו עיר תחילה'}</li>}
+            {matches.length === 0 && (
+              <li className="px-4 py-3 text-center text-sm text-ink-light">
+                {!city ? 'בחרו עיר תחילה' : loading ? 'טוען רחובות…' : 'לא נמצא רחוב — אפשר להזין ידנית'}
+              </li>
+            )}
             <li className="border-t border-black/5">
               <button type="button" onClick={() => { setOther(true); setOpen(false); setQuery(''); onChange('') }} className="w-full px-4 py-2.5 text-right text-sm font-semibold text-brand-600 transition hover:bg-brand-50">
                 + הרחוב שלי לא ברשימה (הזנה ידנית)
