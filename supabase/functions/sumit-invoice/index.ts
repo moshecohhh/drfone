@@ -124,6 +124,14 @@ Deno.serve(async (req) => {
   if (Number(order.deliveryPrice) > 0) {
     Items.push({ Quantity: 1, UnitPrice: Number(order.deliveryPrice), Item: { Name: 'משלוח', Price: Number(order.deliveryPrice) } })
   }
+  // A redeemed coupon is recorded as a negative line so the document total
+  // matches what the customer actually pays.
+  const coupon = (order.coupon ?? {}) as Record<string, unknown>
+  const couponDiscount = Number(coupon.discountAmount) || 0
+  if (couponDiscount > 0) {
+    const label = coupon.code ? `הנחת קופון (${coupon.code})` : 'הנחת קופון'
+    Items.push({ Quantity: 1, UnitPrice: -couponDiscount, Item: { Name: label, Price: -couponDiscount } })
+  }
 
   // DocumentType: 0 = Invoice (חשבונית מס). Admin may override via documentType.
   const docType = typeof order.documentType === 'number' ? order.documentType : 0

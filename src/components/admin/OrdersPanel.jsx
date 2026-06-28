@@ -213,7 +213,13 @@ export default function OrdersPanel({ focusId = null }) {
                       </li>
                     ))}
                   </ul>
-                  <div className="mt-2 flex justify-between border-t border-black/5 pt-2 text-sm">
+                  {o.coupon?.discountAmount > 0 && (
+                    <div className="mt-2 flex justify-between border-t border-black/5 pt-2 text-sm text-brand-700">
+                      <span className="font-semibold">הנחת קופון ({o.coupon.code})</span>
+                      <span className="font-bold">−₪{o.coupon.discountAmount}</span>
+                    </div>
+                  )}
+                  <div className={`flex justify-between text-sm ${o.coupon?.discountAmount > 0 ? 'mt-1' : 'mt-2 border-t border-black/5 pt-2'}`}>
                     <span className="font-semibold text-ink-light">סה״כ</span>
                     <span className="font-extrabold text-ink">₪{o.total}</span>
                   </div>
