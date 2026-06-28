@@ -1,37 +1,26 @@
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react'
+import { LogIn, Mail, Lock, AlertCircle, KeyRound, ArrowRight } from 'lucide-react'
 import { useAuth, ROLES } from '../context/AuthContext.jsx'
 import { savePasswordCredential } from '../utils/credentials.js'
 import Logo from '../components/Logo.jsx'
 
 export default function Login() {
-  const { login } = useAuth()
+  const { login, sendEmailOtp, verifyEmailOtp } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  // Pre-fill the email when arriving from "already registered → log in".
   const [form, setForm] = useState({ email: location.state?.email || '', password: '' })
+  const [mode, setMode] = useState('password') // 'password' | 'otp'
+  const [otpSent, setOtpSent] = useState(false)
+  const [otp, setOtp] = useState('')
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
 
   const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }))
 
-  const [busy, setBusy] = useState(false)
-
-  const onSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
-    setBusy(true)
-    const res = await login(form)
-    setBusy(false)
-    if (!res.ok) {
-      setError(res.error)
-      return
-    }
-    // Offer to save the credentials in the browser's password manager.
-    savePasswordCredential(form.email, form.password)
-    // Redirect by role; honour an intended destination if one was set.
-    // Staff (חנות) and master admin go to the panel; customers go to the store.
-    if (res.user.role === ROLES.MASTER_ADMIN || res.user.role === ROLES.STORE) {
+  // Shared post-login redirect: staff/admin → panel, customer → intended/home.
+  const redirectByRole = (u) => {
+    if (u.role === ROLES.MASTER_ADMIN || u.role === ROLES.STORE) {
       navigate('/admin', { replace: true })
     } else {
       const dest = location.state?.from?.pathname
@@ -39,60 +28,127 @@ export default function Login() {
     }
   }
 
+  const onSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+    setBusy(true)
+    const res = await login(form)
+    setBusy(false)
+    if (!res.ok) return setError(res.error)
+    savePasswordCredential(form.email, form.password)
+    redirectByRole(res.user)
+  }
+
+  const onSendOtp = async (e) => {
+    e.preventDefault()
+    setError('')
+    setBusy(true)
+    const res = await sendEmailOtp(form.email)
+    setBusy(false)
+    if (!res.ok) return setError(res.error)
+    setOtpSent(true)
+  }
+
+  const onVerifyOtp = async (e) => {
+    e.preventDefault()
+    setError('')
+    setBusy(true)
+    const res = await verifyEmailOtp(form.email, otp)
+    setBusy(false)
+    if (!res.ok) return setError(res.error)
+    redirectByRole(res.user)
+  }
+
   return (
     <AuthShell title="התחברות" subtitle="שמחים לראות אותך שוב">
-      <form onSubmit={onSubmit} className="space-y-4">
-        {error && <FormError message={error} />}
-        <Field
-          icon={Mail}
-          name="email"
-          type="email"
-          placeholder="אימייל"
-          value={form.email}
-          onChange={onChange}
-          autoComplete="email"
-        />
-        <Field
-          icon={Lock}
-          name="password"
-          type="password"
-          placeholder="סיסמה"
-          value={form.password}
-          onChange={onChange}
-          autoComplete="current-password"
-        />
-        <div className="text-left">
-          {/* Carry the typed email over so the reset page is ready to send. */}
-          <Link
-            to="/forgot-password"
-            state={{ email: form.email }}
-            className="text-sm font-medium text-brand-600 hover:underline"
-          >
-            שכחתי סיסמה?
-          </Link>
-        </div>
-        <button
-          type="submit"
-          disabled={busy}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 font-semibold text-white transition hover:bg-brand-600 disabled:opacity-60"
-        >
-          <LogIn size={18} /> {busy ? 'מתחבר…' : 'התחברות'}
-        </button>
-      </form>
+      {error && <div className="mb-4"><FormError message={error} /></div>}
+
+      {mode === 'password' ? (
+        <form onSubmit={onSubmit} className="space-y-4">
+          <Field icon={Mail} name="email" type="email" placeholder="אימייל" value={form.email} onChange={onChange} autoComplete="email" />
+          <Field icon={Lock} name="password" type="password" placeholder="סיסמה" value={form.password} onChange={onChange} autoComplete="current-password" />
+          <div className="text-left">
+            <Link to="/forgot-password" state={{ email: form.email }} className="text-sm font-medium text-brand-600 hover:underline">שכחתי סיסמה?</Link>
+          </div>
+          <button type="submit" disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 font-semibold text-white transition hover:bg-brand-600 disabled:opacity-60">
+            <LogIn size={18} /> {busy ? 'מתחבר…' : 'התחברות'}
+          </button>
+        </form>
+      ) : !otpSent ? (
+        <form onSubmit={onSendOtp} className="space-y-4">
+          <p className="text-sm text-ink-light">נשלח קוד התחברות חד-פעמי לכתובת המייל שלך.</p>
+          <Field icon={Mail} name="email" type="email" placeholder="אימייל" value={form.email} onChange={onChange} autoComplete="email" />
+          <button type="submit" disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 font-semibold text-white transition hover:bg-brand-600 disabled:opacity-60">
+            <KeyRound size={18} /> {busy ? 'שולח…' : 'שליחת קוד למייל'}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={onVerifyOtp} className="space-y-4">
+          <p className="text-sm text-ink-light">הזן את הקוד שנשלח ל-<span dir="ltr" className="font-semibold text-ink">{form.email}</span></p>
+          <Field icon={KeyRound} name="otp" type="text" inputMode="numeric" placeholder="קוד בן 6 ספרות" value={otp} onChange={(e) => setOtp(e.target.value)} autoComplete="one-time-code" />
+          <button type="submit" disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 font-semibold text-white transition hover:bg-brand-600 disabled:opacity-60">
+            <LogIn size={18} /> {busy ? 'מאמת…' : 'אימות והתחברות'}
+          </button>
+          <button type="button" onClick={() => { setOtpSent(false); setOtp(''); setError('') }} className="flex w-full items-center justify-center gap-1 text-sm font-medium text-ink-light hover:text-ink">
+            <ArrowRight size={14} /> חזרה / שליחת קוד מחדש
+          </button>
+        </form>
+      )}
+
+      {/* Switch between password and email-code login */}
+      <button
+        type="button"
+        onClick={() => { setMode(mode === 'password' ? 'otp' : 'password'); setError(''); setOtpSent(false); setOtp('') }}
+        className="mt-4 w-full text-center text-sm font-semibold text-brand-600 hover:underline"
+      >
+        {mode === 'password' ? 'התחברות עם קוד למייל (ללא סיסמה)' : 'התחברות עם סיסמה'}
+      </button>
+
+      <Divider />
+      <GoogleButton label="התחברות עם Google" />
 
       <p className="mt-6 text-center text-sm text-ink-light">
         אין לך חשבון?{' '}
-        {/* Carry what was already typed over to registration so the customer
-            doesn't re-enter their email/password. */}
-        <Link
-          to="/register"
-          state={{ email: form.email, password: form.password }}
-          className="font-semibold text-brand-600 hover:underline"
-        >
+        <Link to="/register" state={{ email: form.email, password: form.password }} className="font-semibold text-brand-600 hover:underline">
           הרשמה
         </Link>
       </p>
     </AuthShell>
+  )
+}
+
+// ---- Google OAuth button (shared by Login & Register) ---------------------
+export function GoogleButton({ label }) {
+  const { signInWithGoogle } = useAuth()
+  const [busy, setBusy] = useState(false)
+  const click = async () => {
+    setBusy(true)
+    const res = await signInWithGoogle()
+    if (!res.ok) setBusy(false) // on success the page redirects away
+  }
+  return (
+    <button
+      type="button"
+      onClick={click}
+      disabled={busy}
+      className="flex w-full items-center justify-center gap-3 rounded-xl border border-black/15 bg-white py-3 font-semibold text-ink transition hover:bg-black/[.03] disabled:opacity-60"
+    >
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+        <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z" />
+        <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.33A9 9 0 0 0 9 18z" />
+        <path fill="#FBBC05" d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.02-2.33z" />
+        <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95L3.98 7.28C4.68 5.16 6.66 3.58 9 3.58z" />
+      </svg>
+      {busy ? '…' : label}
+    </button>
+  )
+}
+
+function Divider() {
+  return (
+    <div className="my-5 flex items-center gap-3 text-xs text-ink-light">
+      <span className="h-px flex-1 bg-black/10" /> או <span className="h-px flex-1 bg-black/10" />
+    </div>
   )
 }
 

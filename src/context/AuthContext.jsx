@@ -60,6 +60,15 @@ function authErrorMessage(error) {
   return error?.message || 'אירעה שגיאה. נסו שוב.'
 }
 
+// Re-authentication windows: once signed in (any method), the session persists
+// across refreshes WITHOUT asking for a new code — but only up to a max age.
+// Admin sessions expire after 5h, customer sessions after 24h, then a fresh
+// login (e.g. a new OTP) is required.
+const SESSION_AT_KEY = 'drfone_session_at'
+const ADMIN_WINDOW_MS = 5 * 60 * 60 * 1000
+const CUSTOMER_WINDOW_MS = 24 * 60 * 60 * 1000
+const isAdminRole = (role) => role === ROLES.MASTER_ADMIN || role === ROLES.STORE
+
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
@@ -89,25 +98,50 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  // Enforce the re-auth window: if the session is older than its limit, sign out
+  // and require a fresh login. A session with no recorded start (pre-existing or
+  // first load after this feature) is stamped now, so nobody is kicked instantly.
+  const enforceWindow = useCallback((u) => {
+    if (!u) return u
+    let at = Number(localStorage.getItem(SESSION_AT_KEY)) || 0
+    if (!at) {
+      at = Date.now()
+      try { localStorage.setItem(SESSION_AT_KEY, String(at)) } catch { /* ignore */ }
+    }
+    const limit = isAdminRole(u.role) ? ADMIN_WINDOW_MS : CUSTOMER_WINDOW_MS
+    if (Date.now() - at > limit) {
+      try { localStorage.removeItem(SESSION_AT_KEY) } catch { /* ignore */ }
+      supabase.auth.signOut()
+      return null
+    }
+    return u
+  }, [])
+
   // Bootstrap: read the current session, then keep `user` in sync with auth.
   useEffect(() => {
     let active = true
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      const u = await loadProfile(session?.user)
+      const u = enforceWindow(await loadProfile(session?.user))
       if (active) {
         setUser(u)
         setLoading(false)
       }
     })
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const u = await loadProfile(session?.user)
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // A real sign-in (incl. OAuth/OTP return) restarts the re-auth window.
+      if (event === 'SIGNED_IN') {
+        try { localStorage.setItem(SESSION_AT_KEY, String(Date.now())) } catch { /* ignore */ }
+      } else if (event === 'SIGNED_OUT') {
+        try { localStorage.removeItem(SESSION_AT_KEY) } catch { /* ignore */ }
+      }
+      const u = enforceWindow(await loadProfile(session?.user))
       if (active) setUser(u)
     })
     return () => {
       active = false
       sub.subscription.unsubscribe()
     }
-  }, [loadProfile])
+  }, [loadProfile, enforceWindow])
 
   // Admin: load every profile (only the master admin is allowed by RLS).
   const refreshUsers = useCallback(async () => {
@@ -176,7 +210,40 @@ export function AuthProvider({ children }) {
     return { ok: true, user: u }
   }, [loadProfile])
 
+  // Sign in / up with Google (OAuth). Redirects away and back; the auth-state
+  // listener picks up the session on return.
+  const signInWithGoogle = useCallback(async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/` },
+    })
+    if (error) return { ok: false, error: authErrorMessage(error) }
+    return { ok: true }
+  }, [])
+
+  // Passwordless: email a one-time code (and magic link). `shouldCreateUser`
+  // lets a brand-new visitor sign up with just their email.
+  const sendEmailOtp = useCallback(async (email) => {
+    const clean = String(email || '').trim().toLowerCase()
+    if (!clean) return { ok: false, error: 'נא להזין כתובת אימייל.' }
+    const { error } = await supabase.auth.signInWithOtp({ email: clean, options: { shouldCreateUser: true } })
+    if (error) return { ok: false, error: authErrorMessage(error) }
+    return { ok: true }
+  }, [])
+
+  // Verify the 6-digit email code → establishes a session.
+  const verifyEmailOtp = useCallback(async (email, token) => {
+    const clean = String(email || '').trim().toLowerCase()
+    const { data, error } = await supabase.auth.verifyOtp({ email: clean, token: String(token || '').trim(), type: 'email' })
+    if (error) return { ok: false, error: authErrorMessage(error) }
+    try { localStorage.setItem(SESSION_AT_KEY, String(Date.now())) } catch { /* ignore */ }
+    const u = await loadProfile(data.user)
+    setUser(u)
+    return { ok: true, user: u }
+  }, [loadProfile])
+
   const logout = useCallback(async () => {
+    try { localStorage.removeItem(SESSION_AT_KEY) } catch { /* ignore */ }
     await supabase.auth.signOut()
     setUser(null)
   }, [])
@@ -284,6 +351,9 @@ export function AuthProvider({ children }) {
     masterAdminId: null, // no longer a fixed seed id; kept for API compatibility
     register,
     login,
+    signInWithGoogle,
+    sendEmailOtp,
+    verifyEmailOtp,
     logout,
     requestPasswordReset,
     updatePassword,

@@ -52,6 +52,13 @@ export default function PatternLock({ value = '', onChange }) {
     if (!drawing) return
     setDrawing(false)
     setCursor(null)
+    // A real device pattern needs at least 4 dots — releasing with fewer simply
+    // resets to empty instead of saving a too-short pattern.
+    if (path.length < 4) {
+      setPath([])
+      onChange?.('')
+      return
+    }
     onChange?.(path.map((i) => i + 1).join('-'))
   }
   const clear = () => {
