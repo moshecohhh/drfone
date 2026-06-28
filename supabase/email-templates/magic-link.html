@@ -17,16 +17,21 @@
         הזן את הקוד הבא בעמוד ההתחברות כדי להיכנס לחשבונך:
       </p>
 
-      <div style="background:#f0f6f6;border:1px solid #d7e8e8;border-radius:12px;padding:18px;text-align:center;margin-bottom:20px">
+      <div style="background:#f0f6f6;border:1px solid #d7e8e8;border-radius:12px;padding:18px;text-align:center;margin-bottom:8px">
         <div style="font-size:13px;color:#7a8a8a;margin-bottom:6px">הקוד שלך</div>
         <div style="font-size:34px;font-weight:bold;letter-spacing:8px;color:#108c8b;direction:ltr">{{ .Token }}</div>
       </div>
+      <p style="font-size:12px;color:#aaa;text-align:center;margin:0 0 18px">לחיצה ארוכה על הקוד (בנייד) מאפשרת להעתיק אותו.</p>
 
-      <div style="text-align:center;margin-bottom:20px">
-        <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#108c8b;color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:13px 30px;border-radius:10px">
-          או התחברות בלחיצה אחת ←
+      <!-- Opens the site with the code already filled — one tap, no copy needed. -->
+      <div style="text-align:center;margin-bottom:12px">
+        <a href="{{ .SiteURL }}/login?email={{ .Email }}&otp={{ .Token }}" style="display:inline-block;background:#108c8b;color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:13px 30px;border-radius:10px">
+          התחברות עם הקוד ←
         </a>
       </div>
+      <p style="font-size:13px;color:#999;text-align:center;margin:0 0 20px">
+        או <a href="{{ .ConfirmationURL }}" style="color:#108c8b;font-weight:bold">התחברות בלחיצה ישירה</a>
+      </p>
 
       <p style="font-size:13px;color:#999;line-height:1.6;text-align:center;margin:0">
         הקוד תקף לזמן מוגבל. אם לא ביקשת להתחבר — אפשר להתעלם מהמייל הזה.

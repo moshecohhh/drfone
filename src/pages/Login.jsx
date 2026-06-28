@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { LogIn, Mail, Lock, AlertCircle, KeyRound, ArrowRight, MailCheck } from 'lucide-react'
 import { useAuth, ROLES } from '../context/AuthContext.jsx'
@@ -17,6 +17,20 @@ export default function Login() {
   const [busy, setBusy] = useState(false)
 
   const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }))
+
+  // Arriving from the OTP email's "fill the code" button: /login?email=&otp=
+  // → open the verify screen with the email + code already filled.
+  useEffect(() => {
+    const p = new URLSearchParams(location.search)
+    const code = p.get('otp')
+    if (!code) return
+    const mail = p.get('email')
+    setMode('otp')
+    setOtpSent(true)
+    setOtp(code)
+    if (mail) setForm((f) => ({ ...f, email: mail }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Shared post-login redirect: staff/admin → panel, customer → intended/home.
   const redirectByRole = (u) => {
