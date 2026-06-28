@@ -431,7 +431,7 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
               </button>
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => { setConfirmOpen(false); onDraft() }} className="flex items-center justify-center gap-1.5 rounded-xl border border-black/10 py-2.5 text-sm font-bold text-ink hover:bg-black/5">
-                  <FileText size={15} /> צפייה בטיוטה
+                  <FileText size={15} /> {draftValid ? 'צפייה בטיוטה' : 'טיוטה'}
                 </button>
                 <button type="button" onClick={() => { setConfirmOpen(false); setEditing(true) }} className="flex items-center justify-center gap-1.5 rounded-xl border border-black/10 py-2.5 text-sm font-bold text-ink hover:bg-black/5">
                   <Pencil size={15} /> עריכת הזמנה
