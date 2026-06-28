@@ -47,17 +47,38 @@ export default function StatisticsPanel({ onBack }) {
   const [range, setRange] = useState(30)
   const [customFrom, setCustomFrom] = useState('') // custom date-range (overrides range)
   const [customTo, setCustomTo] = useState('')
+  const [month, setMonth] = useState('') // 'YYYY-MM' single-month filter (overrides all)
   const [expanded, setExpanded] = useState({}) // order id -> open breakdown row
   const toggleExpanded = (id) => setExpanded((m) => ({ ...m, [id]: !m[id] }))
 
+  // The last 12 calendar months (newest first). Labelled by month name only —
+  // within a 12-month window each name is unique, so no year is needed.
+  const monthOptions = useMemo(() => {
+    const opts = []
+    const d = new Date()
+    d.setDate(1)
+    for (let i = 0; i < 12; i++) {
+      opts.push({ key: `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`, label: HE_MONTHS[d.getMonth()] })
+      d.setMonth(d.getMonth() - 1)
+    }
+    return opts
+  }, [])
+
   const stats = useMemo(() => {
     const now = Date.now()
-    const custom = !!(customFrom && customTo)
-    const days = custom ? null : range === 'all' ? null : range
+    const monthMode = !!month
+    const [my, mm] = monthMode ? month.split('-').map(Number) : []
+    const custom = !monthMode && !!(customFrom && customTo)
+    const days = monthMode || custom ? null : range === 'all' ? null : range
     const ts = (o) => new Date(o.createdAt).getTime()
-    const fromTs = custom ? new Date(customFrom).getTime() : days == null ? 0 : now - days * DAY
-    const toTs = custom ? new Date(customTo).getTime() + DAY : Infinity
-    const prevStart = !custom && days != null ? now - 2 * days * DAY : null
+    const fromTs = monthMode ? new Date(my, mm, 1).getTime()
+      : custom ? new Date(customFrom).getTime()
+      : days == null ? 0 : now - days * DAY
+    const toTs = monthMode ? new Date(my, mm + 1, 1).getTime() - 1
+      : custom ? new Date(customTo).getTime() + DAY
+      : Infinity
+    const prevStart = monthMode ? new Date(my, mm - 1, 1).getTime()
+      : !custom && days != null ? now - 2 * days * DAY : null
 
     const cur = orders.filter((o) => ts(o) >= fromTs && ts(o) <= toTs)
     const prev = prevStart == null ? [] : orders.filter((o) => ts(o) >= prevStart && ts(o) < fromTs)
@@ -78,8 +99,9 @@ export default function StatisticsPanel({ onBack }) {
 
     // ---- Revenue over time (daily buckets; monthly when "all") ----
     let buckets = []
-    const dailyDays = custom ? Math.min(120, Math.max(1, Math.round((toTs - fromTs) / DAY))) : days
-    const anchorTs = custom ? toTs - 1 : now
+    const dailyDays = monthMode ? new Date(my, mm + 1, 0).getDate() // days in the selected month
+      : custom ? Math.min(120, Math.max(1, Math.round((toTs - fromTs) / DAY))) : days
+    const anchorTs = monthMode ? toTs : custom ? toTs - 1 : now
     if (dailyDays != null) {
       for (let i = dailyDays - 1; i >= 0; i--) {
         const d0 = startOfDay(anchorTs - i * DAY)
@@ -176,7 +198,7 @@ export default function StatisticsPanel({ onBack }) {
       inventoryValue, outOfStock, lowStock, productCount: store.length,
       hasData: cur.length > 0,
     }
-  }, [orders, store, range, customFrom, customTo, orderStatuses, paymentLabel, getCategories, getCost])
+  }, [orders, store, range, customFrom, customTo, month, orderStatuses, paymentLabel, getCategories, getCost])
 
   return (
     <div className="space-y-5">
@@ -194,11 +216,11 @@ export default function StatisticsPanel({ onBack }) {
         </div>
         <div className="inline-flex rounded-full bg-white p-1 shadow-card">
           {RANGES.map((r) => {
-            const active = !customFrom && !customTo && range === r.id
+            const active = !month && !customFrom && !customTo && range === r.id
             return (
               <button
                 key={r.id}
-                onClick={() => { setRange(r.id); setCustomFrom(''); setCustomTo('') }}
+                onClick={() => { setRange(r.id); setCustomFrom(''); setCustomTo(''); setMonth('') }}
                 className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${active ? 'bg-brand-500 text-white shadow-sm' : 'text-ink-light hover:text-ink'}`}
               >
                 {r.label}
@@ -208,15 +230,38 @@ export default function StatisticsPanel({ onBack }) {
         </div>
       </div>
 
-      {/* Custom date range */}
+      {/* Filter by a single month (last 12 months — name only, no year) */}
+      <div className="rounded-2xl border border-black/5 bg-white p-3 shadow-card">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold text-ink-light">לפי חודש (12 החודשים האחרונים)</span>
+          {month && (
+            <button onClick={() => setMonth('')} className="rounded-lg border border-black/10 px-2 py-1 text-[11px] font-semibold text-ink-light hover:bg-black/5">
+              ניקוי
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {monthOptions.map((m) => (
+            <button
+              key={m.key}
+              onClick={() => { setMonth(month === m.key ? '' : m.key); setCustomFrom(''); setCustomTo('') }}
+              className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${month === m.key ? 'bg-brand-500 text-white shadow-sm' : 'bg-black/5 text-ink-light hover:text-ink'}`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Custom (exact) date range */}
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-black/5 bg-white p-3 shadow-card">
         <label className="text-xs font-semibold text-ink-light">
           מתאריך
-          <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="mt-1 block rounded-lg border border-black/10 px-2 py-1.5 text-sm text-ink outline-none focus:border-brand-500" />
+          <input type="date" value={customFrom} onChange={(e) => { setCustomFrom(e.target.value); setMonth('') }} className="mt-1 block rounded-lg border border-black/10 px-2 py-1.5 text-sm text-ink outline-none focus:border-brand-500" />
         </label>
         <label className="text-xs font-semibold text-ink-light">
           עד תאריך
-          <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="mt-1 block rounded-lg border border-black/10 px-2 py-1.5 text-sm text-ink outline-none focus:border-brand-500" />
+          <input type="date" value={customTo} onChange={(e) => { setCustomTo(e.target.value); setMonth('') }} className="mt-1 block rounded-lg border border-black/10 px-2 py-1.5 text-sm text-ink outline-none focus:border-brand-500" />
         </label>
         {(customFrom || customTo) && (
           <button onClick={() => { setCustomFrom(''); setCustomTo('') }} className="rounded-lg border border-black/10 px-3 py-1.5 text-xs font-semibold text-ink-light hover:bg-black/5">
