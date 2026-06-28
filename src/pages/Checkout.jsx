@@ -14,6 +14,7 @@ import { useSettings } from '../context/SettingsContext.jsx'
 import { sanitizePhone, isValidMobileIL, luhnValid, emailIssue } from '../utils/validation.js'
 import Logo from '../components/Logo.jsx'
 import CitySelect from '../components/CitySelect.jsx'
+import StreetSelect from '../components/StreetSelect.jsx'
 
 // Known payment ids get a matching icon; custom ones fall back to a wallet.
 const PAY_ICONS = { credit: CreditCard, bit: Smartphone, representative: Headset }
@@ -44,6 +45,7 @@ export default function Checkout() {
     house: '',
     apartment: '',
     notes: '',
+    deliveryNotes: '', // courier instructions tied to the address
     delivery: deliveryMethods[0]?.id || 'pickup',
     payment: paymentMethods[0]?.id || 'credit',
     // mock payment fields
@@ -64,7 +66,7 @@ export default function Checkout() {
   const savedAddresses = Array.isArray(user?.addresses) ? user.addresses : []
   const [selectedAddressId, setSelectedAddressId] = useState(null)
   const applyAddress = (a) =>
-    setForm((f) => ({ ...f, city: a.city || '', street: a.street || '', house: a.house || '', apartment: a.apartment || '' }))
+    setForm((f) => ({ ...f, city: a.city || '', street: a.street || '', house: a.house || '', apartment: a.apartment || '', deliveryNotes: a.notes || f.deliveryNotes }))
 
   // Pre-fill a signed-in customer's details. Address priority: the chosen/default
   // saved address → legacy single default → most recent order. Runs once and only
@@ -85,6 +87,7 @@ export default function Checkout() {
       street: addr.street || c.street || '',
       house: addr.house || c.house || '',
       apartment: addr.apartment || c.apartment || '',
+      deliveryNotes: addr.notes || '',
     }
     if (!src.name && !src.phone && !src.city && !src.street) return // data not ready yet
     prefilled.current = true
@@ -98,6 +101,7 @@ export default function Checkout() {
       street: f.street || src.street,
       house: f.house || src.house,
       apartment: f.apartment || src.apartment,
+      deliveryNotes: f.deliveryNotes || src.deliveryNotes,
       ...(savedDelivery ? { delivery: savedDelivery } : {}),
     }))
   }, [user, lastOrder, deliveryMethods])
@@ -237,6 +241,7 @@ export default function Checkout() {
         street: isPickup ? '' : form.street.trim(),
         house: isPickup ? '' : form.house.trim(),
         apartment: isPickup ? '' : form.apartment.trim(),
+        deliveryNotes: isPickup ? '' : form.deliveryNotes.trim(),
         email: user?.email || form.email.trim() || null,
       },
       delivery: form.delivery,
@@ -414,10 +419,16 @@ export default function Checkout() {
                   <span className="mb-1 block text-xs font-semibold text-ink-light">עיר <Req /></span>
                   <CitySelect id="co-city" value={form.city} onChange={(v) => set('city', v)} />
                 </div>
-                <Field icon={MapPin} id="co-street" name="address-line1" autoComplete="address-line1" label="רחוב" required value={form.street} onChange={(v) => set('street', v)} />
+                <div>
+                  <span className="mb-1 block text-xs font-semibold text-ink-light">רחוב <Req /></span>
+                  <StreetSelect id="co-street" value={form.street} onChange={(v) => set('street', v)} city={form.city} />
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Field icon={Hash} id="co-house" label="מס׳ בית" required value={form.house} onChange={(v) => set('house', v)} />
                   <Field icon={Home} id="co-apt" label="דירה / כניסה" value={form.apartment} onChange={(v) => set('apartment', v)} />
+                </div>
+                <div className="sm:col-span-2">
+                  <Field icon={MessageSquare} id="co-delnotes" label="הערות לשליח (אופציונלי)" value={form.deliveryNotes} onChange={(v) => set('deliveryNotes', v)} placeholder="קומה, קוד בניין, היכן להשאיר…" />
                 </div>
               </div>
             )}

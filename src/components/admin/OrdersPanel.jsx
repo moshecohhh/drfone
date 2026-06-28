@@ -158,6 +158,11 @@ export default function OrdersPanel({ focusId = null }) {
                   <p className="flex items-start gap-2 text-ink">
                     <MapPin size={14} className="mt-0.5 shrink-0 text-ink-light" /> {o.customer?.address || '— (איסוף עצמי)'}
                   </p>
+                  {o.customer?.deliveryNotes && (
+                    <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                      📝 לשליח: {o.customer.deliveryNotes}
+                    </p>
+                  )}
                   {o.customer?.email && (
                     <p className="flex items-center gap-2 text-ink" dir="ltr">
                       <Mail size={14} className="shrink-0 text-ink-light" /> {o.customer.email}
