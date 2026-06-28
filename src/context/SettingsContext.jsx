@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { BUSINESS } from '../data/business.js'
+import { BUSINESS, mapsLinkFor, wazeLinkFor } from '../data/business.js'
 import { PAYMENT_METHODS, DELIVERY_METHODS, ORDER_STATUSES } from '../data/orderMeta.js'
 import { kvLoadAll, kvSave } from '../lib/kv.js'
 import { supabase } from '../lib/supabase.js'
@@ -47,6 +47,7 @@ const DEFAULT_ADMIN_UI = { labels: {}, navOrder: {} }
 const DEFAULTS = {
   name: BUSINESS.name,
   address: BUSINESS.address,
+  mapCoords: BUSINESS.mapCoords, // map pin "lat,lng" — drives map + nav links
   whatsappDisplay: BUSINESS.whatsappDisplay,
   whatsappIntl: BUSINESS.whatsappIntl,
   // Footer (the black bottom panel): an optional custom logo + tagline.
@@ -419,13 +420,15 @@ export function SettingsProvider({ children }) {
     [],
   )
 
+  // Both nav links point to the exact pin (settings.mapCoords) when set, so they
+  // match the embedded map; they fall back to the text address otherwise.
   const mapsLink = useMemo(
-    () => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(settings.address)}`,
-    [settings.address],
+    () => mapsLinkFor(settings.mapCoords, settings.address),
+    [settings.mapCoords, settings.address],
   )
   const wazeLink = useMemo(
-    () => `https://waze.com/ul?q=${encodeURIComponent(settings.address)}&navigate=yes`,
-    [settings.address],
+    () => wazeLinkFor(settings.mapCoords, settings.address),
+    [settings.mapCoords, settings.address],
   )
   const waLink = useCallback(
     (message) => {

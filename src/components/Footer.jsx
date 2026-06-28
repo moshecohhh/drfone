@@ -1,10 +1,16 @@
 import { MapPin, Phone, Store, Wrench } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useSettings } from '../context/SettingsContext.jsx'
+import { parseCoords } from '../data/business.js'
 import Logo from './Logo.jsx'
 
 export default function Footer() {
   const { settings, waLink, mapsLink, wazeLink } = useSettings()
+  // Map pin = the same coords the nav links point to (falls back to a text
+  // search so the embed never breaks if coords were cleared).
+  const coords = parseCoords(settings.mapCoords)
+  const mapQuery = coords ? `${coords.lat},${coords.lng}` : settings.address
+  const mapEmbedSrc = `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&z=16&hl=he&output=embed`
   return (
     <footer className="mt-16 border-t border-black/10 bg-black text-white">
       <div className="grid w-full gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-3 xl:px-[3cm]">
@@ -91,21 +97,21 @@ export default function Footer() {
           <div className="overflow-hidden rounded-2xl border border-white/10">
             <iframe
               title="מפת מיקום העסק"
-              src="https://maps.google.com/maps?q=31.938305,35.046213&z=16&hl=he&output=embed"
+              src={mapEmbedSrc}
               className="h-64 w-full"
               style={{ border: 0 }}
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
             />
           </div>
-          <a
-            href="https://www.google.com/maps/search/?api=1&query=31.938305,35.046213"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-block text-xs text-white/50 hover:text-brand-400"
-          >
-            פתיחת ניווט בגוגל מפות ←
-          </a>
+          <div className="mt-2 flex gap-3 text-xs text-white/50">
+            <a href={mapsLink} target="_blank" rel="noopener noreferrer" className="hover:text-brand-400">
+              פתיחת ניווט בגוגל מפות ←
+            </a>
+            <a href={wazeLink} target="_blank" rel="noopener noreferrer" className="hover:text-brand-400">
+              ניווט ב-Waze ←
+            </a>
+          </div>
         </div>
       </div>
 
