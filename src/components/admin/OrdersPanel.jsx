@@ -250,13 +250,26 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
   const [invErr, setInvErr] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
 
+  // Open the document PDF (preferred), falling back to SUMIT's document page.
+  const openInvoicePreview = (inv) => {
+    if (inv?.pdfBase64) {
+      try {
+        const bytes = Uint8Array.from(atob(inv.pdfBase64), (c) => c.charCodeAt(0))
+        const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+        window.open(url, '_blank')
+        return
+      } catch { /* fall through to the URL */ }
+    }
+    if (inv?.url) window.open(inv.url, '_blank')
+  }
+
   const doIssue = async (draft) => {
     setInvErr('')
     setInvBusy(true)
     const res = await issueInvoice(order, { draft })
     setInvBusy(false)
     if (!res.ok) { setInvErr(res.error || 'יצירת החשבונית נכשלה'); return }
-    if (draft && res.invoice?.url) window.open(res.invoice.url, '_blank') // preview the draft
+    if (draft) openInvoicePreview(res.invoice) // preview the draft as a PDF
   }
 
   // Re-sync if the order changes underneath us (e.g. another save).
