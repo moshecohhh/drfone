@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, Trash2, Pencil, MapPin, X, Users, Check, Eye, EyeOff, Mail, AlertCircle, Download, Ticket, UserCheck, BellRing } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Trash2, Pencil, MapPin, X, Users, Check, Eye, EyeOff, Mail, AlertCircle, Download, Ticket, UserCheck, BellRing, RefreshCw } from 'lucide-react'
 import { useLab } from '../../context/LabContext.jsx'
 import { useCoupons } from '../../context/CouponsContext.jsx'
 import { useAuth, ROLES, ROLE_OPTIONS } from '../../context/AuthContext.jsx'
@@ -14,8 +14,10 @@ const blank = { name: '', phone1: '', phone2: '', address: '', email: '', passwo
 // Customers (client base) — view, create & edit, with credentials.
 export default function CustomersPanel() {
   const { customers, addCustomer, updateCustomer, deleteCustomer, repairs } = useLab()
-  const { isMasterAdminAccount, users } = useAuth()
-  const registered = (users || []).filter((u) => u.role === ROLES.CUSTOMER)
+  const { isMasterAdminAccount, users, refreshUsers } = useAuth()
+  // Everyone who isn't staff is a registered site customer (defensive: covers
+  // any null/blank role too, not only an exact 'CUSTOMER').
+  const registered = (users || []).filter((u) => u.role !== ROLES.MASTER_ADMIN && u.role !== ROLES.STORE)
   const bypass = isMasterAdminAccount
   const [view, setView] = useState('customers') // 'customers' | 'newsletter'
   const [showForm, setShowForm] = useState(false)
@@ -88,7 +90,7 @@ export default function CustomersPanel() {
       {view === 'newsletter' ? (
         <NewsletterPanel />
       ) : view === 'registered' ? (
-        <RegisteredCustomers list={registered} />
+        <RegisteredCustomers list={registered} onRefresh={refreshUsers} />
       ) : (
       <>
       <PanelHead
@@ -310,8 +312,13 @@ function GiveCouponModal({ customer, onClose }) {
 
 // Read-only list of customers who registered on the site (managed as accounts
 // under "משתמשים והרשאות"). Searchable + exportable.
-function RegisteredCustomers({ list }) {
+function RegisteredCustomers({ list, onRefresh }) {
   const [query, setQuery] = useState('')
+  const [busy, setBusy] = useState(false)
+  // Pull the freshest profiles whenever this tab opens, so customers who
+  // registered after the panel loaded show up without a full page reload.
+  useEffect(() => { onRefresh?.() }, [onRefresh])
+  const refresh = async () => { setBusy(true); await onRefresh?.(); setBusy(false) }
   const term = query.trim().toLowerCase()
   const filtered = term
     ? list.filter((u) => [u.name, u.email, u.phone].some((f) => (f || '').toLowerCase().includes(term)))
@@ -331,9 +338,12 @@ function RegisteredCustomers({ list }) {
       <PanelHead
         title="לקוחות רשומים באתר"
         subtitle={`${list.length} לקוחות שפתחו חשבון באתר. ניהול החשבונות עצמם תחת "משתמשים והרשאות".`}
-        action={list.length > 0 && (
-          <GhostBtn onClick={exportList}><Download size={16} /> ייצוא לאקסל</GhostBtn>
-        )}
+        action={
+          <div className="flex gap-2">
+            <GhostBtn onClick={refresh}><RefreshCw size={16} className={busy ? 'animate-spin' : ''} /> רענון</GhostBtn>
+            {list.length > 0 && <GhostBtn onClick={exportList}><Download size={16} /> ייצוא לאקסל</GhostBtn>}
+          </div>
+        }
       />
       {list.length > 0 && (
         <PanelSearch value={query} onChange={setQuery} placeholder="חיפוש לקוח / אימייל / טלפון…" className="mb-4 sm:max-w-xs" />

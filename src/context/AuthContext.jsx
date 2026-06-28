@@ -280,6 +280,7 @@ export function AuthProvider({ children }) {
     canAccessAdmin: isMaster || isStaff,
     isAdmin: isMaster || isStaff, // backwards-compat alias
     users, // master-admin view of all profiles (empty otherwise)
+    refreshUsers, // re-fetch the profiles list (e.g. to pick up new registrations)
     masterAdminId: null, // no longer a fixed seed id; kept for API compatibility
     register,
     login,
