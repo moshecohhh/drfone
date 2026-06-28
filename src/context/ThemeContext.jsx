@@ -7,10 +7,11 @@ const ThemeContext = createContext(null)
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
+    // Always default to light (even when the OS prefers dark / storage is
+    // cleared). Dark mode is opt-in — via the toggle or the night-time prompt.
     try {
       const saved = localStorage.getItem(KEY)
-      if (saved) return saved
-      return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+      return saved === 'dark' ? 'dark' : 'light'
     } catch {
       return 'light'
     }
@@ -40,9 +41,10 @@ export function ThemeProvider({ children }) {
   }, [theme])
 
   const toggle = useCallback(() => setTheme((t) => (t === 'dark' ? 'light' : 'dark')), [])
+  const setMode = useCallback((mode) => setTheme(mode === 'dark' ? 'dark' : 'light'), [])
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark: theme === 'dark', toggle }}>
+    <ThemeContext.Provider value={{ theme, isDark: theme === 'dark', toggle, setMode }}>
       {children}
     </ThemeContext.Provider>
   )
