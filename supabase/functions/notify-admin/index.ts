@@ -277,7 +277,7 @@ function customerTicketHtml(data: Record<string, unknown>): string {
           <div style="font-size:15px;color:#222;line-height:1.6">${esc(data.message).replace(/\n/g, '<br>')}</div>
         </div>
         <div style="text-align:center;margin-top:20px">
-          <a href="${SITE_URL}/account" style="display:inline-block;background:${BRAND};color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:13px 28px;border-radius:10px">מעבר לאזור האישי ←</a>
+          <a href="${SITE_URL}/account?tab=tickets" style="display:inline-block;background:${BRAND};color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:13px 28px;border-radius:10px">מעבר לפניות שלי ←</a>
         </div>
         <p style="font-size:13px;color:#999;text-align:center;margin:22px 0 0">תודה שבחרת ב${esc(BIZ_NAME)} 🙏</p>
       </div>

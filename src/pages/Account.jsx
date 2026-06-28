@@ -34,7 +34,11 @@ const fmtDate = (iso) =>
 export default function Account() {
   const { user, isAuthenticated, logout } = useAuth()
   const location = useLocation()
-  const [tab, setTab] = useState('orders')
+  // Allow deep-linking to a tab (e.g. the service-reply email → ?tab=tickets).
+  const initialTab = TABS.some((t) => t.id === new URLSearchParams(location.search).get('tab'))
+    ? new URLSearchParams(location.search).get('tab')
+    : 'orders'
+  const [tab, setTab] = useState(initialTab)
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />

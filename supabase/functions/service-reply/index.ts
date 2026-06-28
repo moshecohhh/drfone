@@ -60,7 +60,7 @@ function replyHtml(name: string, orderNumber: string, message: string): string {
         <p style="font-size:15px;color:#444;line-height:1.6;margin:0 0 16px">קיבלת תשובה לפנייתך:</p>
         <div style="background:#f9fbfb;border-right:4px solid ${BRAND};border-radius:8px;padding:14px 16px;font-size:15px;color:#222;line-height:1.7">${esc(message).replace(/\n/g, '<br>')}</div>
         <div style="text-align:center;margin-top:20px">
-          <a href="${SITE_URL}/account" style="display:inline-block;background:${BRAND};color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:13px 28px;border-radius:10px">צפייה ומענה באזור האישי ←</a>
+          <a href="${SITE_URL}/account?tab=tickets" style="display:inline-block;background:${BRAND};color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:13px 28px;border-radius:10px">צפייה בהתכתבות ומענה ←</a>
         </div>
         <p style="font-size:13px;color:#999;text-align:center;margin:22px 0 0">תודה שבחרת ב${esc(BIZ_NAME)} 🙏</p>
       </div>
