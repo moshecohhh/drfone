@@ -23,13 +23,9 @@ export default function OrderStatusTimeline({ status }) {
             {i > 0 && (
               <span className={`absolute left-1/2 top-5 -z-0 h-0.5 w-full ${i <= currentIdx ? 'bg-brand-500' : 'bg-black/10'}`} />
             )}
-            {/* Pulsing halo behind the current (in-progress) step. */}
-            {pulse && (
-              <span className="pointer-events-none absolute left-1/2 top-0 z-0 h-10 w-10 -translate-x-1/2 animate-ping rounded-full bg-brand-500/40" />
-            )}
             <span className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 transition ${
               done ? 'border-brand-500 bg-brand-500 text-white' : 'border-black/15 bg-white text-ink-light'
-            } ${current ? 'ring-4 ring-brand-500/20' : ''}`}>
+            } ${current ? 'ring-4 ring-brand-500/20' : ''} ${pulse ? 'animate-bubble' : ''}`}>
               {done && !current ? <Check size={18} /> : <Icon size={18} />}
             </span>
             <span className={`mt-2 text-xs font-semibold ${done ? 'text-brand-700' : 'text-ink-light'}`}>{s.label}</span>
