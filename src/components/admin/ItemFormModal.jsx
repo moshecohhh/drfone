@@ -34,12 +34,15 @@ const emptyItem = {
   page: {}, // product-page config (option groups, specs, marketing…) — see "דף המוצר" tab
 }
 
-// Colors may have been persisted as plain hex strings by an earlier build;
-// normalize every entry to { hex, image } (image = associated gallery image).
+// Colors may have been persisted as plain hex strings or a single { hex, image }
+// by earlier builds; normalize every entry to { hex, name, images[] } so a color
+// can be tied to MULTIPLE gallery images (the product page browses just those).
 const normColors = (arr) =>
-  (Array.isArray(arr) ? arr : []).map((c) =>
-    typeof c === 'string' ? { hex: c, image: '' } : { hex: c.hex, image: c.image || '' },
-  )
+  (Array.isArray(arr) ? arr : []).map((c) => {
+    if (typeof c === 'string') return { hex: c, name: '', images: [] }
+    const images = Array.isArray(c.images) ? c.images.filter(Boolean) : c.image ? [c.image] : []
+    return { hex: c.hex, name: c.name || '', images }
+  })
 
 // Modal form for creating/editing a single catalog item.
 // `categories` is the active domain's category list (already excludes "all").
@@ -118,8 +121,8 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
         ...f,
         images: next,
         image: next[0] || '',
-        // Unlink any color that pointed at the removed image.
-        colors: f.colors.map((c) => (c.image === removed ? { ...c, image: '' } : c)),
+        // Drop the removed image from any color's tagged-image set.
+        colors: f.colors.map((c) => ({ ...c, images: (Array.isArray(c.images) ? c.images : []).filter((s) => s !== removed) })),
       }
     })
 
@@ -133,14 +136,24 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
     e.target.value = '' // allow re-selecting the same file
   }
 
-  // ---- Colors (each optionally linked to a gallery image) ----
+  // ---- Colors (each can be tied to several gallery images + a name) ----
   const addColor = () => {
     const hex = draftColor.toUpperCase()
-    setForm((f) => (f.colors.some((c) => c.hex === hex) ? f : { ...f, colors: [...f.colors, { hex, image: '' }] }))
+    setForm((f) => (f.colors.some((c) => c.hex === hex) ? f : { ...f, colors: [...f.colors, { hex, name: '', images: [] }] }))
   }
   const removeColor = (hex) => setForm((f) => ({ ...f, colors: f.colors.filter((c) => c.hex !== hex) }))
-  const linkColorImage = (hex, image) =>
-    setForm((f) => ({ ...f, colors: f.colors.map((c) => (c.hex === hex ? { ...c, image } : c)) }))
+  const setColorName = (hex, name) =>
+    setForm((f) => ({ ...f, colors: f.colors.map((c) => (c.hex === hex ? { ...c, name } : c)) }))
+  // Toggle a gallery image in/out of a color's image set.
+  const toggleColorImage = (hex, src) =>
+    setForm((f) => ({
+      ...f,
+      colors: f.colors.map((c) => {
+        if (c.hex !== hex) return c
+        const images = Array.isArray(c.images) ? c.images : []
+        return { ...c, images: images.includes(src) ? images.filter((s) => s !== src) : [...images, src] }
+      }),
+    }))
 
   const buildPayload = () => {
     const stock = isService ? undefined : Math.max(0, Number(form.stock) || 0)
@@ -478,43 +491,58 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
             <div className="rounded-xl border border-black/10 bg-brand-50/30 p-4">
               <span className="mb-2 block text-xs font-semibold text-ink-light">צבעים זמינים למוצר</span>
 
-              {/* Selected colors — each row: swatch + hex + linked-image picker + remove */}
+              {/* Selected colors — per color: swatch + hex + name, then a grid of
+                  gallery images to tag this color with. Picking that color on the
+                  storefront shows ONLY its tagged images. */}
               {form.colors.length > 0 ? (
                 <div className="mb-3 space-y-2">
                   {form.colors.map((c) => (
-                    <div key={c.hex} className="flex items-center gap-2 rounded-lg border border-black/10 bg-white px-2 py-1.5">
-                      <span className="h-5 w-5 shrink-0 rounded-full border border-black/15" style={{ background: c.hex }} />
-                      <span dir="ltr" className="w-16 shrink-0 font-mono text-xs text-ink">{c.hex}</span>
+                    <div key={c.hex} className="rounded-lg border border-black/10 bg-white p-2">
+                      <div className="flex items-center gap-2">
+                        <span className="h-5 w-5 shrink-0 rounded-full border border-black/15" style={{ background: c.hex }} />
+                        <span dir="ltr" className="w-16 shrink-0 font-mono text-xs text-ink">{c.hex}</span>
+                        <input
+                          value={c.name || ''}
+                          onChange={(e) => setColorName(c.hex, e.target.value)}
+                          placeholder="שם הצבע (לדוגמה: ורוד)"
+                          className="min-w-0 flex-1 rounded-lg border border-black/10 px-2 py-1 text-xs text-ink outline-none focus:border-brand-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeColor(c.hex)}
+                          aria-label={`הסרת ${c.hex}`}
+                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-ink-light hover:bg-black/10 hover:text-red-500"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
 
-                      {/* Linked image: thumbnail + selector */}
-                      <Link2 size={13} className="shrink-0 text-ink-light" />
-                      {c.image ? (
-                        <img src={c.image} alt="" className="h-7 w-7 shrink-0 rounded border border-black/10 object-cover" />
+                      {/* Image tagging — toggle which gallery images belong to this color */}
+                      {form.images.length > 0 ? (
+                        <div className="mt-2">
+                          <span className="mb-1 flex items-center gap-1 text-[11px] text-ink-light">
+                            <Link2 size={12} /> תמונות הצבע ({(c.images || []).length})
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {form.images.map((src, i) => {
+                              const on = (c.images || []).includes(src)
+                              return (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() => toggleColorImage(c.hex, src)}
+                                  title={`תמונה ${i + 1}`}
+                                  className={`h-10 w-10 overflow-hidden rounded-md border-2 transition ${on ? 'border-brand-500 ring-2 ring-brand-500/30' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                                >
+                                  <img src={src} alt="" className="h-full w-full object-cover" />
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
                       ) : (
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-dashed border-black/20 text-ink-light">
-                          <ImageOff size={13} />
-                        </span>
+                        <p className="mt-2 flex items-center gap-1 text-[11px] text-ink-light"><ImageOff size={12} /> העלו תמונות למוצר כדי לשייך אותן לצבע</p>
                       )}
-                      <select
-                        value={c.image}
-                        onChange={(e) => linkColorImage(c.hex, e.target.value)}
-                        disabled={form.images.length === 0}
-                        className="min-w-0 flex-1 rounded-lg border border-black/10 bg-white px-2 py-1 text-xs text-ink outline-none focus:border-brand-500 disabled:opacity-50"
-                      >
-                        <option value="">ללא תמונה משויכת</option>
-                        {form.images.map((src, i) => (
-                          <option key={i} value={src}>תמונה {i + 1}</option>
-                        ))}
-                      </select>
-
-                      <button
-                        type="button"
-                        onClick={() => removeColor(c.hex)}
-                        aria-label={`הסרת ${c.hex}`}
-                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-ink-light hover:bg-black/10 hover:text-red-500"
-                      >
-                        <X size={12} />
-                      </button>
                     </div>
                   ))}
                 </div>

@@ -23,17 +23,21 @@ export default function ItemCard({ item, kind }) {
   const productHref = `/product/${item.id}`
   const requiresChoice = hasPage && Array.isArray(item.page?.optionGroups) && item.page.optionGroups.some((g) => g.required)
 
-  // Normalize colors to { hex, image } (older data stored plain hex strings).
+  // Normalize colors to { hex, name, images[] } (older data: plain hex / single image).
   const colors =
     !isService && Array.isArray(item.colors)
-      ? item.colors.map((c) => (typeof c === 'string' ? { hex: c, image: '' } : { hex: c.hex, image: c.image || '' }))
+      ? item.colors.map((c) => {
+          if (typeof c === 'string') return { hex: c, name: '', images: [] }
+          const imgs = Array.isArray(c.images) ? c.images.filter(Boolean) : c.image ? [c.image] : []
+          return { hex: c.hex, name: c.name || '', images: imgs }
+        })
       : []
 
   // Image gallery (fall back to the single legacy image).
   const images = Array.isArray(item.images) && item.images.length ? item.images : item.image ? [item.image] : []
 
   const [selectedColor, setSelectedColor] = useState(colors[0]?.hex || '')
-  const [activeImage, setActiveImage] = useState(colors[0]?.image || images[0] || '')
+  const [activeImage, setActiveImage] = useState(colors[0]?.images?.[0] || images[0] || '')
 
   // Master-admin per-transaction price override (storefront only, NOT saved to
   // the catalog). null = use the catalog price.
@@ -67,7 +71,7 @@ export default function ItemCard({ item, kind }) {
   // image, swaps the displayed image to it.
   const pickColor = (c) => {
     setSelectedColor(c.hex)
-    if (c.image) setActiveImage(c.image)
+    if (c.images?.length) setActiveImage(c.images[0])
   }
 
   const handleAdd = () => {

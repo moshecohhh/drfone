@@ -8,6 +8,7 @@ import BrandCarousel from '../components/BrandCarousel.jsx'
 import FeatureStrip from '../components/FeatureStrip.jsx'
 import ItemGrid from '../components/ItemGrid.jsx'
 import HotDeals from '../components/HotDeals.jsx'
+import FeaturedProducts from '../components/FeaturedProducts.jsx'
 import CategoryShowcase from '../components/CategoryShowcase.jsx'
 import WhyBuy from '../components/WhyBuy.jsx'
 import Reviews from '../components/Reviews.jsx'
@@ -80,6 +81,7 @@ function HomeBody() {
     return (
       <>
         <HotDeals />
+        <FeaturedProducts />
         <CategoryShowcase />
         <WhyBuy />
         <Reviews />

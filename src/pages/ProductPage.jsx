@@ -12,11 +12,14 @@ import Footer from '../components/Footer.jsx'
 import WhatsAppButton from '../components/WhatsAppButton.jsx'
 import ProductGallery from '../components/ProductGallery.jsx'
 
-// Normalize colors to { hex, image } (older data stored plain hex strings).
+// Normalize colors to { hex, name, images[] }. Back-compat: older data stored
+// plain hex strings, or a single { hex, image } — both become an images array.
 const normColors = (arr) =>
-  (Array.isArray(arr) ? arr : []).map((c) =>
-    typeof c === 'string' ? { hex: c, image: '' } : { hex: c.hex, image: c.image || '' },
-  )
+  (Array.isArray(arr) ? arr : []).map((c) => {
+    if (typeof c === 'string') return { hex: c, name: '', images: [] }
+    const images = Array.isArray(c.images) ? c.images.filter(Boolean) : c.image ? [c.image] : []
+    return { hex: c.hex, name: c.name || '', images }
+  })
 
 export default function ProductPage() {
   const { id } = useParams()
@@ -46,7 +49,13 @@ export default function ProductPage() {
   )
 
   const [selectedColor, setSelectedColor] = useState(colors[0]?.hex || '')
-  const [activeImage, setActiveImage] = useState(colors[0]?.image || images[0] || '')
+  const [activeImage, setActiveImage] = useState(colors[0]?.images?.[0] || images[0] || '')
+
+  // The gallery shows ONLY the selected colour's images when that colour has
+  // any; otherwise it falls back to the product's full image set. So picking a
+  // colour (e.g. ורוד) lets the customer browse just that colour's pictures.
+  const selectedColorObj = colors.find((c) => c.hex === selectedColor)
+  const galleryImages = selectedColorObj?.images?.length ? selectedColorObj.images : images
   // { [groupId]: optionId }
   const [selected, setSelected] = useState({})
   const [giftWrap, setGiftWrap] = useState(false)
@@ -150,7 +159,9 @@ export default function ProductPage() {
 
   const pickColor = (c) => {
     setSelectedColor(c.hex)
-    if (c.image) setActiveImage(c.image)
+    // Jump the gallery to this colour's first image (or the global first).
+    const imgs = c.images?.length ? c.images : images
+    if (imgs.length) setActiveImage(imgs[0])
   }
 
   // Build the cart payload from the current selections (single or multi).
@@ -241,7 +252,7 @@ export default function ProductPage() {
               it, while the details keep scrolling. First in DOM = right in RTL. */}
           <div className="lg:sticky lg:w-2/5 lg:self-start" style={{ top: `${headerH + bcH + 16}px` }}>
             <ProductGallery
-              images={images}
+              images={galleryImages}
               active={activeImage}
               onSelect={setActiveImage}
               emoji={product.emoji}
@@ -287,23 +298,28 @@ export default function ProductPage() {
               <div className="mt-5 divide-y divide-black/5 overflow-hidden rounded-2xl border border-black/10">
                 {colors.length > 0 && (
                   <FieldRow label="בחירת צבע">
-                    <div className="flex flex-wrap gap-2">
-                      {colors.map((c) => {
-                        const sel = c.hex === selectedColor
-                        return (
-                          <button
-                            key={c.hex}
-                            type="button"
-                            onClick={() => pickColor(c)}
-                            aria-pressed={sel}
-                            title={c.hex}
-                            className={`h-9 w-9 cursor-pointer select-none rounded-full border transition ${
-                              sel ? 'border-brand-500 ring-2 ring-brand-500 ring-offset-2' : 'border-black/15 hover:scale-110'
-                            }`}
-                            style={{ background: c.hex }}
-                          />
-                        )
-                      })}
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        {colors.map((c) => {
+                          const sel = c.hex === selectedColor
+                          return (
+                            <button
+                              key={c.hex}
+                              type="button"
+                              onClick={() => pickColor(c)}
+                              aria-pressed={sel}
+                              title={c.name || c.hex}
+                              className={`h-9 w-9 cursor-pointer select-none rounded-full border transition ${
+                                sel ? 'border-brand-500 ring-2 ring-brand-500 ring-offset-2' : 'border-black/15 hover:scale-110'
+                              }`}
+                              style={{ background: c.hex }}
+                            />
+                          )
+                        })}
+                      </div>
+                      {selectedColorObj?.name && (
+                        <span className="block text-xs font-semibold text-ink-light">{selectedColorObj.name}</span>
+                      )}
                     </div>
                   </FieldRow>
                 )}

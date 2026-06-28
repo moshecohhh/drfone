@@ -267,6 +267,39 @@ export function CatalogProvider({ children }) {
     })
   }, [])
 
+  // Bulk-import predefined products (e.g. the Samsung/Apple device catalog).
+  // Uses stable ids + upsert so a re-import UPDATES rather than duplicates, and
+  // ensures any required categories exist first. Runs with the caller's own
+  // (master-admin) session, so no server credentials are needed here.
+  const importItems = useCallback(async (domain, items, cats = []) => {
+    try {
+      // Ensure categories exist (by id).
+      const existing = new Set(catRef.current[domain].map((c) => c.id))
+      const newCats = cats.filter((c) => !existing.has(c.id))
+      if (newCats.length) {
+        const base = catRef.current[domain].length
+        const rows = newCats.map((c, i) => ({ id: c.id, domain, label: c.label, image: null, sort_order: base + i }))
+        const { error } = await supabase.from('catalog_categories').upsert(rows)
+        if (error) return { ok: false, error: error.message }
+        setCatsState(domain)((prev) => [...prev, ...newCats.map((c) => ({ id: c.id, label: c.label }))])
+      }
+      // Upsert the items.
+      const rows = items.map((it) => itemToRow(domain, it))
+      const { error } = await supabase.from('catalog_items').upsert(rows)
+      if (error) return { ok: false, error: error.message }
+      // Merge into local state (replace existing ids, prepend new ones).
+      const normed = domain === DOMAINS.STORE ? normalizeProducts(items) : items
+      setItemsState(domain)((prev) => {
+        const byId = new Map(prev.map((p) => [p.id, p]))
+        normed.forEach((it) => byId.set(it.id, it))
+        return Array.from(byId.values())
+      })
+      return { ok: true, count: items.length }
+    } catch (e) {
+      return { ok: false, error: e?.message || 'import failed' }
+    }
+  }, [])
+
   const resetDomain = useCallback(async (domain) => {
     // Wipe this domain and re-insert the bundled defaults.
     await Promise.all([
@@ -359,6 +392,7 @@ export function CatalogProvider({ children }) {
     deleteItem,
     decrementStock,
     getCost,
+    importItems,
     resetDomain,
     // categories
     getCategories,

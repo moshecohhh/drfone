@@ -70,14 +70,24 @@ export default function ImageOptimizer() {
           }
         }
 
-        if (Array.isArray(d.colors) && d.colors.some((c) => c && isBig(c.image))) {
+        // Colors may carry a single legacy `image` or an `images[]` set — shrink
+        // any oversized raster ones (generated SVG placeholders are tiny / skipped).
+        const colorHasBig = (c) => c && (isBig(c.image) || (Array.isArray(c.images) && c.images.some(isBig)))
+        if (Array.isArray(d.colors) && d.colors.some(colorHasBig)) {
           const next = await Promise.all(
-            d.colors.map(async (c) => (c && c.image ? { ...c, image: await shrink(c.image, 1000, 0.82) } : c)),
+            d.colors.map(async (c) => {
+              if (!c) return c
+              const out = { ...c }
+              if (isBig(c.image)) { before += len(c.image); const ni = await shrink(c.image, 1000, 0.82); after += len(ni); out.image = ni }
+              if (Array.isArray(c.images)) {
+                out.images = await Promise.all(c.images.map(async (s) => {
+                  if (!isBig(s)) return s
+                  before += len(s); const ns = await shrink(s, 1000, 0.82); after += len(ns); return ns
+                }))
+              }
+              return out
+            }),
           )
-          d.colors.forEach((c, i) => {
-            before += len(c?.image)
-            after += len(next[i]?.image)
-          })
           d.colors = next
           rowChanged = true
         }
