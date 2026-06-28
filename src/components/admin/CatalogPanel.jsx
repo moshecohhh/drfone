@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { Store, Wrench, Plus, Pencil, Trash2, RotateCcw, AlertTriangle, ImagePlus, Tags, Flame } from 'lucide-react'
+import { Store, Wrench, Plus, Pencil, Trash2, RotateCcw, AlertTriangle, ImagePlus, Tags, Flame, Star } from 'lucide-react'
 import { DOMAINS } from '../../context/AppContext.jsx'
 import { useCatalogStore } from '../../context/CatalogContext.jsx'
 import { useBrands } from '../../context/BrandsContext.jsx'
@@ -21,8 +21,22 @@ const LOW_STOCK_THRESHOLD = 3
 // Store/Lab item management — kept strictly per-domain via the domain toggle.
 // `lowStockInitial` (from the dashboard drilldown) pre-enables the low-stock filter.
 export default function CatalogPanel({ lowStockInitial = false, editTarget = null }) {
-  const { getItems, getCategories, getCategoriesWithAll, addItem, updateItem, deleteItem, resetDomain } =
+  const { getItems, getCategories, getCategoriesWithAll, addItem, updateItem, deleteItem, resetDomain, importItems } =
     useCatalogStore()
+  const [importing, setImporting] = useState('')
+  const runImport = async (brandKey) => {
+    if (importing) return
+    setImporting(brandKey)
+    try {
+      const { samsungProducts, appleProducts, DEVICE_CATEGORIES } = await import('../../data/deviceCatalog.js')
+      const items = brandKey === 'samsung' ? samsungProducts() : appleProducts()
+      const res = await importItems(DOMAINS.STORE, items, DEVICE_CATEGORIES)
+      if (res.ok) alert(`יובאו ${res.count} דגמים בהצלחה. ניתן לערוך מחיר, מלאי ותמונות לכל מוצר.`)
+      else alert(`הייבוא נכשל: ${res.error || 'שגיאה'}`)
+    } finally {
+      setImporting('')
+    }
+  }
   const { brands, brandLabel } = useBrands()
   const [domain, setDomain] = useState(DOMAINS.STORE)
   const [modalOpen, setModalOpen] = useState(false)
@@ -131,7 +145,17 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
         title="ניהול קטלוג"
         subtitle="מוצרי החנות ושירותי המעבדה — בהפרדה מלאה."
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {!isService && (
+              <>
+                <GhostBtn onClick={() => runImport('samsung')} disabled={!!importing}>
+                  <Plus size={16} /> {importing === 'samsung' ? 'מייבא…' : 'ייבוא דגמי סמסונג'}
+                </GhostBtn>
+                <GhostBtn onClick={() => runImport('apple')} disabled={!!importing}>
+                  <Plus size={16} /> {importing === 'apple' ? 'מייבא…' : 'ייבוא דגמי אפל'}
+                </GhostBtn>
+              </>
+            )}
             <GhostBtn onClick={() => setShowCategories((v) => !v)}>
               <Tags size={16} /> ניהול קטגוריות
             </GhostBtn>
@@ -325,6 +349,20 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
                     }`}
                   >
                     <Flame size={16} fill={item.deal ? 'currentColor' : 'none'} />
+                  </button>
+                )}
+                {/* Mark/unmark as a FEATURED product (store products only) */}
+                {!isService && (
+                  <button
+                    type="button"
+                    onClick={() => updateItem(domain, item.id, { featured: !item.featured })}
+                    aria-pressed={!!item.featured}
+                    title={item.featured ? 'הסרה ממוצרים נבחרים' : 'סימון כמוצר נבחר'}
+                    className={`rounded-lg p-2 transition ${
+                      item.featured ? 'bg-amber-100 text-amber-600' : 'text-ink-light hover:bg-amber-50 hover:text-amber-500'
+                    }`}
+                  >
+                    <Star size={16} fill={item.featured ? 'currentColor' : 'none'} />
                   </button>
                 )}
                 <IconBtn
