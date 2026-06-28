@@ -110,6 +110,29 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: body?.UserErrorMessage || body?.TechnicalErrorDetails || `SUMIT error (${res.status})` }, 200)
     }
     const d = body.Data ?? {}
+
+    // Fetch the actual PDF (getpdf returns the raw PDF binary) so the admin can
+    // preview the real document instead of SUMIT's customer payment page.
+    let pdfBase64: string | null = null
+    if (d.DocumentID) {
+      try {
+        const pres = await fetch(`${SUMIT_BASE}/accounting/documents/getpdf/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ Credentials: { CompanyID: SUMIT_COMPANY_ID, APIKey: SUMIT_API_KEY }, DocumentID: d.DocumentID, Original: true }),
+        })
+        const ct = pres.headers.get('content-type') || ''
+        if (pres.ok && ct.includes('pdf')) {
+          const buf = new Uint8Array(await pres.arrayBuffer())
+          let bin = ''
+          for (let i = 0; i < buf.length; i += 8192) bin += String.fromCharCode(...buf.subarray(i, i + 8192))
+          pdfBase64 = btoa(bin)
+        }
+      } catch {
+        /* fall back to the document URL */
+      }
+    }
+
     return json({
       ok: true,
       invoice: {
@@ -117,6 +140,7 @@ Deno.serve(async (req) => {
         number: d.DocumentNumber ?? null,
         url: d.DocumentDownloadURL ?? null,
         paymentUrl: d.DocumentPaymentURL ?? null,
+        pdfBase64,
       },
     })
   } catch (e) {
