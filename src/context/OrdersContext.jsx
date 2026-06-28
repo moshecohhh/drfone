@@ -19,7 +19,7 @@ const rowToOrder = (row) => ({
 })
 
 // Extract the jsonb `data` payload from a flat order object.
-const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items, total, log, read, trackToken, invoice }) => ({
+const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items, total, log, read, trackToken, invoice, draftInvoice }) => ({
   customer,
   payment,
   delivery,
@@ -29,6 +29,7 @@ const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items,
   total,
   trackToken: trackToken || '', // unguessable token for the public order-tracking link
   invoice: invoice || null, // SUMIT invoice { id, number, url } once issued
+  draftInvoice: draftInvoice || null, // last SUMIT draft { id, number, sig } for the unchanged order
   log: log || [],
   read: !!read, // whether an admin has opened this order yet
 })
@@ -127,28 +128,46 @@ export function OrdersProvider({ children }) {
     })
   }, [])
 
-  // Store the issued SUMIT invoice on the order (persisted into the jsonb data).
-  const setOrderInvoice = useCallback((id, invoice) => {
+  // Persist the last draft reference on the order, so "view draft" stays
+  // available across reloads and devices until the order changes.
+  const setOrderDraft = useCallback((id, draftInvoice) => {
     const current = ordersRef.current.find((o) => o.id === id)
     if (!current) return
-    const merged = { ...current, invoice }
+    const merged = { ...current, draftInvoice }
     setOrders((prev) => prev.map((o) => (o.id === id ? merged : o)))
     supabase.from('orders').update({ data: orderToData(merged) }).eq('id', id).then(({ error }) => {
-      if (error) console.warn('[orders] setOrderInvoice failed:', error.message)
+      if (error) console.warn('[orders] setOrderDraft failed:', error.message)
     })
   }, [])
 
+  // Fetch an existing SUMIT document's PDF by id (online — any device).
+  const getInvoicePdf = useCallback(async (documentId) => {
+    const { data, error } = await supabase.functions.invoke('sumit-invoice', { body: { action: 'getpdf', documentId } })
+    if (error) return { ok: false, error: error.message }
+    return data || { ok: false, error: 'failed' }
+  }, [])
+
   // Admin: create a document in SUMIT via the sumit-invoice edge function.
-  // opts.draft = true → a draft for preview (NOT stored on the order); otherwise
-  // a real tax invoice, which is stored on the order. Returns { ok, invoice?, error? }.
+  // opts.draft = true → a draft for preview; otherwise a real tax invoice.
+  // When a real invoice is issued we store it AND clear any open draft in a
+  // single write, so no orphan draft is left behind after the document is final.
   const issueInvoice = useCallback(async (order, opts = {}) => {
     const draft = !!opts.draft
     const { data, error } = await supabase.functions.invoke('sumit-invoice', { body: { ...order, draft } })
     if (error) return { ok: false, error: error.message }
     if (!data?.ok) return { ok: false, error: data?.error || 'יצירת החשבונית נכשלה' }
-    if (!draft) setOrderInvoice(order.id, data.invoice)
+    if (!draft) {
+      const current = ordersRef.current.find((o) => o.id === order.id)
+      if (current) {
+        const merged = { ...current, invoice: data.invoice, draftInvoice: null }
+        setOrders((prev) => prev.map((o) => (o.id === order.id ? merged : o)))
+        supabase.from('orders').update({ data: orderToData(merged) }).eq('id', order.id).then(({ error: e }) => {
+          if (e) console.warn('[orders] issueInvoice persist failed:', e.message)
+        })
+      }
+    }
     return { ok: true, invoice: data.invoice }
-  }, [setOrderInvoice])
+  }, [])
 
   // Mark an order as read (the admin opened it). Persists into the jsonb `data`.
   const markOrderRead = useCallback((id) => {
@@ -179,7 +198,7 @@ export function OrdersProvider({ children }) {
     })
   }, [])
 
-  const value = { orders, addOrder, updateStatus, updateOrderItems, issueInvoice, deleteOrder, addOrderLog, markOrderRead }
+  const value = { orders, addOrder, updateStatus, updateOrderItems, issueInvoice, setOrderDraft, getInvoicePdf, deleteOrder, addOrderLog, markOrderRead }
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>
 }

@@ -12,7 +12,7 @@ const fmtDate = (iso) =>
   new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 export default function OrdersPanel({ focusId = null }) {
-  const { orders, updateStatus, updateOrderItems, issueInvoice, deleteOrder, addOrderLog, markOrderRead } = useOrders()
+  const { orders, updateStatus, updateOrderItems, issueInvoice, setOrderDraft, getInvoicePdf, deleteOrder, addOrderLog, markOrderRead } = useOrders()
   const { orderStatuses, orderStatusMeta, paymentLabel: payLabel, deliveryLabel } = useSettings()
   const { user } = useAuth()
   const [expanded, setExpanded] = useState(null)
@@ -221,7 +221,7 @@ export default function OrdersPanel({ focusId = null }) {
 
                 {/* Edit items / add custom item + approve */}
                 <div className="sm:col-span-2">
-                  <OrderEditor order={o} updateOrderItems={updateOrderItems} updateStatus={updateStatus} issueInvoice={issueInvoice} />
+                  <OrderEditor order={o} updateOrderItems={updateOrderItems} updateStatus={updateStatus} issueInvoice={issueInvoice} setOrderDraft={setOrderDraft} getInvoicePdf={getInvoicePdf} />
                 </div>
 
                 <div className="sm:col-span-2 border-t border-black/5 pt-3">
@@ -240,7 +240,7 @@ export default function OrdersPanel({ focusId = null }) {
 // Admin order editor — change quantities, remove lines, add a custom line item
 // (name + price), then save. Also approves a pending order. Lets the shop fix
 // stock issues with the customer before finalising, instead of refunding.
-function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
+function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice, setOrderDraft, getInvoicePdf }) {
   const { store } = useCatalogStore()
   const [editing, setEditing] = useState(false)
   const [items, setItems] = useState(order.items || [])
@@ -249,7 +249,6 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
   const [invBusy, setInvBusy] = useState(false)
   const [invErr, setInvErr] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [draftCache, setDraftCache] = useState(null) // { sig, invoice } — last draft for the unchanged order
 
   // Open the document PDF (preferred), falling back to SUMIT's document page.
   const openInvoicePreview = (inv) => {
@@ -265,9 +264,11 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
   }
 
   // Signature of the order's billable content — a saved change to the order
-  // invalidates the cached draft, so a fresh one is generated next time.
+  // invalidates the stored draft, so a fresh one is generated next time. The
+  // draft reference is persisted on the order (order.draftInvoice), so "view
+  // draft" stays available across reloads and devices until the order changes.
   const orderSig = JSON.stringify({ id: order.id, items: order.items, total: order.total })
-  const draftValid = draftCache && draftCache.sig === orderSig
+  const draftValid = !!(order.draftInvoice && order.draftInvoice.sig === orderSig && order.draftInvoice.id)
 
   const createDocument = async (draft) => {
     setInvErr('')
@@ -278,11 +279,23 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
     return res.invoice
   }
 
-  // Draft: re-open the existing draft if the order is unchanged, else create one.
+  // Draft: re-open the existing draft (fetched online by id, so it works from
+  // any device) if the order is unchanged, else create a fresh one and persist
+  // its reference on the order.
   const onDraft = async () => {
-    if (draftValid) { openInvoicePreview(draftCache.invoice); return }
+    if (draftValid) {
+      setInvErr('')
+      setInvBusy(true)
+      const res = await getInvoicePdf(order.draftInvoice.id)
+      setInvBusy(false)
+      if (res?.ok && res.pdfBase64) { openInvoicePreview({ pdfBase64: res.pdfBase64 }); return }
+      // Couldn't re-fetch (deleted/expired) — fall through to create a new one.
+    }
     const inv = await createDocument(true)
-    if (inv) { setDraftCache({ sig: orderSig, invoice: inv }); openInvoicePreview(inv) }
+    if (inv) {
+      setOrderDraft(order.id, { id: inv.id, number: inv.number, sig: orderSig })
+      openInvoicePreview(inv)
+    }
   }
   const onReal = () => createDocument(false)
 
