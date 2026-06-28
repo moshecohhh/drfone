@@ -16,6 +16,12 @@ import ProductPicker from './ProductPicker.jsx'
 export const STRIP_ASPECT = 4
 export const STRIP_ASPECT_MOBILE = 1.3
 
+// Recommended upload resolution to hand a graphic designer. The ratio matches
+// the crop aspect above; uploads are downscaled (~1400px wide) so a bit larger
+// is fine. Desktop is a wide 4:1 banner, mobile a squarer ~1.3:1 image.
+export const STRIP_SIZE = { w: 1600, h: 400 } // 4:1
+export const STRIP_SIZE_MOBILE = { w: 1040, h: 800 } // ~1.3:1
+
 // Master-only manager for the rotating top-of-site featured strip.
 export default function FeatureManager() {
   const { ads, updateAds, addAdSlide, updateAdSlide, removeAdSlide } = useSettings()
@@ -49,9 +55,17 @@ export default function FeatureManager() {
           <Switch checked={ads.enabled} onChange={(v) => updateAds({ enabled: v })} label="הפעלת רצועת מבצעים" />
         </label>
       </div>
-      <p className="mb-4 text-sm text-ink-light">
+      <p className="mb-2 text-sm text-ink-light">
         רצועה לרוחב האתר, מתחת לשורת המותגים. הוסיפו תמונות (עם חיתוך), קבעו תזמון לכל פריט והדליקו/כבו לפי הצורך.
       </p>
+      <div className="mb-4 flex flex-wrap gap-2 text-[11px] font-semibold">
+        <span className="rounded-lg bg-brand-50 px-2.5 py-1 text-brand-700">
+          🖥️ מחשב: {STRIP_SIZE.w}×{STRIP_SIZE.h} פיקסל (יחס 4:1)
+        </span>
+        <span className="rounded-lg bg-brand-50 px-2.5 py-1 text-brand-700">
+          📱 מובייל: {STRIP_SIZE_MOBILE.w}×{STRIP_SIZE_MOBILE.h} פיקסל (יחס 1.3:1)
+        </span>
+      </div>
 
       {/* Rotation interval */}
       <div className="mb-5 flex items-center gap-2 text-sm text-ink">
@@ -85,7 +99,8 @@ export default function FeatureManager() {
               <div className="shrink-0 space-y-3 sm:w-64">
                 {/* Desktop image */}
                 <div>
-                  <span className="mb-1 block text-[11px] font-semibold text-ink-light">תמונת מחשב (רחבה)</span>
+                  <span className="block text-[11px] font-semibold text-ink-light">תמונת מחשב (רחבה)</span>
+                  <span className="mb-1 block text-[10px] text-brand-600">רזולוציה מומלצת: {STRIP_SIZE.w}×{STRIP_SIZE.h} פיקסל · יחס 4:1</span>
                   <div
                     style={{ aspectRatio: String(STRIP_ASPECT) }}
                     className="flex w-full items-center justify-center overflow-hidden rounded-lg border border-black/10 bg-white"
@@ -114,7 +129,8 @@ export default function FeatureManager() {
 
                 {/* Mobile image */}
                 <div>
-                  <span className="mb-1 block text-[11px] font-semibold text-ink-light">תמונת מובייל (מרובעת)</span>
+                  <span className="block text-[11px] font-semibold text-ink-light">תמונת מובייל (מרובעת)</span>
+                  <span className="mb-1 block text-[10px] text-brand-600">רזולוציה מומלצת: {STRIP_SIZE_MOBILE.w}×{STRIP_SIZE_MOBILE.h} פיקסל · יחס 1.3:1</span>
                   <div
                     style={{ aspectRatio: String(STRIP_ASPECT_MOBILE) }}
                     className="mx-auto flex w-full max-w-[11rem] items-center justify-center overflow-hidden rounded-lg border border-black/10 bg-white"
