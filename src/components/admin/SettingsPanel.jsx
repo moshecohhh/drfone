@@ -71,6 +71,9 @@ export default function SettingsPanel() {
               <Field label="כתובת">
                 <input className={inputCls} value={form.address} onChange={(e) => set('address', e.target.value)} />
               </Field>
+              <Field label="נ״צ במפה (קו רוחב, קו אורך)" hint="הנקודה המדויקת במפת התחתית — אליה מובילים כפתורי הניווט (Waze / גוגל מפות). העתיקו מגוגל מפס: לחיצה ימנית על הנקודה ← העתקת המספרים">
+                <input className={inputCls} dir="ltr" placeholder="31.938305,35.046213" value={form.mapCoords || ''} onChange={(e) => set('mapCoords', e.target.value)} />
+              </Field>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="טלפון לתצוגה" hint="מוצג בכותרת התחתית">
                   <input className={inputCls} value={form.whatsappDisplay} onChange={(e) => set('whatsappDisplay', e.target.value)} />
