@@ -17,6 +17,9 @@ const emptyItem = {
   price: '',
   oldPrice: '',
   cost: '', // private cost price (admin-only) — for profit tracking
+  hasSerial: false, // device with a serial number / IMEI
+  imei1: '',
+  imei2: '',
   stock: 1,
   description: '',
   badge: '',
@@ -147,6 +150,10 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
       price: Number(form.price) || 0,
       oldPrice: form.oldPrice === '' ? null : Number(form.oldPrice),
       cost: form.cost === '' ? 0 : Number(form.cost) || 0,
+      // Serial / IMEI (cleared when the toggle is off).
+      hasSerial: !!form.hasSerial,
+      imei1: form.hasSerial ? String(form.imei1 || '').trim() : '',
+      imei2: form.hasSerial ? String(form.imei2 || '').trim() : '',
       // For products, availability is driven by stock.
       ...(isService ? {} : { stock, inStock: stock > 0 }),
     }
@@ -377,6 +384,38 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
                 className={`${inputCls} text-right font-mono`}
               />
             </Row>
+          )}
+
+          {/* Serial number / IMEI — for individually-tracked devices. */}
+          {!isService && (
+            <div className="rounded-xl border border-black/10 bg-brand-50/30 p-3">
+              <Switch checked={!!form.hasSerial} onChange={(v) => set('hasSerial', v)} label="מוצר עם מספר סידורי (IMEI)" />
+              {form.hasSerial && (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <Row label="IMEI 1 (חובה)">
+                    <input
+                      required
+                      value={form.imei1}
+                      onChange={(e) => set('imei1', e.target.value.replace(/[^\d]/g, ''))}
+                      placeholder="000000000000000"
+                      dir="ltr"
+                      inputMode="numeric"
+                      className={`${inputCls} text-right font-mono`}
+                    />
+                  </Row>
+                  <Row label="IMEI 2 (אופציונלי)">
+                    <input
+                      value={form.imei2}
+                      onChange={(e) => set('imei2', e.target.value.replace(/[^\d]/g, ''))}
+                      placeholder="000000000000000"
+                      dir="ltr"
+                      inputMode="numeric"
+                      className={`${inputCls} text-right font-mono`}
+                    />
+                  </Row>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Product tag — a visual stamp on the card. Only ONE of the two may
