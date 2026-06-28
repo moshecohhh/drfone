@@ -264,18 +264,14 @@ export function SettingsProvider({ children }) {
     if (!t) return { ok: false }
     const current = inquiriesRef.current.find((i) => i.id === id)
     if (!current) return { ok: false }
-    const msg = { id: `m-${Date.now()}`, from: 'shop', text: t, at: new Date().toISOString(), author }
+    // `read: false` on the message = the customer hasn't read it yet (receipt).
+    const msg = { id: `m-${Date.now()}`, from: 'shop', text: t, at: new Date().toISOString(), author, read: false }
     const merged = { ...current, messages: [...(current.messages || []), msg], status: 'answered', read: true }
     setInquiries((prev) => prev.map((i) => (i.id === id ? merged : i)))
     const { id: _i, read: _r, createdAt: _c, userId: _u, ...data } = merged
     await supabase.from('inquiries').update({ read: true, data }).eq('id', id)
-    if (current.email) {
-      supabase.functions
-        .invoke('service-reply', {
-          body: { inquiryId: id, to: current.email, name: current.name || '', orderNumber: current.orderNumber || '', message: t },
-        })
-        .catch(() => {})
-    }
+    // Email the customer (best-effort). The recipient is resolved server-side.
+    supabase.functions.invoke('service-reply', { body: { inquiryId: id, direction: 'to-customer', message: t } }).catch(() => {})
     return { ok: true }
   }, [])
 
@@ -285,12 +281,31 @@ export function SettingsProvider({ children }) {
     if (!t) return { ok: false }
     const current = myInquiriesRef.current.find((i) => i.id === id)
     if (!current) return { ok: false }
-    const msg = { id: `m-${Date.now()}`, from: 'customer', text: t, at: new Date().toISOString() }
-    const merged = { ...current, messages: [...(current.messages || []), msg], status: 'open' }
+    const msg = { id: `m-${Date.now()}`, from: 'customer', text: t, at: new Date().toISOString(), read: false }
+    // Re-open + mark unread so the admin sees it pop in the panel.
+    const merged = { ...current, messages: [...(current.messages || []), msg], status: 'open', read: false }
     setMyInquiries((prev) => prev.map((i) => (i.id === id ? merged : i)))
     const { id: _i, read: _r, createdAt: _c, userId: _u, ...data } = merged
-    await supabase.from('inquiries').update({ data }).eq('id', id)
+    await supabase.from('inquiries').update({ read: false, data }).eq('id', id)
+    // Notify the shop by email (recipient resolved server-side = the admin).
+    supabase.functions.invoke('service-reply', { body: { inquiryId: id, direction: 'to-admin', message: t } }).catch(() => {})
     return { ok: true }
+  }, [])
+
+  // Read receipts: when one side opens a ticket, mark the OTHER side's messages
+  // as read (reader 'shop' reads customer messages; 'customer' reads shop ones).
+  const markTicketRead = useCallback(async (id, reader) => {
+    const fromSide = reader === 'shop' ? 'customer' : 'shop'
+    const ref = reader === 'shop' ? inquiriesRef : myInquiriesRef
+    const setList = reader === 'shop' ? setInquiries : setMyInquiries
+    const current = ref.current.find((i) => i.id === id)
+    if (!current) return
+    const messages = current.messages || []
+    if (!messages.some((m) => m.from === fromSide && !m.read)) return // nothing unread
+    const merged = { ...current, messages: messages.map((m) => (m.from === fromSide && !m.read ? { ...m, read: true } : m)) }
+    setList((prev) => prev.map((i) => (i.id === id ? merged : i)))
+    const { id: _i, read: _r, createdAt: _c, userId: _u, ...data } = merged
+    await supabase.from('inquiries').update({ data }).eq('id', id)
   }, [])
 
   // Toggle a ❤️ reaction on a single message (works from either side — the
@@ -455,6 +470,7 @@ export function SettingsProvider({ children }) {
     replyToInquiry,
     addTicketMessage,
     toggleMessageReaction,
+    markTicketRead,
     markInquiryRead,
     deleteInquiry,
     mapsLink,

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Mail, Phone, Trash2, MailOpen, Inbox, ShoppingBag, Send, Headset, Heart } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Mail, Phone, Trash2, MailOpen, Inbox, ShoppingBag, Send, Headset, Heart, CheckCheck } from 'lucide-react'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { PanelHead, EmptyState } from './ui.jsx'
@@ -14,7 +14,7 @@ const CATS = [
 const catOf = (q) => (q.category === 'post-purchase' ? 'post-purchase' : 'site')
 
 export default function InquiriesPanel({ onOpenOrder }) {
-  const { inquiries, markInquiryRead, deleteInquiry, replyToInquiry, toggleMessageReaction } = useSettings()
+  const { inquiries, markInquiryRead, deleteInquiry, replyToInquiry, toggleMessageReaction, markTicketRead } = useSettings()
   const { user } = useAuth()
   const [cat, setCat] = useState('site')
   const list = inquiries.filter((q) => catOf(q) === cat)
@@ -56,6 +56,7 @@ export default function InquiriesPanel({ onOpenOrder }) {
               author={user?.name}
               onReply={replyToInquiry}
               onReact={toggleMessageReaction}
+              onMarkRead={markTicketRead}
               onToggleRead={() => markInquiryRead(q.id, !q.read)}
               onDelete={() => window.confirm('למחוק את הפנייה?') && deleteInquiry(q.id)}
               onOpenOrder={onOpenOrder}
@@ -67,11 +68,13 @@ export default function InquiriesPanel({ onOpenOrder }) {
   )
 }
 
-function InquiryCard({ q, author, onReply, onReact, onToggleRead, onDelete, onOpenOrder }) {
+function InquiryCard({ q, author, onReply, onReact, onMarkRead, onToggleRead, onDelete, onOpenOrder }) {
   const [reply, setReply] = useState('')
   const [busy, setBusy] = useState(false)
   const messages = Array.isArray(q.messages) ? q.messages : []
   const answered = q.status === 'answered'
+  // Viewing the ticket marks the customer's messages as read (blue ticks for them).
+  useEffect(() => { onMarkRead?.(q.id, 'shop') }, [q.id, messages.length, onMarkRead])
 
   const send = async () => {
     if (!reply.trim()) return
@@ -144,8 +147,10 @@ function InquiryCard({ q, author, onReply, onReact, onToggleRead, onDelete, onOp
             <div key={m.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${shop ? 'mr-auto bg-brand-500 text-white' : 'ml-auto bg-black/[0.04] text-ink'}`}>
               <p className="whitespace-pre-wrap">{m.text}</p>
               <div className="mt-1 flex items-center justify-between gap-2">
-                <span className={`text-[10px] ${shop ? 'text-white/70' : 'text-ink-light'}`}>
+                <span className={`flex items-center gap-1 text-[10px] ${shop ? 'text-white/70' : 'text-ink-light'}`}>
                   {shop ? 'החנות' : q.name || 'לקוח'} · {fmt(m.at)}
+                  {/* Read receipt on the shop's own messages (did the customer read?). */}
+                  {shop && <CheckCheck size={14} className={m.read ? 'text-sky-300' : 'text-white/50'} />}
                 </span>
                 <button type="button" onClick={() => onReact(q.id, m.id)} aria-label="לב על ההודעה" className="shrink-0">
                   <Heart size={13} className={m.reaction ? 'fill-red-500 text-red-500' : shop ? 'text-white/60 hover:text-white' : 'text-ink-light hover:text-red-500'} />
