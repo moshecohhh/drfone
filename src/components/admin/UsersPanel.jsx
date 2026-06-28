@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Trash2, Crown, UserCircle, Store, Pencil, Check, X, Plus, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Trash2, Crown, UserCircle, Store, Pencil, Check, X, Plus, Eye, EyeOff, AlertCircle, RotateCcw } from 'lucide-react'
 import { useAuth, ROLES, ROLE_LABELS, ROLE_OPTIONS } from '../../context/AuthContext.jsx'
 import { PanelHead, Table, Card, Field, PrimaryBtn, GhostBtn, IconBtn, inputCls } from './ui.jsx'
 
@@ -14,7 +14,16 @@ const blankNew = { name: '', email: '', password: '', role: ROLES.STORE }
 
 // Users & Permissions — create accounts, rename, and set user type (role).
 export default function UsersPanel() {
-  const { users, masterAdminId, updateUser, deleteUser, createUser } = useAuth()
+  const { users, masterAdminId, updateUser, deleteUser, createUser, refreshUsers } = useAuth()
+  // Pull the latest profiles whenever the panel opens, so registrations made
+  // after the admin loaded the page (Google sign-ups included) appear here.
+  useEffect(() => { refreshUsers() }, [refreshUsers])
+  const [refreshing, setRefreshing] = useState(false)
+  const doRefresh = async () => {
+    setRefreshing(true)
+    await refreshUsers()
+    setRefreshing(false)
+  }
   const [editingId, setEditingId] = useState(null)
   const [editName, setEditName] = useState('')
   const [editRole, setEditRole] = useState(ROLES.CUSTOMER)
@@ -59,21 +68,26 @@ export default function UsersPanel() {
         title="משתמשים והרשאות"
         subtitle="יצירת חשבונות, עריכת שמות והגדרת סוג משתמש."
         action={
-          showForm ? (
-            <GhostBtn onClick={() => setShowForm(false)}>
-              <X size={16} /> סגירה
+          <div className="flex gap-2">
+            <GhostBtn onClick={doRefresh} disabled={refreshing}>
+              <RotateCcw size={16} /> {refreshing ? 'מרענן…' : 'רענון'}
             </GhostBtn>
-          ) : (
-            <PrimaryBtn
-              onClick={() => {
-                setForm(blankNew)
-                setError('')
-                setShowForm(true)
-              }}
-            >
-              <Plus size={16} /> משתמש חדש
-            </PrimaryBtn>
-          )
+            {showForm ? (
+              <GhostBtn onClick={() => setShowForm(false)}>
+                <X size={16} /> סגירה
+              </GhostBtn>
+            ) : (
+              <PrimaryBtn
+                onClick={() => {
+                  setForm(blankNew)
+                  setError('')
+                  setShowForm(true)
+                }}
+              >
+                <Plus size={16} /> משתמש חדש
+              </PrimaryBtn>
+            )}
+          </div>
         }
       />
 
