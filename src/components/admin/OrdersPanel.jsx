@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronDown, Trash2, Package, Phone, MapPin, CreditCard, User, Mail, MessageSquare, Pencil, Plus, X, Check, CheckCircle2 } from 'lucide-react'
+import { ChevronDown, Trash2, Package, Phone, MapPin, CreditCard, User, Mail, MessageSquare, Pencil, Plus, X, Check, CheckCircle2, FileText } from 'lucide-react'
 import { useOrders } from '../../context/OrdersContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import PhoneActions from './PhoneActions.jsx'
@@ -11,7 +11,7 @@ const fmtDate = (iso) =>
   new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 export default function OrdersPanel({ focusId = null }) {
-  const { orders, updateStatus, updateOrderItems, deleteOrder, addOrderLog, markOrderRead } = useOrders()
+  const { orders, updateStatus, updateOrderItems, issueInvoice, deleteOrder, addOrderLog, markOrderRead } = useOrders()
   const { orderStatuses, orderStatusMeta, paymentLabel: payLabel, deliveryLabel } = useSettings()
   const { user } = useAuth()
   const [expanded, setExpanded] = useState(null)
@@ -220,7 +220,7 @@ export default function OrdersPanel({ focusId = null }) {
 
                 {/* Edit items / add custom item + approve */}
                 <div className="sm:col-span-2">
-                  <OrderEditor order={o} updateOrderItems={updateOrderItems} updateStatus={updateStatus} />
+                  <OrderEditor order={o} updateOrderItems={updateOrderItems} updateStatus={updateStatus} issueInvoice={issueInvoice} />
                 </div>
 
                 <div className="sm:col-span-2 border-t border-black/5 pt-3">
@@ -239,10 +239,20 @@ export default function OrdersPanel({ focusId = null }) {
 // Admin order editor — change quantities, remove lines, add a custom line item
 // (name + price), then save. Also approves a pending order. Lets the shop fix
 // stock issues with the customer before finalising, instead of refunding.
-function OrderEditor({ order, updateOrderItems, updateStatus }) {
+function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
   const [editing, setEditing] = useState(false)
   const [items, setItems] = useState(order.items || [])
   const [custom, setCustom] = useState({ name: '', price: '', qty: 1 })
+  const [invBusy, setInvBusy] = useState(false)
+  const [invErr, setInvErr] = useState('')
+
+  const onIssueInvoice = async () => {
+    setInvErr('')
+    setInvBusy(true)
+    const res = await issueInvoice(order)
+    setInvBusy(false)
+    if (!res.ok) setInvErr(res.error || 'יצירת החשבונית נכשלה')
+  }
 
   // Re-sync if the order changes underneath us (e.g. another save).
   useEffect(() => { setItems(order.items || []) }, [order.items])
@@ -287,8 +297,29 @@ function OrderEditor({ order, updateOrderItems, updateStatus }) {
               <Pencil size={14} /> עריכת פריטים
             </button>
           )}
+          {/* Invoice: open the issued one, or create it in SUMIT. */}
+          {order.invoice?.url ? (
+            <a
+              href={order.invoice.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-700 hover:bg-brand-100"
+            >
+              <FileText size={14} /> חשבונית{order.invoice.number ? ` ${order.invoice.number}` : ''}
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={onIssueInvoice}
+              disabled={invBusy}
+              className="flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-ink hover:bg-black/5 disabled:opacity-60"
+            >
+              <FileText size={14} /> {invBusy ? 'מפיק חשבונית…' : 'הפקת חשבונית'}
+            </button>
+          )}
         </div>
       </div>
+      {invErr && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{invErr}</p>}
 
       {editing && (
         <div className="mt-3 space-y-2 border-t border-black/5 pt-3">
