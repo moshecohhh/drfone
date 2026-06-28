@@ -4,7 +4,7 @@ import { UserPlus, User, Mail, Lock, Phone, LogIn } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { savePasswordCredential } from '../utils/credentials.js'
 import { emailIssue, passwordIssue, isValidMobileIL, sanitizePhone, nameIssue } from '../utils/validation.js'
-import { AuthShell, Field, FormError } from './Login.jsx'
+import { AuthShell, Field, FormError, GoogleButton } from './Login.jsx'
 
 export default function Register() {
   const { register } = useAuth()
@@ -226,6 +226,11 @@ export default function Register() {
           <UserPlus size={18} /> {busy ? 'יוצר חשבון…' : 'יצירת חשבון'}
         </button>
       </form>
+
+      <div className="my-5 flex items-center gap-3 text-xs text-ink-light">
+        <span className="h-px flex-1 bg-black/10" /> או <span className="h-px flex-1 bg-black/10" />
+      </div>
+      <GoogleButton label="הרשמה עם Google" />
 
       <p className="mt-6 text-center text-sm text-ink-light">
         כבר רשום?{' '}
