@@ -25,6 +25,10 @@ alter table public.profiles add column if not exists saved_payments jsonb not nu
 -- Structured default delivery address ({ city, street, house, apartment }) so the
 -- customer can save it in their account and have checkout pre-fill from it.
 alter table public.profiles add column if not exists address_parts jsonb not null default '{}'::jsonb;
+-- Multiple saved delivery addresses (array of { id, city, street, house,
+-- apartment, isDefault }) and billing details (name for invoice, tax id, etc.).
+alter table public.profiles add column if not exists addresses jsonb not null default '[]'::jsonb;
+alter table public.profiles add column if not exists billing jsonb not null default '{}'::jsonb;
 
 alter table public.profiles enable row level security;
 

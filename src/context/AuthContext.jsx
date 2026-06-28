@@ -40,7 +40,9 @@ function rowToUser(row, email) {
     role: row.role || ROLES.CUSTOMER,
     phone: row.phone || '',
     address: row.address || '',
-    addressParts: row.address_parts || {}, // { city, street, house, apartment }
+    addressParts: row.address_parts || {}, // legacy single default { city, street, house, apartment }
+    addresses: Array.isArray(row.addresses) ? row.addresses : [], // [{ id, city, street, house, apartment, isDefault }]
+    billing: row.billing || {}, // { firstName, lastName, phone, useInvoiceName, invoiceName, taxId }
     newsletter: !!row.newsletter,
     savedPayments: row.saved_payments || [],
   }
@@ -80,6 +82,8 @@ export function AuthProvider({ children }) {
       phone: '',
       address: '',
       addressParts: {},
+      addresses: [],
+      billing: {},
       newsletter: false,
       savedPayments: [],
     }
@@ -203,6 +207,8 @@ export function AuthProvider({ children }) {
       if (patch.phone !== undefined) dbPatch.phone = patch.phone
       if (patch.address !== undefined) dbPatch.address = patch.address
       if (patch.addressParts !== undefined) dbPatch.address_parts = patch.addressParts
+      if (patch.addresses !== undefined) dbPatch.addresses = patch.addresses
+      if (patch.billing !== undefined) dbPatch.billing = patch.billing
       if (patch.newsletter !== undefined) dbPatch.newsletter = patch.newsletter
       if (patch.savedPayments !== undefined) dbPatch.saved_payments = patch.savedPayments
       // Optimistic local update so the UI feels instant.

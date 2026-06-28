@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import {
   ArrowRight, LogOut, ShoppingBag, UserCog, CreditCard, Mail, Package,
-  Plus, Trash2, Check, AlertCircle, BellRing, BellOff, ChevronDown, RotateCcw, Headset,
+  Plus, Trash2, Check, AlertCircle, BellRing, BellOff, ChevronDown, RotateCcw, Headset, MapPin, Star,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useOrders } from '../context/OrdersContext.jsx'
@@ -22,6 +22,7 @@ const inputCls =
 const TABS = [
   { id: 'orders', label: 'ההזמנות שלי', Icon: ShoppingBag },
   { id: 'details', label: 'פרטים אישיים', Icon: UserCog },
+  { id: 'billing', label: 'פרטי חיוב ומשלוח', Icon: MapPin },
   { id: 'payments', label: 'אמצעי תשלום', Icon: CreditCard },
   { id: 'newsletter', label: 'ניוזלטר', Icon: Mail },
 ]
@@ -77,6 +78,7 @@ export default function Account() {
         <div className="mt-6">
           {tab === 'orders' && <OrdersTab email={user.email} />}
           {tab === 'details' && <DetailsTab />}
+          {tab === 'billing' && <BillingTab />}
           {tab === 'payments' && <PaymentsTab />}
           {tab === 'newsletter' && <NewsletterTab />}
         </div>
@@ -207,18 +209,10 @@ function OrdersTab({ email }) {
   )
 }
 
-// ---- Personal details (incl. default delivery address) + password ----
+// ---- Personal details (name / email / phone) + password ----
 function DetailsTab() {
   const { user, updateProfile } = useAuth()
-  const ap = user.addressParts || {}
-  const [form, setForm] = useState({
-    name: user.name || '',
-    phone: user.phone || '',
-    city: ap.city || '',
-    street: ap.street || '',
-    house: ap.house || '',
-    apartment: ap.apartment || '',
-  })
+  const [form, setForm] = useState({ name: user.name || '', phone: user.phone || '' })
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const set = (k, v) => setForm((f) => ({ ...f, [k]: k === 'phone' ? sanitizePhone(v) : v }))
@@ -228,12 +222,7 @@ function DetailsTab() {
     if (!form.name.trim()) return setError('יש להזין שם.')
     if (form.phone && !isValidPhone(form.phone)) return setError('מספר טלפון חייב להכיל 10 ספרות.')
     setError('')
-    const parts = { city: form.city.trim(), street: form.street.trim(), house: form.house.trim(), apartment: form.apartment.trim() }
-    // Compose a single readable address string for display elsewhere.
-    const address = parts.street || parts.city
-      ? `${parts.street} ${parts.house}${parts.apartment ? ', ' + parts.apartment : ''}${parts.city ? ', ' + parts.city : ''}`.replace(/\s+/g, ' ').trim()
-      : ''
-    updateProfile({ name: form.name.trim(), phone: form.phone, address, addressParts: parts })
+    updateProfile({ name: form.name.trim(), phone: form.phone })
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
   }
@@ -253,29 +242,6 @@ function DetailsTab() {
           <Field label="טלפון">
             <input className={inputCls} dir="ltr" inputMode="numeric" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="0500000000" autoComplete="tel" />
           </Field>
-
-          {/* Default delivery address — same structured fields as checkout. */}
-          <div className="sm:col-span-2 mt-1 border-t border-black/5 pt-4">
-            <p className="mb-3 text-sm font-bold text-ink">כתובת ברירת מחדל למשלוח</p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <span className="mb-1 block text-xs font-semibold text-ink-light">עיר</span>
-                <CitySelect value={form.city} onChange={(v) => set('city', v)} />
-              </div>
-              <Field label="רחוב">
-                <input className={inputCls} value={form.street} onChange={(e) => set('street', e.target.value)} autoComplete="address-line1" />
-              </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="מס׳ בית">
-                  <input className={inputCls} value={form.house} onChange={(e) => set('house', e.target.value)} />
-                </Field>
-                <Field label="דירה / כניסה">
-                  <input className={inputCls} value={form.apartment} onChange={(e) => set('apartment', e.target.value)} />
-                </Field>
-              </div>
-            </div>
-          </div>
-
           <div className="sm:col-span-2 flex justify-end">
             <button type="submit" className="flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600">
               <Check size={16} /> {saved ? 'נשמר ✓' : 'שמירת פרטים'}
@@ -286,6 +252,167 @@ function DetailsTab() {
 
       <PasswordCard />
     </div>
+  )
+}
+
+// ---- Billing & shipping: invoice details + multiple saved addresses ----
+function BillingTab() {
+  const { user, updateProfile } = useAuth()
+  const b = user.billing || {}
+  const [bill, setBill] = useState({
+    firstName: b.firstName || '',
+    lastName: b.lastName || '',
+    phone: b.phone || user.phone || '',
+    useInvoiceName: !!b.useInvoiceName,
+    invoiceName: b.invoiceName || '',
+    taxId: b.taxId || '',
+  })
+  const [billSaved, setBillSaved] = useState(false)
+  const setB = (k, v) => setBill((f) => ({ ...f, [k]: k === 'phone' ? sanitizePhone(v) : v }))
+
+  const saveBilling = (e) => {
+    e.preventDefault()
+    updateProfile({ billing: { ...bill, phone: bill.phone, taxId: bill.taxId.trim(), invoiceName: bill.invoiceName.trim() } })
+    setBillSaved(true)
+    setTimeout(() => setBillSaved(false), 1500)
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Billing details */}
+      <Card>
+        <h3 className="mb-4 text-base font-extrabold text-ink">פרטי חיוב</h3>
+        <form onSubmit={saveBilling} className="grid gap-4 sm:grid-cols-2">
+          <Field label="שם פרטי">
+            <input className={inputCls} value={bill.firstName} onChange={(e) => setB('firstName', e.target.value)} autoComplete="given-name" />
+          </Field>
+          <Field label="שם משפחה">
+            <input className={inputCls} value={bill.lastName} onChange={(e) => setB('lastName', e.target.value)} autoComplete="family-name" />
+          </Field>
+          <Field label="טלפון">
+            <input className={inputCls} dir="ltr" inputMode="numeric" value={bill.phone} onChange={(e) => setB('phone', e.target.value)} autoComplete="tel" />
+          </Field>
+          <Field label="ת.ז / ע.מ / ח.פ">
+            <input className={inputCls} dir="ltr" inputMode="numeric" value={bill.taxId} onChange={(e) => setB('taxId', e.target.value)} placeholder="לחשבונית" />
+          </Field>
+
+          <label className="sm:col-span-2 flex cursor-pointer items-center gap-2 text-sm text-ink">
+            <input type="checkbox" checked={bill.useInvoiceName} onChange={(e) => setB('useInvoiceName', e.target.checked)} className="h-4 w-4 rounded border-black/20 text-brand-500 focus:ring-brand-500" />
+            ברצוני שם שונה לחשבונית
+          </label>
+          {bill.useInvoiceName && (
+            <div className="sm:col-span-2">
+              <Field label="שם לחשבונית">
+                <input className={inputCls} value={bill.invoiceName} onChange={(e) => setB('invoiceName', e.target.value)} placeholder="שם החברה / שם מלא לחשבונית" />
+              </Field>
+            </div>
+          )}
+
+          <div className="sm:col-span-2 flex justify-end">
+            <button type="submit" className="flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600">
+              <Check size={16} /> {billSaved ? 'נשמר ✓' : 'שמירה כברירת מחדל'}
+            </button>
+          </div>
+        </form>
+      </Card>
+
+      {/* Saved addresses */}
+      <AddressesCard />
+    </div>
+  )
+}
+
+// ---- Multiple saved delivery addresses (one marked default) ----
+function AddressesCard() {
+  const { user, updateProfile } = useAuth()
+  const addresses = Array.isArray(user.addresses) ? user.addresses : []
+  const [form, setForm] = useState({ city: '', street: '', house: '', apartment: '' })
+  const [error, setError] = useState('')
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+
+  const persist = (next) => updateProfile({ addresses: next })
+
+  const add = (e) => {
+    e.preventDefault()
+    if (!form.city.trim()) return setError('יש לבחור עיר.')
+    if (!form.street.trim()) return setError('יש להזין רחוב.')
+    setError('')
+    const entry = {
+      id: `addr-${Date.now()}`,
+      city: form.city.trim(),
+      street: form.street.trim(),
+      house: form.house.trim(),
+      apartment: form.apartment.trim(),
+      isDefault: addresses.length === 0, // first one is the default
+    }
+    persist([...addresses, entry])
+    setForm({ city: '', street: '', house: '', apartment: '' })
+  }
+  const remove = (id) => {
+    const next = addresses.filter((a) => a.id !== id)
+    // If we removed the default, promote the first remaining one.
+    if (next.length && !next.some((a) => a.isDefault)) next[0].isDefault = true
+    persist(next)
+  }
+  const makeDefault = (id) => persist(addresses.map((a) => ({ ...a, isDefault: a.id === id })))
+
+  const fmt = (a) => `${a.street} ${a.house}${a.apartment ? ', ' + a.apartment : ''}, ${a.city}`
+
+  return (
+    <Card>
+      <h3 className="mb-1 text-base font-extrabold text-ink">כתובות למשלוח</h3>
+      <p className="mb-4 text-sm text-ink-light">אפשר לשמור כמה כתובות ולבחור ביניהן בקופה. הכתובת המסומנת ⭐ היא ברירת המחדל.</p>
+
+      {addresses.length > 0 && (
+        <div className="mb-5 space-y-2">
+          {addresses.map((a) => (
+            <div key={a.id} className={`flex items-center justify-between gap-2 rounded-xl border p-3 ${a.isDefault ? 'border-brand-300 bg-brand-50/50' : 'border-black/10'}`}>
+              <span className="flex items-center gap-2 text-sm text-ink">
+                <MapPin size={15} className="shrink-0 text-brand-500" /> {fmt(a)}
+                {a.isDefault && <span className="rounded-full bg-brand-500 px-2 py-0.5 text-[10px] font-bold text-white">ברירת מחדל</span>}
+              </span>
+              <span className="flex shrink-0 items-center gap-1">
+                {!a.isDefault && (
+                  <button type="button" onClick={() => makeDefault(a.id)} title="קבע כברירת מחדל" className="rounded-lg p-2 text-ink-light hover:bg-black/5 hover:text-brand-600">
+                    <Star size={15} />
+                  </button>
+                )}
+                <button type="button" onClick={() => remove(a.id)} aria-label="מחיקה" className="rounded-lg p-2 text-ink-light hover:bg-red-50 hover:text-red-600">
+                  <Trash2 size={15} />
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <form onSubmit={add} className="border-t border-black/5 pt-4">
+        <p className="mb-3 text-sm font-bold text-ink">הוספת כתובת</p>
+        {error && <Banner>{error}</Banner>}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <span className="mb-1 block text-xs font-semibold text-ink-light">עיר</span>
+            <CitySelect value={form.city} onChange={(v) => set('city', v)} />
+          </div>
+          <Field label="רחוב">
+            <input className={inputCls} value={form.street} onChange={(e) => set('street', e.target.value)} autoComplete="address-line1" />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="מס׳ בית">
+              <input className={inputCls} value={form.house} onChange={(e) => set('house', e.target.value)} />
+            </Field>
+            <Field label="דירה / כניסה">
+              <input className={inputCls} value={form.apartment} onChange={(e) => set('apartment', e.target.value)} />
+            </Field>
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button type="submit" className="flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600">
+            <Plus size={16} /> הוספת כתובת
+          </button>
+        </div>
+      </form>
+    </Card>
   )
 }
 
