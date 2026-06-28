@@ -21,6 +21,7 @@ const inputCls =
 
 const TABS = [
   { id: 'orders', label: 'ההזמנות שלי', Icon: ShoppingBag },
+  { id: 'tickets', label: 'פניות שירות', Icon: Headset },
   { id: 'details', label: 'פרטים אישיים', Icon: UserCog },
   { id: 'billing', label: 'פרטי חיוב ומשלוח', Icon: MapPin },
   { id: 'payments', label: 'אמצעי תשלום', Icon: CreditCard },
@@ -33,7 +34,11 @@ const fmtDate = (iso) =>
 export default function Account() {
   const { user, isAuthenticated, logout } = useAuth()
   const location = useLocation()
-  const [tab, setTab] = useState('orders')
+  // Allow deep-linking to a tab (e.g. the service-reply email → ?tab=tickets).
+  const initialTab = TABS.some((t) => t.id === new URLSearchParams(location.search).get('tab'))
+    ? new URLSearchParams(location.search).get('tab')
+    : 'orders'
+  const [tab, setTab] = useState(initialTab)
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />
@@ -77,6 +82,7 @@ export default function Account() {
 
         <div className="mt-6">
           {tab === 'orders' && <OrdersTab email={user.email} />}
+          {tab === 'tickets' && <ServiceTicketsTab />}
           {tab === 'details' && <DetailsTab />}
           {tab === 'billing' && <BillingTab />}
           {tab === 'payments' && <PaymentsTab />}
@@ -327,9 +333,13 @@ function ServiceRequestModal({ order, onClose }) {
   const submit = (e) => {
     e.preventDefault()
     if (!message.trim()) return
+    const first = (order.items || [])[0]
     addInquiry({
       category: 'post-purchase', // a service request tied to an order
+      userId: user?.id || null, // lets the customer track it from their account
+      orderId: order.id,
       orderNumber: order.number,
+      product: first ? { name: first.name, image: first.image || '' } : null,
       name: user?.name || order.customer?.name || '',
       phone: user?.phone || order.customer?.phone || '',
       email: user?.email || order.customer?.email || '',
@@ -376,6 +386,93 @@ function ServiceRequestModal({ order, onClose }) {
           </form>
         )}
       </div>
+    </div>
+  )
+}
+
+// ---- Service tickets: the customer's requests + the shop's replies ----
+function ServiceTicketsTab() {
+  const { myInquiries, addTicketMessage } = useSettings()
+  const tickets = Array.isArray(myInquiries) ? myInquiries : []
+
+  if (tickets.length === 0) {
+    return (
+      <Empty icon={Headset} title="אין פניות שירות" hint="פניות שתפתחו (למשל מתוך הזמנה) יופיעו כאן יחד עם תשובות החנות." />
+    )
+  }
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-ink-light">כאן תוכלו לעקוב אחר הפניות שלכם ולראות את תשובות החנות.</p>
+      {tickets.map((t) => (
+        <TicketCard key={t.id} ticket={t} onSend={addTicketMessage} />
+      ))}
+    </div>
+  )
+}
+
+function TicketCard({ ticket, onSend }) {
+  const [open, setOpen] = useState(false)
+  const [reply, setReply] = useState('')
+  const [busy, setBusy] = useState(false)
+  const messages = Array.isArray(ticket.messages) ? ticket.messages : []
+  const answered = ticket.status === 'answered'
+
+  const send = async () => {
+    if (!reply.trim()) return
+    setBusy(true)
+    await onSend(ticket.id, reply)
+    setBusy(false)
+    setReply('')
+  }
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-card">
+      <button type="button" onClick={() => setOpen(!open)} className="flex w-full flex-wrap items-center justify-between gap-2 p-4 text-right transition hover:bg-black/[.02]">
+        <span className="flex items-center gap-2.5">
+          <ChevronDown size={16} className={`shrink-0 text-ink-light transition ${open ? 'rotate-180' : ''}`} />
+          <span className="font-bold text-ink">{ticket.orderNumber ? `פנייה · הזמנה ${ticket.orderNumber}` : 'פנייה כללית'}</span>
+        </span>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${answered ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+          {answered ? 'התקבלה תשובה' : 'ממתינה לתשובה'}
+        </span>
+      </button>
+
+      {open && (
+        <div className="border-t border-black/5 p-4">
+          {ticket.product?.name && (
+            <div className="mb-3 flex items-center gap-2.5 rounded-xl bg-brand-50/50 p-2.5">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white text-lg">
+                {ticket.product.image ? <img src={ticket.product.image} alt="" className="h-full w-full object-cover" /> : '📦'}
+              </div>
+              <span className="min-w-0 text-sm font-semibold text-ink">{ticket.product.name}</span>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {messages.map((m) => (
+              <div key={m.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${m.from === 'shop' ? 'ml-auto bg-brand-500 text-white' : 'mr-auto bg-black/[0.04] text-ink'}`}>
+                <p className="whitespace-pre-wrap">{m.text}</p>
+                <span className={`mt-1 block text-[10px] ${m.from === 'shop' ? 'text-white/70' : 'text-ink-light'}`}>
+                  {m.from === 'shop' ? 'החנות' : 'אני'} · {fmtDate(m.at)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 flex items-end gap-2 border-t border-black/5 pt-3">
+            <textarea
+              rows={2}
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              placeholder="הוספת הודעה לפנייה…"
+              className={inputCls}
+            />
+            <button type="button" onClick={send} disabled={busy || !reply.trim()} className="flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-600 disabled:opacity-50">
+              {busy ? '…' : 'שליחה'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

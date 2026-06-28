@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { X, Save, Upload, ImageOff, Plus, Link2, Flame, BadgeCheck, Package, LayoutTemplate } from 'lucide-react'
 import { useBrands } from '../../context/BrandsContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
+import { useCatalogStore } from '../../context/CatalogContext.jsx'
 import { downscaleImage } from '../../utils/image.js'
 import { Switch } from './ui.jsx'
 import ColorPicker from './ColorPicker.jsx'
@@ -15,6 +16,7 @@ const emptyItem = {
   category: '',
   price: '',
   oldPrice: '',
+  cost: '', // private cost price (admin-only) — for profit tracking
   stock: 1,
   description: '',
   badge: '',
@@ -43,6 +45,7 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
   const isService = kind === 'service'
   const { brands } = useBrands()
   const { fieldPresets } = useSettings()
+  const { getCost } = useCatalogStore()
   const [form, setForm] = useState(emptyItem)
   const [initialForm, setInitialForm] = useState(null) // snapshot to detect unsaved changes
   const [confirmClose, setConfirmClose] = useState(false)
@@ -75,6 +78,7 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
         ...emptyItem,
         ...item,
         oldPrice: item.oldPrice ?? '',
+        cost: getCost(item.id) || '', // private cost lives in a separate admin table
         images,
         image: images[0] || '',
         colors: normColors(item.colors),
@@ -142,6 +146,7 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
       image: form.images[0] || '',
       price: Number(form.price) || 0,
       oldPrice: form.oldPrice === '' ? null : Number(form.oldPrice),
+      cost: form.cost === '' ? 0 : Number(form.cost) || 0,
       // For products, availability is driven by stock.
       ...(isService ? {} : { stock, inStock: stock > 0 }),
     }
@@ -328,6 +333,19 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
               />
             </Row>
           </div>
+
+          {!isService && (
+            <Row label="מחיר עלות — פנימי, מוצג רק לך (לחישוב רווח)">
+              <input
+                type="number"
+                min="0"
+                value={form.cost}
+                onChange={(e) => set('cost', e.target.value)}
+                placeholder="כמה המוצר עלה לך"
+                className={inputCls}
+              />
+            </Row>
+          )}
 
           <Row label="תיאור">
             <textarea

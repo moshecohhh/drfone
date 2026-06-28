@@ -214,6 +214,77 @@ function customerHtml(record: Record<string, unknown>, data: Record<string, unkn
   </div>`
 }
 
+// Rich admin email for an inquiry / service request (product + reply button).
+function inquiryHtml(record: Record<string, unknown>, data: Record<string, unknown>, isService: boolean, productImg: string): string {
+  const dateStr = record.created_at ? new Date(String(record.created_at)).toLocaleString('he-IL') : ''
+  const product = (data.product ?? null) as Record<string, unknown> | null
+  const productBlock = product?.name
+    ? `<table width="100%" style="border-collapse:collapse;margin-top:12px;background:#f9fbfb;border-radius:10px"><tr><td style="padding:12px 14px">
+        <div style="font-size:12px;font-weight:bold;color:#7a8a8a;margin-bottom:6px">המוצר בהזמנה</div>
+        <table><tr>
+          <td style="width:56px">${productImg
+            ? `<img src="${esc(productImg)}" width="56" height="56" style="border-radius:8px;object-fit:cover;border:1px solid #eee" alt="" />`
+            : `<div style="width:56px;height:56px;border-radius:8px;background:#f0f5f5;text-align:center;line-height:56px;font-size:22px">📦</div>`}</td>
+          <td style="padding-right:10px;font-weight:bold;color:#111">${esc(product.name)}</td>
+        </tr></table>
+      </td></tr></table>`
+    : ''
+  // The reply button opens the post-purchase inquiries panel in the admin.
+  const replyBtn = isService
+    ? `<div style="text-align:center;margin-top:20px">
+        <a href="${SITE_URL}/admin?section=inquiries" style="display:inline-block;background:${BRAND};color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:13px 28px;border-radius:10px">💬 מעבר לפניות כדי להגיב ←</a>
+      </div>`
+    : ''
+  return `<div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;background:#f4f6f6;padding:20px;margin:0">
+    <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e5e7eb">
+      <div style="background:${BRAND};color:#fff;padding:18px 22px">
+        <div style="font-size:20px;font-weight:bold">${isService ? '🛠️ פניית שירות (לאחר רכישה)' : '📨 פנייה חדשה מהאתר'}</div>
+        ${dateStr ? `<div style="font-size:14px;opacity:.92;margin-top:2px">${esc(dateStr)}</div>` : ''}
+      </div>
+      <div style="padding:20px 22px">
+        <table width="100%" style="border-collapse:collapse;background:#f9fbfb;border-radius:10px"><tr><td style="padding:12px 14px">
+          <table width="100%" style="border-collapse:collapse">
+            ${data.orderNumber ? `<tr><td style="padding:3px 0;font-size:14px;color:#111"><b>מספר הזמנה:</b> ${esc(data.orderNumber)}</td></tr>` : ''}
+            <tr><td style="padding:3px 0;font-size:14px;color:#111"><b>שם:</b> ${esc(data.name)}</td></tr>
+            <tr><td style="padding:3px 0;font-size:14px;color:#111"><b>טלפון:</b> ${esc(data.phone)}</td></tr>
+            ${data.email ? `<tr><td style="padding:3px 0;font-size:14px;color:#111"><b>אימייל:</b> <a href="mailto:${esc(data.email)}">${esc(data.email)}</a></td></tr>` : ''}
+          </table>
+        </td></tr></table>
+        ${productBlock}
+        <div style="margin-top:14px;background:#fff;border:1px solid #eee;border-radius:10px;padding:12px 14px">
+          <div style="font-size:12px;font-weight:bold;color:#7a8a8a;margin-bottom:4px">תוכן הפנייה</div>
+          <div style="font-size:15px;color:#222;line-height:1.6">${esc(data.message).replace(/\n/g, '<br>')}</div>
+        </div>
+        ${replyBtn}
+      </div>
+    </div>
+  </div>`
+}
+
+// Customer "we received your request" confirmation (with tracking guidance).
+function customerTicketHtml(data: Record<string, unknown>): string {
+  return `<div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;background:#f4f6f6;padding:20px;margin:0">
+    <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e5e7eb">
+      <div style="background:${BRAND};color:#fff;padding:22px">
+        <div style="font-size:20px;font-weight:bold">קיבלנו את פנייתך ✅</div>
+        <div style="font-size:14px;opacity:.92;margin-top:4px">${esc(BIZ_NAME)}${data.orderNumber ? ` · הזמנה ${esc(data.orderNumber)}` : ''}</div>
+      </div>
+      <div style="padding:22px">
+        <p style="font-size:16px;color:#111;margin:0 0 6px">שלום ${esc(data.name)},</p>
+        <p style="font-size:15px;color:#444;line-height:1.6;margin:0 0 16px">פנייתך התקבלה וצוות השירות יחזור אליך בהקדם. אפשר לעקוב אחר הפנייה ולראות את תשובת החנות באזור האישי שלך, תחת "פניות שירות".</p>
+        <div style="background:#f9fbfb;border-radius:10px;padding:12px 14px">
+          <div style="font-size:12px;font-weight:bold;color:#7a8a8a;margin-bottom:4px">פנייתך</div>
+          <div style="font-size:15px;color:#222;line-height:1.6">${esc(data.message).replace(/\n/g, '<br>')}</div>
+        </div>
+        <div style="text-align:center;margin-top:20px">
+          <a href="${SITE_URL}/account?tab=tickets" style="display:inline-block;background:${BRAND};color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:13px 28px;border-radius:10px">מעבר לפניות שלי ←</a>
+        </div>
+        <p style="font-size:13px;color:#999;text-align:center;margin:22px 0 0">תודה שבחרת ב${esc(BIZ_NAME)} 🙏</p>
+      </div>
+    </div>
+  </div>`
+}
+
 // Send a single email through Resend. Returns the parsed response + ok flag.
 async function sendEmail(to: string, subject: string, html: string) {
   const res = await fetch('https://api.resend.com/emails', {
@@ -247,19 +318,27 @@ Deno.serve(async (req) => {
 
     if (table === 'inquiries') {
       // Two kinds of inquiry: a general site contact, or a post-purchase
-      // service request tied to a specific order (shows the order number).
+      // service request tied to a specific order (shows the order + product).
       const isService = data.category === 'post-purchase'
+      // Host the product image (so the email shows a real image, not base64).
+      let productImg = ''
+      const product = (data.product ?? null) as Record<string, unknown> | null
+      if (product?.image) {
+        if (/^https?:\/\//i.test(String(product.image))) productImg = String(product.image)
+        else if (String(product.image).startsWith('data:')) { await ensureBucket(); productImg = (await uploadImage(String(product.image))) || '' }
+      }
       subject = isService
         ? `🛠️ פניית שירות${data.orderNumber ? ` · הזמנה ${data.orderNumber}` : ''} · ${data.name ?? 'לקוח'}`
         : `📨 פנייה חדשה מ${data.name ?? 'לקוח'}`
-      html = `<div dir="rtl" style="font-family:Arial,sans-serif">
-        <h2>${isService ? 'פניית שירות (לאחר רכישה)' : 'פנייה חדשה מהאתר'}</h2>
-        ${data.orderNumber ? `<p><b>מספר הזמנה:</b> ${esc(data.orderNumber)}</p>` : ''}
-        <p><b>שם:</b> ${esc(data.name)}</p>
-        <p><b>טלפון:</b> ${esc(data.phone)}</p>
-        ${data.email ? `<p><b>אימייל:</b> <a href="mailto:${esc(data.email)}">${esc(data.email)}</a></p>` : ''}
-        <p><b>הודעה:</b><br>${esc(data.message).replace(/\n/g, '<br>')}</p>
-      </div>`
+      html = inquiryHtml(record, data, isService, productImg)
+      // A post-purchase service request → confirm to the customer it's open.
+      if (isService && looksLikeEmail(data.email)) {
+        customerMail = {
+          to: String(data.email),
+          subject: `קיבלנו את פנייתך${data.orderNumber ? ` · הזמנה ${data.orderNumber}` : ''} · ${BIZ_NAME}`,
+          html: customerTicketHtml(data),
+        }
+      }
     } else if (table === 'orders') {
       const name = data.customer?.name ?? 'לקוח'
       subject = `🛒 הזמנה חדשה ${record.number ?? ''} · ${name} · ₪${data.total ?? ''}`

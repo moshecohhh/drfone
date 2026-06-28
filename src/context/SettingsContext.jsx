@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { BUSINESS } from '../data/business.js'
 import { PAYMENT_METHODS, DELIVERY_METHODS, ORDER_STATUSES } from '../data/orderMeta.js'
 import { kvLoadAll, kvSave } from '../lib/kv.js'
@@ -57,7 +57,20 @@ const DEFAULTS = {
 
 const uid = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
 
-const rowToInquiry = (row) => ({ id: row.id, read: row.read, createdAt: row.created_at, ...(row.data || {}) })
+// Normalise an inquiry into a conversation thread (legacy rows had only a flat
+// `message`; new ones carry `messages` + `status`).
+const normalizeInquiry = (inq) => {
+  const messages =
+    Array.isArray(inq.messages) && inq.messages.length
+      ? inq.messages
+      : inq.message
+        ? [{ id: 'm0', from: 'customer', text: inq.message, at: inq.createdAt }]
+        : []
+  const status = inq.status || (messages.some((m) => m.from === 'shop') ? 'answered' : 'open')
+  return { ...inq, messages, status }
+}
+const rowToInquiry = (row) =>
+  normalizeInquiry({ id: row.id, read: row.read, createdAt: row.created_at, userId: row.user_id, ...(row.data || {}) })
 
 // Local cache of the public app_state (ad banner, business details, home
 // content…) so a returning visitor sees the real content — including the
@@ -90,7 +103,7 @@ function saveAppStateCache(m) {
 const SettingsContext = createContext(null)
 
 export function SettingsProvider({ children }) {
-  const { isMaster } = useAuth()
+  const { isMaster, user } = useAuth()
   // Initialise from the local cache (real content, incl. uploaded ad images) so
   // the storefront — and the ad banner — paint instantly; fall back to defaults.
   const cached = loadAppStateCache()
@@ -113,7 +126,12 @@ export function SettingsProvider({ children }) {
   const [fieldPresets, setFieldPresets] = useState(() => (Array.isArray(cached?.fieldPresets) ? cached.fieldPresets : []))
   // Admin-panel edit-mode customisation (labels + list ordering).
   const [adminUI, setAdminUI] = useState(() => (cached?.adminUI ? { ...DEFAULT_ADMIN_UI, ...cached.adminUI } : DEFAULT_ADMIN_UI))
-  const [inquiries, setInquiries] = useState([])
+  const [inquiries, setInquiries] = useState([]) // admin: every inquiry
+  const [myInquiries, setMyInquiries] = useState([]) // customer: own service tickets
+  const inquiriesRef = useRef(inquiries)
+  inquiriesRef.current = inquiries
+  const myInquiriesRef = useRef(myInquiries)
+  myInquiriesRef.current = myInquiries
   const [loaded, setLoaded] = useState(false)
 
   // Load the public app_state collections (falls back to defaults until saved),
@@ -169,6 +187,26 @@ export function SettingsProvider({ children }) {
     }
   }, [isMaster])
 
+  // A signed-in customer loads their own service tickets (RLS returns only the
+  // rows whose user_id matches them).
+  useEffect(() => {
+    if (!user?.id) {
+      setMyInquiries([])
+      return
+    }
+    let active = true
+    supabase
+      .from('inquiries')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (active) setMyInquiries((data || []).map(rowToInquiry).filter((i) => i.userId === user.id))
+      })
+    return () => {
+      active = false
+    }
+  }, [user?.id])
+
   const updateSettings = useCallback((patch) => setSettings((s) => ({ ...s, ...patch })), [])
 
   // ---- Home page (showcase visibility + reviews) ----
@@ -197,16 +235,64 @@ export function SettingsProvider({ children }) {
     [],
   )
 
-  // ---- Contact inquiries (from the home-page form) ----
-  const addInquiry = useCallback((data) => {
-    const id = uid('inq')
-    const inquiry = { id, createdAt: new Date().toISOString(), read: false, ...data }
-    setInquiries((prev) => [inquiry, ...prev]) // optimistic (admin only ever views these)
-    supabase.from('inquiries').insert({ id, read: false, data }).then(({ error }) => {
-      if (error) console.warn('[inquiries] add failed:', error.message)
-    })
-    return inquiry
+  // ---- Contact inquiries / service tickets ----
+  // Open a new inquiry (home-page contact OR a post-purchase service request).
+  // A service request carries userId (for the customer to track it) + an order
+  // reference and product snapshot; the first message seeds the conversation.
+  const addInquiry = useCallback(
+    (input) => {
+      const id = uid('inq')
+      const now = new Date().toISOString()
+      const { userId = null, message = '', ...rest } = input
+      const messages = message ? [{ id: `m-${Date.now()}`, from: 'customer', text: message, at: now }] : []
+      const data = { ...rest, message, messages, status: 'open' }
+      const inquiry = normalizeInquiry({ id, createdAt: now, read: false, userId, ...data })
+      if (isMaster) setInquiries((prev) => [inquiry, ...prev])
+      if (userId && userId === user?.id) setMyInquiries((prev) => [inquiry, ...prev])
+      supabase.from('inquiries').insert({ id, read: false, user_id: userId, data }).then(({ error }) => {
+        if (error) console.warn('[inquiries] add failed:', error.message)
+      })
+      return inquiry
+    },
+    [isMaster, user?.id],
+  )
+
+  // Admin replies to a ticket: append a shop message, mark answered + read, and
+  // email the customer (best-effort) via the service-reply edge function.
+  const replyToInquiry = useCallback(async (id, text, author) => {
+    const t = (text || '').trim()
+    if (!t) return { ok: false }
+    const current = inquiriesRef.current.find((i) => i.id === id)
+    if (!current) return { ok: false }
+    const msg = { id: `m-${Date.now()}`, from: 'shop', text: t, at: new Date().toISOString(), author }
+    const merged = { ...current, messages: [...(current.messages || []), msg], status: 'answered', read: true }
+    setInquiries((prev) => prev.map((i) => (i.id === id ? merged : i)))
+    const { id: _i, read: _r, createdAt: _c, userId: _u, ...data } = merged
+    await supabase.from('inquiries').update({ read: true, data }).eq('id', id)
+    if (current.email) {
+      supabase.functions
+        .invoke('service-reply', {
+          body: { inquiryId: id, to: current.email, name: current.name || '', orderNumber: current.orderNumber || '', message: t },
+        })
+        .catch(() => {})
+    }
+    return { ok: true }
   }, [])
+
+  // Customer adds a follow-up message to their own ticket (re-opens it).
+  const addTicketMessage = useCallback(async (id, text) => {
+    const t = (text || '').trim()
+    if (!t) return { ok: false }
+    const current = myInquiriesRef.current.find((i) => i.id === id)
+    if (!current) return { ok: false }
+    const msg = { id: `m-${Date.now()}`, from: 'customer', text: t, at: new Date().toISOString() }
+    const merged = { ...current, messages: [...(current.messages || []), msg], status: 'open' }
+    setMyInquiries((prev) => prev.map((i) => (i.id === id ? merged : i)))
+    const { id: _i, read: _r, createdAt: _c, userId: _u, ...data } = merged
+    await supabase.from('inquiries').update({ data }).eq('id', id)
+    return { ok: true }
+  }, [])
+
   const markInquiryRead = useCallback((id, read = true) => {
     setInquiries((prev) => prev.map((i) => (i.id === id ? { ...i, read } : i)))
     supabase.from('inquiries').update({ read }).eq('id', id).then(() => {})
@@ -345,9 +431,12 @@ export function SettingsProvider({ children }) {
     addReview,
     updateReview,
     deleteReview,
-    // contact inquiries
+    // contact inquiries / service tickets
     inquiries,
+    myInquiries,
     addInquiry,
+    replyToInquiry,
+    addTicketMessage,
     markInquiryRead,
     deleteInquiry,
     mapsLink,

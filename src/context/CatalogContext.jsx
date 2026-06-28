@@ -3,6 +3,7 @@ import { DOMAINS } from './AppContext.jsx'
 import { STORE_PRODUCTS, STORE_CATEGORIES } from '../data/storeProducts.js'
 import { LAB_SERVICES, LAB_CATEGORIES } from '../data/labServices.js'
 import { supabase } from '../lib/supabase.js'
+import { useAuth } from './AuthContext.jsx'
 
 // ---------------------------------------------------------------------------
 // Persistent catalog (items + categories), backed by Supabase so an admin edit
@@ -88,6 +89,28 @@ export function CatalogProvider({ children }) {
   const setItemsState = (domain) => (domain === DOMAINS.STORE ? setStore : setLab)
   const itemsRef = (domain) => (domain === DOMAINS.STORE ? storeRef : labRef)
   const setCatsState = (domain) => (domain === DOMAINS.STORE ? setStoreCats : setLabCats)
+
+  // Private product costs (master admin only) — kept out of the public catalog
+  // data so the cost never reaches a customer. Map of productId -> cost.
+  const { isMaster } = useAuth()
+  const [costs, setCosts] = useState({})
+  useEffect(() => {
+    if (!isMaster) {
+      setCosts({})
+      return
+    }
+    let active = true
+    supabase
+      .from('product_costs')
+      .select('*')
+      .then(({ data }) => {
+        if (active && Array.isArray(data)) setCosts(Object.fromEntries(data.map((r) => [r.id, Number(r.cost) || 0])))
+      })
+    return () => {
+      active = false
+    }
+  }, [isMaster])
+  const getCost = useCallback((id) => Number(costs[id]) || 0, [costs])
 
   // ---- Initial load (+ one-time seed when the catalog is empty) ----
   useEffect(() => {
@@ -182,25 +205,43 @@ export function CatalogProvider({ children }) {
   // ---- Items ----
   const getItems = useCallback((domain) => (domain === DOMAINS.STORE ? store : lab), [store, lab])
 
+  // Persist a product's private cost to the admin-only table (never the catalog).
+  const persistCost = (id, cost) => {
+    const c = Number(cost) || 0
+    setCosts((m) => ({ ...m, [id]: c }))
+    supabase.from('product_costs').upsert({ id, cost: c, updated_at: new Date().toISOString() }).then(({ error }) => {
+      if (error) console.warn('[catalog] persistCost failed:', error.message)
+    })
+  }
+
   const addItem = useCallback((domain, item) => {
     const id = `${domain}-${Date.now()}`
-    const withId = { ...item, id }
+    // `cost` is private — store it separately, never in the public catalog data.
+    const { cost, ...rest } = item
+    const withId = { ...rest, id }
     setItemsState(domain)((prev) => [withId, ...prev])
     supabase.from('catalog_items').insert(itemToRow(domain, withId)).then(({ error }) => {
       if (error) console.warn('[catalog] addItem failed:', error.message)
     })
+    if (cost != null && cost !== '') persistCost(id, cost)
+    return id
   }, [])
 
   const updateItem = useCallback((domain, id, patch) => {
-    const current = itemsRef(domain).current.find((it) => it.id === id)
-    const merged = current ? { ...current, ...patch } : null
-    setItemsState(domain)((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)))
-    if (merged) {
-      const { id: _omit, ...data } = merged
-      supabase.from('catalog_items').update({ data }).eq('id', id).then(({ error }) => {
-        if (error) console.warn('[catalog] updateItem failed:', error.message)
-      })
+    const hasCost = 'cost' in patch
+    const { cost, ...rest } = patch
+    if (Object.keys(rest).length) {
+      const current = itemsRef(domain).current.find((it) => it.id === id)
+      const merged = current ? { ...current, ...rest } : null
+      setItemsState(domain)((prev) => prev.map((it) => (it.id === id ? { ...it, ...rest } : it)))
+      if (merged) {
+        const { id: _omit, ...data } = merged
+        supabase.from('catalog_items').update({ data }).eq('id', id).then(({ error }) => {
+          if (error) console.warn('[catalog] updateItem failed:', error.message)
+        })
+      }
     }
+    if (hasCost) persistCost(id, cost)
   }, [])
 
   const deleteItem = useCallback((domain, id) => {
@@ -208,17 +249,22 @@ export function CatalogProvider({ children }) {
     supabase.from('catalog_items').delete().eq('id', id).then(({ error }) => {
       if (error) console.warn('[catalog] deleteItem failed:', error.message)
     })
+    supabase.from('product_costs').delete().eq('id', id).then(() => {})
+    setCosts((m) => { const n = { ...m }; delete n[id]; return n })
   }, [])
 
-  // Lower stock when an order is placed (inventory tracking). Never below 0.
+  // Lower stock when an order is placed. Goes through a SECURITY DEFINER RPC so
+  // it persists even for a customer/guest checkout (RLS blocks non-admins from
+  // writing catalog_items directly). The local update is just an optimistic echo.
   const decrementStock = useCallback((domain, id, qty) => {
     const current = itemsRef(domain).current.find((it) => it.id === id)
-    if (!current) return
-    const nextStock = Math.max(0, (Number(current.stock) || 0) - qty)
-    const merged = { ...current, stock: nextStock, inStock: nextStock > 0 }
-    setItemsState(domain)((prev) => prev.map((it) => (it.id === id ? merged : it)))
-    const { id: _omit, ...data } = merged
-    supabase.from('catalog_items').update({ data }).eq('id', id).then(() => {})
+    if (current) {
+      const nextStock = Math.max(0, (Number(current.stock) || 0) - qty)
+      setItemsState(domain)((prev) => prev.map((it) => (it.id === id ? { ...it, stock: nextStock, inStock: nextStock > 0 } : it)))
+    }
+    supabase.rpc('decrement_stock', { p_id: id, p_qty: Number(qty) || 0 }).then(({ error }) => {
+      if (error) console.warn('[catalog] decrementStock failed:', error.message)
+    })
   }, [])
 
   const resetDomain = useCallback(async (domain) => {
@@ -312,6 +358,7 @@ export function CatalogProvider({ children }) {
     updateItem,
     deleteItem,
     decrementStock,
+    getCost,
     resetDomain,
     // categories
     getCategories,

@@ -173,7 +173,16 @@ export default function AdminDashboard() {
     return () => clearTimeout(t)
   }, [orderFocus])
 
-  const [section, setSection] = useState(isMaster && new URLSearchParams(window.location.search).get('order') ? 'orders' : (isMaster ? 'overview' : 'repairs'))
+  // Initial section: ?order → orders; ?section=<id> (e.g. from the service email)
+  // → that section; otherwise overview (master) / repairs (store).
+  const [section, setSection] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (!isMaster) return 'repairs'
+    if (params.get('order')) return 'orders'
+    const s = params.get('section')
+    if (s && PANELS[s]) { window.history.replaceState({}, '', '/admin'); return s }
+    return 'overview'
+  })
   const [catalogLowStock, setCatalogLowStock] = useState(false)
   // A product/service to open straight into its edit modal (from global search).
   const [catalogEdit, setCatalogEdit] = useState(null)
@@ -211,7 +220,9 @@ export default function AdminDashboard() {
         ? { lowStockInitial: catalogLowStock, editTarget: catalogEdit }
         : section === 'orders'
           ? { focusId: orderFocus }
-          : {}
+          : section === 'inquiries'
+            ? { onOpenOrder: (orderId) => { setOrderFocus(orderId); go('orders') } }
+            : {}
 
   const NavItem = ({ id, label, Icon, group, children }) => {
     const active = section === id

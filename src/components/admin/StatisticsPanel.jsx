@@ -26,7 +26,7 @@ const startOfDay = (ts) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); ret
 // (orders, catalog, customers) — no external charting dependency.
 export default function StatisticsPanel({ onBack }) {
   const { orders } = useOrders()
-  const { store, getCategories } = useCatalogStore()
+  const { store, getCategories, getCost } = useCatalogStore()
   const { orderStatuses, paymentLabel } = useSettings()
   const { customers } = useLab()
   const [range, setRange] = useState(30)
@@ -80,16 +80,20 @@ export default function StatisticsPanel({ onBack }) {
     const catLabels = Object.fromEntries(getCategories(DOMAINS.STORE).map((c) => [c.id, c.label]))
     const prodMap = {}
     const catMap = {}
+    let totalCost = 0 // sum of product costs for the items sold (admin-only)
     cur.forEach((o) => (o.items || []).forEach((it) => {
       const key = it.id || it.name
-      const lineRev = (Number(it.price) || 0) * (Number(it.qty) || 0)
+      const qty = Number(it.qty) || 0
+      const lineRev = (Number(it.price) || 0) * qty
       if (!prodMap[key]) prodMap[key] = { name: it.name, qty: 0, revenue: 0 }
-      prodMap[key].qty += Number(it.qty) || 0
+      prodMap[key].qty += qty
       prodMap[key].revenue += lineRev
+      totalCost += (Number(getCost(it.id)) || 0) * qty
       const cat = storeById[it.id]?.category
       const catLabel = catLabels[cat] || 'אחר'
       catMap[catLabel] = (catMap[catLabel] || 0) + lineRev
     }))
+    const profit = revenue - totalCost
     const topProducts = Object.values(prodMap).sort((a, b) => b.revenue - a.revenue).slice(0, 8)
     const byCategory = Object.entries(catMap).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value)
 
@@ -109,12 +113,13 @@ export default function StatisticsPanel({ onBack }) {
 
     return {
       revenue, ordersN, itemsSold, aov, buyers,
+      profit, totalCost, margin: revenue > 0 ? Math.round((profit / revenue) * 100) : null,
       trendRevenue: trend(revenue, prevRevenue), trendOrders: trend(ordersN, prev.length), trendAov: trend(aov, prevAov),
       buckets, topProducts, byCategory, byStatus, byPayment, weekday,
       inventoryValue, outOfStock, lowStock, productCount: store.length,
       hasData: cur.length > 0,
     }
-  }, [orders, store, range, orderStatuses, paymentLabel, getCategories])
+  }, [orders, store, range, orderStatuses, paymentLabel, getCategories, getCost])
 
   return (
     <div className="space-y-5">
@@ -144,12 +149,13 @@ export default function StatisticsPanel({ onBack }) {
       </div>
 
       {/* KPI cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Kpi Icon={Banknote} label="הכנסות" value={ils(stats.revenue)} trend={stats.trendRevenue} tint="bg-brand-50 text-brand-600" />
+        <Kpi Icon={TrendingUp} label={`רווח לאחר עלות${stats.margin != null ? ` · ${stats.margin}%` : ''}`} value={ils(stats.profit)} tint="bg-emerald-50 text-emerald-600" />
         <Kpi Icon={ShoppingBag} label="הזמנות" value={stats.ordersN} trend={stats.trendOrders} tint="bg-blue-50 text-blue-600" />
         <Kpi Icon={BarChart3} label="ממוצע להזמנה" value={ils(stats.aov)} trend={stats.trendAov} tint="bg-violet-50 text-violet-600" />
         <Kpi Icon={Boxes} label="פריטים שנמכרו" value={stats.itemsSold} tint="bg-amber-50 text-amber-600" />
-        <Kpi Icon={Users} label="לקוחות בתקופה" value={stats.buyers} tint="bg-emerald-50 text-emerald-600" />
+        <Kpi Icon={Users} label="לקוחות בתקופה" value={stats.buyers} tint="bg-indigo-50 text-indigo-600" />
       </div>
 
       {/* Revenue trend */}

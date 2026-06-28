@@ -145,8 +145,10 @@ export default function ProductPageEditor({ value, onChange, presets = [] }) {
                         <span className="text-xs text-ink-light">+₪</span>
                         <input
                           type="number"
+                          inputMode="numeric"
                           value={o.priceDelta}
-                          onChange={(e) => updOption(g.id, o.id, { priceDelta: Number(e.target.value) || 0 })}
+                          onChange={(e) => updOption(g.id, o.id, { priceDelta: e.target.value })}
+                          onBlur={(e) => updOption(g.id, o.id, { priceDelta: Number(e.target.value) || 0 })}
                           className="w-16 py-1.5 text-sm outline-none"
                         />
                       </div>
@@ -220,7 +222,14 @@ export default function ProductPageEditor({ value, onChange, presets = [] }) {
                     {on && (
                       <div className="flex items-center gap-0.5">
                         <span className="text-[11px] text-ink-light">+₪</span>
-                        <input type="number" value={sizePrice(size)} onChange={(e) => setSizePrice(size, Number(e.target.value) || 0)} className="w-14 rounded border border-black/10 px-1 py-0.5 text-xs outline-none focus:border-brand-500" />
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          value={sizePrice(size)}
+                          onChange={(e) => setSizePrice(size, e.target.value)}
+                          onBlur={(e) => setSizePrice(size, Number(e.target.value) || 0)}
+                          className="w-16 rounded border border-black/10 px-1.5 py-1 text-xs outline-none focus:border-brand-500"
+                        />
                       </div>
                     )}
                   </div>
