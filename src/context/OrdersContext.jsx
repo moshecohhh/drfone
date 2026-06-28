@@ -19,7 +19,7 @@ const rowToOrder = (row) => ({
 })
 
 // Extract the jsonb `data` payload from a flat order object.
-const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items, total, log, read, trackToken }) => ({
+const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items, total, log, read, trackToken, invoice }) => ({
   customer,
   payment,
   delivery,
@@ -28,6 +28,7 @@ const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items,
   items,
   total,
   trackToken: trackToken || '', // unguessable token for the public order-tracking link
+  invoice: invoice || null, // SUMIT invoice { id, number, url } once issued
   log: log || [],
   read: !!read, // whether an admin has opened this order yet
 })
@@ -126,6 +127,27 @@ export function OrdersProvider({ children }) {
     })
   }, [])
 
+  // Store the issued SUMIT invoice on the order (persisted into the jsonb data).
+  const setOrderInvoice = useCallback((id, invoice) => {
+    const current = ordersRef.current.find((o) => o.id === id)
+    if (!current) return
+    const merged = { ...current, invoice }
+    setOrders((prev) => prev.map((o) => (o.id === id ? merged : o)))
+    supabase.from('orders').update({ data: orderToData(merged) }).eq('id', id).then(({ error }) => {
+      if (error) console.warn('[orders] setOrderInvoice failed:', error.message)
+    })
+  }, [])
+
+  // Admin: create a real tax invoice in SUMIT (via the sumit-invoice edge
+  // function) and store the result on the order. Returns { ok, error? }.
+  const issueInvoice = useCallback(async (order) => {
+    const { data, error } = await supabase.functions.invoke('sumit-invoice', { body: order })
+    if (error) return { ok: false, error: error.message }
+    if (!data?.ok) return { ok: false, error: data?.error || 'יצירת החשבונית נכשלה' }
+    setOrderInvoice(order.id, data.invoice)
+    return { ok: true, invoice: data.invoice }
+  }, [setOrderInvoice])
+
   // Mark an order as read (the admin opened it). Persists into the jsonb `data`.
   const markOrderRead = useCallback((id) => {
     const current = ordersRef.current.find((o) => o.id === id)
@@ -155,7 +177,7 @@ export function OrdersProvider({ children }) {
     })
   }, [])
 
-  const value = { orders, addOrder, updateStatus, updateOrderItems, deleteOrder, addOrderLog, markOrderRead }
+  const value = { orders, addOrder, updateStatus, updateOrderItems, issueInvoice, deleteOrder, addOrderLog, markOrderRead }
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>
 }

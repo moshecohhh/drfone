@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import {
   ArrowRight, LogOut, ShoppingBag, UserCog, CreditCard, Mail, Package,
-  Plus, Trash2, Check, AlertCircle, BellRing, BellOff, ChevronDown, RotateCcw, Headset, MapPin, Star,
+  Plus, Trash2, Check, AlertCircle, BellRing, BellOff, ChevronDown, RotateCcw, Headset, MapPin, Star, FileText,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useOrders } from '../context/OrdersContext.jsx'
@@ -197,6 +197,16 @@ function OrdersTab({ email }) {
                   >
                     <Headset size={15} /> פנייה לשירות
                   </a>
+                  {o.invoice?.url && (
+                    <a
+                      href={o.invoice.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-100"
+                    >
+                      <FileText size={15} /> צפייה בחשבונית
+                    </a>
+                  )}
                 </div>
               </div>
             )}
