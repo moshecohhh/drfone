@@ -1,4 +1,5 @@
 import { MapPin, Phone, Store, Wrench } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useSettings } from '../context/SettingsContext.jsx'
 import Logo from './Logo.jsx'
 
@@ -109,7 +110,8 @@ export default function Footer() {
       </div>
 
       <div className="border-t border-white/10 py-4 text-center text-xs text-white/40">
-        © {new Date().getFullYear()} {settings.name} · כל הזכויות שמורות
+        © {new Date().getFullYear()} {settings.name} · כל הזכויות שמורות ·{' '}
+        <Link to="/terms" className="hover:text-brand-400">תקנון האתר</Link>
       </div>
     </footer>
   )

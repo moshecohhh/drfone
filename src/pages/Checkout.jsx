@@ -22,11 +22,16 @@ export default function Checkout() {
   const { items, subtotal, clear } = useCart()
   const { addOrder, orders } = useOrders()
   const { decrementStock } = useCatalogStore()
-  const { user, isMasterAdminAccount } = useAuth()
+  const { user, isMasterAdminAccount, updateProfile } = useAuth()
   const { paymentMethods, deliveryMethods } = useSettings()
   const bypass = isMasterAdminAccount
   const navigate = useNavigate()
   const [error, setError] = useState('')
+  // Offer newsletter opt-in to anyone not already subscribed; terms must be
+  // accepted to place an order (pre-checked for convenience).
+  const showNewsletter = !user || !user.newsletter
+  const [newsletter, setNewsletter] = useState(true)
+  const [termsAccepted, setTermsAccepted] = useState(true)
 
   const [form, setForm] = useState({
     name: user?.name || '',
@@ -170,6 +175,7 @@ export default function Checkout() {
       if (form.payment === 'credit' && !luhnValid(form.cardNumber)) {
         return setError('מספר כרטיס האשראי אינו תקין.')
       }
+      if (!termsAccepted) return setError('יש לאשר את תקנון האתר כדי להמשיך.')
     }
     setError('')
 
@@ -211,6 +217,21 @@ export default function Checkout() {
 
     // Inventory: reduce stock for each purchased STORE product.
     items.forEach((i) => decrementStock(DOMAINS.STORE, i.id, i.qty))
+
+    // Newsletter opt-in: persist on the profile for a logged-in customer; keep a
+    // local record for guests (used by the account toggle on this device).
+    if (newsletter && showNewsletter) {
+      if (user) {
+        updateProfile({ newsletter: true })
+      } else {
+        try {
+          const list = new Set(JSON.parse(localStorage.getItem('drfone_newsletter')) || [])
+          const mail = form.email.trim()
+          if (mail) list.add(mail)
+          localStorage.setItem('drfone_newsletter', JSON.stringify([...list]))
+        } catch { /* ignore */ }
+      }
+    }
 
     clear()
     setPlacedOrder(order)
@@ -457,9 +478,38 @@ export default function Checkout() {
             <span className="text-2xl font-extrabold text-ink">{money(total)}</span>
           </div>
 
+          {/* Newsletter opt-in (only when not already subscribed) + terms */}
+          <div className="mt-4 space-y-2.5 border-t border-black/5 pt-4">
+            {showNewsletter && (
+              <label className="flex cursor-pointer items-start gap-2 text-sm text-ink-light">
+                <input
+                  type="checkbox"
+                  checked={newsletter}
+                  onChange={(e) => setNewsletter(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-black/20 text-brand-500 focus:ring-brand-500"
+                />
+                <span>אני מעוניין/ת לקבל עדכונים ומבצעים לניוזלטר</span>
+              </label>
+            )}
+            <label className="flex cursor-pointer items-start gap-2 text-sm text-ink-light">
+              <input
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-black/20 text-brand-500 focus:ring-brand-500"
+              />
+              <span>
+                קראתי ואני מאשר/ת את{' '}
+                <Link to="/terms" target="_blank" className="font-semibold text-brand-600 hover:underline">
+                  תקנון האתר
+                </Link>
+              </span>
+            </label>
+          </div>
+
           <button
             type="submit"
-            className="mt-5 w-full rounded-xl bg-brand-500 py-3 font-semibold text-white transition hover:bg-brand-600 active:scale-[.99]"
+            className="mt-4 w-full rounded-xl bg-brand-500 py-3 font-semibold text-white transition hover:bg-brand-600 active:scale-[.99]"
           >
             אישור ושליחת הזמנה
           </button>

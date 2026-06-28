@@ -128,7 +128,7 @@ export function AuthProvider({ children }) {
   }, [user?.role, user?.id, refreshUsers])
 
   // ---- Auth actions (async) -> { ok, error?, user?, needsConfirmation? } ----
-  const register = useCallback(async ({ name, email, password, phone }) => {
+  const register = useCallback(async ({ name, email, password, phone, newsletter }) => {
     const cleanEmail = String(email || '').trim().toLowerCase()
     const cleanPhone = String(phone || '').replace(/\D/g, '').slice(0, 10)
     if (!name?.trim() || !cleanEmail || !password) {
@@ -137,7 +137,7 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.signUp({
       email: cleanEmail,
       password,
-      options: { data: { name: name.trim(), phone: cleanPhone } },
+      options: { data: { name: name.trim(), phone: cleanPhone, newsletter: !!newsletter } },
     })
     if (error) {
       const m = (error.message || '').toLowerCase()
@@ -152,9 +152,12 @@ export function AuthProvider({ children }) {
     }
     // With email-confirmation ON, there is no session until the user confirms.
     if (data.session) {
-      // The DB trigger seeds name/email only — persist the phone onto the new
-      // profile row now that we have a session.
-      if (cleanPhone) await supabase.from('profiles').update({ phone: cleanPhone }).eq('id', data.user.id)
+      // The DB trigger seeds name/email only — persist the phone (and newsletter
+      // opt-in) onto the new profile row now that we have a session.
+      const seed = {}
+      if (cleanPhone) seed.phone = cleanPhone
+      if (newsletter) seed.newsletter = true
+      if (Object.keys(seed).length) await supabase.from('profiles').update(seed).eq('id', data.user.id)
       const u = await loadProfile(data.user)
       setUser(u)
       return { ok: true, user: u }

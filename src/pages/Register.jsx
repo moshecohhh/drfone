@@ -20,6 +20,7 @@ export default function Register() {
     confirm: '',
   })
   const [remember, setRemember] = useState(true)
+  const [newsletter, setNewsletter] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [emailExists, setEmailExists] = useState(false)
@@ -69,7 +70,7 @@ export default function Register() {
       /* ignore */
     }
     setBusy(true)
-    const res = await register({ name, email: form.email, password: form.password, phone: form.phone })
+    const res = await register({ name, email: form.email, password: form.password, phone: form.phone, newsletter })
     setBusy(false)
     if (!res.ok) {
       setError(res.error)
@@ -205,6 +206,16 @@ export default function Register() {
             className="h-4 w-4 rounded border-black/20 text-brand-500 focus:ring-brand-500"
           />
           זכור אותי
+        </label>
+
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-light">
+          <input
+            type="checkbox"
+            checked={newsletter}
+            onChange={(e) => setNewsletter(e.target.checked)}
+            className="h-4 w-4 rounded border-black/20 text-brand-500 focus:ring-brand-500"
+          />
+          אני מעוניין/ת לקבל עדכונים ומבצעים לניוזלטר
         </label>
 
         <button
