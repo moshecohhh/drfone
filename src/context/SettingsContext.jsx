@@ -293,6 +293,23 @@ export function SettingsProvider({ children }) {
     return { ok: true }
   }, [])
 
+  // Toggle a ❤️ reaction on a single message (works from either side — the
+  // admin on any ticket, the customer on their own — RLS permits both).
+  const toggleMessageReaction = useCallback(async (inquiryId, messageId) => {
+    const inAdmin = inquiriesRef.current.find((i) => i.id === inquiryId)
+    const inMine = myInquiriesRef.current.find((i) => i.id === inquiryId)
+    const current = inAdmin || inMine
+    if (!current) return
+    const messages = (current.messages || []).map((m) =>
+      m.id === messageId ? { ...m, reaction: m.reaction ? null : '❤️' } : m,
+    )
+    const merged = { ...current, messages }
+    if (inAdmin) setInquiries((prev) => prev.map((i) => (i.id === inquiryId ? merged : i)))
+    if (inMine) setMyInquiries((prev) => prev.map((i) => (i.id === inquiryId ? merged : i)))
+    const { id: _i, read: _r, createdAt: _c, userId: _u, ...data } = merged
+    await supabase.from('inquiries').update({ data }).eq('id', inquiryId)
+  }, [])
+
   const markInquiryRead = useCallback((id, read = true) => {
     setInquiries((prev) => prev.map((i) => (i.id === id ? { ...i, read } : i)))
     supabase.from('inquiries').update({ read }).eq('id', id).then(() => {})
@@ -437,6 +454,7 @@ export function SettingsProvider({ children }) {
     addInquiry,
     replyToInquiry,
     addTicketMessage,
+    toggleMessageReaction,
     markInquiryRead,
     deleteInquiry,
     mapsLink,

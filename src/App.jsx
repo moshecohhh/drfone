@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import Home from './pages/Home.jsx'
 import RequireAdmin from './components/RequireAdmin.jsx'
 import AccessibilityWidget from './components/AccessibilityWidget.jsx'
+import BottomPrompts from './components/BottomPrompts.jsx'
 
 // Code-splitting: the storefront home page loads eagerly (it's the landing
 // page), but every other route — especially the heavy admin panel — is loaded
@@ -57,6 +58,8 @@ export default function App() {
       </Suspense>
       {/* Site-wide accessibility menu (required by law). */}
       <AccessibilityWidget />
+      {/* Dismissable bottom toasts (night dark-mode offer / newsletter nudge). */}
+      <BottomPrompts />
     </>
   )
 }

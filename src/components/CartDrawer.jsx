@@ -1,11 +1,20 @@
 import { useNavigate } from 'react-router-dom'
-import { X, Plus, Minus, Trash2, ShoppingCart, ShoppingBag, RotateCcw } from 'lucide-react'
-import { useCart } from '../context/CartContext.jsx'
+import { X, Plus, Minus, Trash2, ShoppingCart, ShoppingBag, RotateCcw, Clock } from 'lucide-react'
+import { useCart, CART_TTL_LABEL } from '../context/CartContext.jsx'
+import { useCatalogStore } from '../context/CatalogContext.jsx'
 
 // Slide-out shopping cart (Store products only).
 export default function CartDrawer() {
   const { items, open, setOpen, setQty, removeItem, subtotal, count, restorable, restoreCart, dismissRestore } = useCart()
+  const { store } = useCatalogStore()
   const navigate = useNavigate()
+
+  // Live stock (the saved cart line holds a snapshot; another shopper may have
+  // since bought the last unit). 0 → the product is now out of stock.
+  const liveStock = (it) => {
+    const p = Array.isArray(store) ? store.find((x) => x.id === it.id) : null
+    return p ? Number(p.stock) || 0 : Number(it.stock) || 0
+  }
 
   const goCheckout = () => {
     setOpen(false)
@@ -79,18 +88,22 @@ export default function CartDrawer() {
             <ul className="space-y-3">
               {items.map((it) => {
                 const lid = it.lineId || it.id
+                const oos = liveStock(it) <= 0
                 return (
-                <li key={lid} className="flex gap-3 rounded-xl border border-black/5 p-3">
+                <li key={lid} className={`flex gap-3 rounded-xl border p-3 ${oos ? 'border-red-200 bg-red-50/40' : 'border-black/5'}`}>
                   <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-brand-50 text-2xl">
                     {it.image ? (
-                      <img src={it.image} alt={it.name} className="h-full w-full object-cover" />
+                      <img src={it.image} alt={it.name} className={`h-full w-full object-cover ${oos ? 'opacity-50 grayscale' : ''}`} />
                     ) : (
                       <span>{it.emoji}</span>
                     )}
                   </div>
                   <div className="flex flex-1 flex-col">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="text-sm font-semibold text-ink">{it.name}</span>
+                      <span className="text-sm font-semibold text-ink">
+                        {it.name}
+                        {oos && <span className="ms-1.5 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">אזל מהמלאי</span>}
+                      </span>
                       <button
                         onClick={() => removeItem(lid)}
                         aria-label="הסרה"
@@ -150,6 +163,9 @@ export default function CartDrawer() {
         {/* Footer */}
         {items.length > 0 && (
           <div className="border-t border-black/5 px-5 py-4">
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] text-ink-light">
+              <Clock size={12} /> הסל שלך נשמר ל-{CART_TTL_LABEL}.
+            </p>
             <div className="mb-3 flex items-center justify-between text-base">
               <span className="font-semibold text-ink-light">סה״כ ביניים</span>
               <span className="text-xl font-extrabold text-ink">₪{subtotal}</span>

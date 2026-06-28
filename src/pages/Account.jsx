@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowRight, LogOut, ShoppingBag, UserCog, CreditCard, Mail, Package,
-  Plus, Trash2, Check, AlertCircle, BellRing, BellOff, ChevronDown, RotateCcw, Headset, MapPin, Star, FileText,
+  Plus, Trash2, Check, AlertCircle, BellRing, BellOff, ChevronDown, RotateCcw, Headset, MapPin, Star, FileText, Heart,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useOrders } from '../context/OrdersContext.jsx'
@@ -11,6 +11,7 @@ import { useCart } from '../context/CartContext.jsx'
 import { useCatalogStore } from '../context/CatalogContext.jsx'
 import { sanitizePhone, isValidPhone, luhnValid, passwordIssue } from '../utils/validation.js'
 import CitySelect from '../components/CitySelect.jsx'
+import StreetSelect from '../components/StreetSelect.jsx'
 import OrderStatusTimeline from '../components/OrderStatusTimeline.jsx'
 import Logo from '../components/Logo.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
@@ -103,6 +104,7 @@ function OrdersTab({ email }) {
   const [openId, setOpenId] = useState(null)
   const [serviceOrder, setServiceOrder] = useState(null) // order whose service-request modal is open
   const [reorderOrder, setReorderOrder] = useState(null) // multi-item order whose re-order picker is open
+  const [invoiceNoticeId, setInvoiceNoticeId] = useState(null) // order showing the "no invoice yet" note
   const mine = orders.filter((o) => o.customer?.email?.toLowerCase() === String(email).toLowerCase())
 
   const prodById = (id) => (Array.isArray(store) ? store.find((p) => p.id === id) : null)
@@ -224,7 +226,7 @@ function OrdersTab({ email }) {
                   >
                     <Headset size={15} /> פנייה לשירות
                   </button>
-                  {o.invoice?.url && (
+                  {o.invoice?.url ? (
                     <a
                       href={o.invoice.url}
                       target="_blank"
@@ -233,8 +235,21 @@ function OrdersTab({ email }) {
                     >
                       <FileText size={15} /> צפייה בחשבונית
                     </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceNoticeId((id) => (id === o.id ? null : o.id))}
+                      className="flex items-center gap-1.5 rounded-xl border border-black/10 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-black/5"
+                    >
+                      <FileText size={15} /> צפייה בחשבונית
+                    </button>
                   )}
                 </div>
+                {invoiceNoticeId === o.id && !o.invoice?.url && (
+                  <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2.5 text-xs font-medium text-amber-700">
+                    ההזמנה עדיין לא אושרה ולכן טרם הופקה חשבונית. נעדכן אותך ברגע שהיא תהיה זמינה.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -392,7 +407,7 @@ function ServiceRequestModal({ order, onClose }) {
 
 // ---- Service tickets: the customer's requests + the shop's replies ----
 function ServiceTicketsTab() {
-  const { myInquiries, addTicketMessage } = useSettings()
+  const { myInquiries, addTicketMessage, toggleMessageReaction } = useSettings()
   const tickets = Array.isArray(myInquiries) ? myInquiries : []
 
   if (tickets.length === 0) {
@@ -404,13 +419,13 @@ function ServiceTicketsTab() {
     <div className="space-y-3">
       <p className="text-sm text-ink-light">כאן תוכלו לעקוב אחר הפניות שלכם ולראות את תשובות החנות.</p>
       {tickets.map((t) => (
-        <TicketCard key={t.id} ticket={t} onSend={addTicketMessage} />
+        <TicketCard key={t.id} ticket={t} onSend={addTicketMessage} onReact={toggleMessageReaction} />
       ))}
     </div>
   )
 }
 
-function TicketCard({ ticket, onSend }) {
+function TicketCard({ ticket, onSend, onReact }) {
   const [open, setOpen] = useState(false)
   const [reply, setReply] = useState('')
   const [busy, setBusy] = useState(false)
@@ -449,14 +464,22 @@ function TicketCard({ ticket, onSend }) {
           )}
 
           <div className="space-y-2">
-            {messages.map((m) => (
-              <div key={m.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${m.from === 'shop' ? 'ml-auto bg-brand-500 text-white' : 'mr-auto bg-black/[0.04] text-ink'}`}>
-                <p className="whitespace-pre-wrap">{m.text}</p>
-                <span className={`mt-1 block text-[10px] ${m.from === 'shop' ? 'text-white/70' : 'text-ink-light'}`}>
-                  {m.from === 'shop' ? 'החנות' : 'אני'} · {fmtDate(m.at)}
-                </span>
-              </div>
-            ))}
+            {messages.map((m) => {
+              const shop = m.from === 'shop'
+              return (
+                <div key={m.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${shop ? 'ml-auto bg-brand-500 text-white' : 'mr-auto bg-black/[0.04] text-ink'}`}>
+                  <p className="whitespace-pre-wrap">{m.text}</p>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <span className={`text-[10px] ${shop ? 'text-white/70' : 'text-ink-light'}`}>
+                      {shop ? 'החנות' : 'אני'} · {fmtDate(m.at)}
+                    </span>
+                    <button type="button" onClick={() => onReact(ticket.id, m.id)} aria-label="לב על ההודעה" className="shrink-0">
+                      <Heart size={13} className={m.reaction ? 'fill-red-500 text-red-500' : shop ? 'text-white/60 hover:text-white' : 'text-ink-light hover:text-red-500'} />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
 
           <div className="mt-3 flex items-end gap-2 border-t border-black/5 pt-3">
@@ -594,7 +617,7 @@ function BillingTab() {
 function AddressesCard() {
   const { user, updateProfile } = useAuth()
   const addresses = Array.isArray(user.addresses) ? user.addresses : []
-  const [form, setForm] = useState({ city: '', street: '', house: '', apartment: '' })
+  const [form, setForm] = useState({ city: '', street: '', house: '', apartment: '', notes: '' })
   const [error, setError] = useState('')
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
@@ -611,10 +634,11 @@ function AddressesCard() {
       street: form.street.trim(),
       house: form.house.trim(),
       apartment: form.apartment.trim(),
+      notes: form.notes.trim(), // delivery instructions for the courier
       isDefault: addresses.length === 0, // first one is the default
     }
     persist([...addresses, entry])
-    setForm({ city: '', street: '', house: '', apartment: '' })
+    setForm({ city: '', street: '', house: '', apartment: '', notes: '' })
   }
   const remove = (id) => {
     const next = addresses.filter((a) => a.id !== id)
@@ -635,18 +659,25 @@ function AddressesCard() {
         <div className="mb-5 space-y-2">
           {addresses.map((a) => (
             <div key={a.id} className={`flex items-center justify-between gap-2 rounded-xl border p-3 ${a.isDefault ? 'border-brand-300 bg-brand-50/50' : 'border-black/10'}`}>
-              <span className="flex items-center gap-2 text-sm text-ink">
-                <MapPin size={15} className="shrink-0 text-brand-500" /> {fmt(a)}
-                {a.isDefault && <span className="rounded-full bg-brand-500 px-2 py-0.5 text-[10px] font-bold text-white">ברירת מחדל</span>}
+              <span className="min-w-0 text-sm text-ink">
+                <span className="flex items-center gap-2">
+                  <MapPin size={15} className="shrink-0 text-brand-500" /> {fmt(a)}
+                </span>
+                {a.notes && <span className="mt-1 block pr-6 text-xs text-ink-light">📝 {a.notes}</span>}
               </span>
               <span className="flex shrink-0 items-center gap-1">
-                {!a.isDefault && (
-                  <button type="button" onClick={() => makeDefault(a.id)} title="קבע כברירת מחדל" className="rounded-lg p-2 text-ink-light hover:bg-black/5 hover:text-brand-600">
-                    <Star size={15} />
-                  </button>
-                )}
+                {/* Star = default toggle. Filled amber when this is the default. */}
+                <button
+                  type="button"
+                  onClick={() => makeDefault(a.id)}
+                  title={a.isDefault ? 'כתובת ברירת המחדל' : 'קביעה כברירת מחדל'}
+                  aria-pressed={a.isDefault}
+                  className="rounded-lg p-1.5 transition hover:bg-black/5"
+                >
+                  <Star size={20} className={a.isDefault ? 'text-amber-400' : 'text-ink-light hover:text-amber-400'} fill={a.isDefault ? 'currentColor' : 'none'} />
+                </button>
                 <button type="button" onClick={() => remove(a.id)} aria-label="מחיקה" className="rounded-lg p-2 text-ink-light hover:bg-red-50 hover:text-red-600">
-                  <Trash2 size={15} />
+                  <Trash2 size={16} />
                 </button>
               </span>
             </div>
@@ -662,15 +693,21 @@ function AddressesCard() {
             <span className="mb-1 block text-xs font-semibold text-ink-light">עיר</span>
             <CitySelect value={form.city} onChange={(v) => set('city', v)} />
           </div>
-          <Field label="רחוב">
-            <input className={inputCls} value={form.street} onChange={(e) => set('street', e.target.value)} autoComplete="address-line1" />
-          </Field>
+          <div>
+            <span className="mb-1 block text-xs font-semibold text-ink-light">רחוב</span>
+            <StreetSelect value={form.street} onChange={(v) => set('street', v)} city={form.city} />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="מס׳ בית">
               <input className={inputCls} value={form.house} onChange={(e) => set('house', e.target.value)} />
             </Field>
             <Field label="דירה / כניסה">
               <input className={inputCls} value={form.apartment} onChange={(e) => set('apartment', e.target.value)} />
+            </Field>
+          </div>
+          <div className="sm:col-span-2">
+            <Field label="הערות לשליח (אופציונלי)">
+              <input className={inputCls} value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="לדוגמה: קומה 3, קוד בניין 1234, להשאיר ליד הדלת" />
             </Field>
           </div>
         </div>

@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { safeSetItem, safeGetItem } from '../utils/storage.js'
+import { supabase } from '../lib/supabase.js'
+import { useAuth } from './AuthContext.jsx'
 
 // ---------------------------------------------------------------------------
 // Shopping cart — STORE PRODUCTS ONLY.
@@ -11,8 +13,11 @@ import { safeSetItem, safeGetItem } from '../utils/storage.js'
 
 const CART_KEY = 'drfone_cart'
 const CART_TS_KEY = 'drfone_cart_ts' // last-activity timestamp
-const CART_RESTORE_KEY = 'drfone_cart_restore' // backup from a 24h auto-clear
-const DAY_MS = 24 * 60 * 60 * 1000
+const CART_RESTORE_KEY = 'drfone_cart_restore' // backup from an auto-clear
+// The cart is kept for 3 hours from the last activity; after that it's emptied
+// (with a one-time restore offer) so reserved items don't linger indefinitely.
+export const CART_TTL_MS = 3 * 60 * 60 * 1000
+export const CART_TTL_LABEL = '3 שעות'
 
 // Stable per-line identity = product id + chosen color + chosen page-options.
 // `optionsKey` is a stable signature of the selected product-page option ids, so
@@ -38,7 +43,7 @@ function loadInitial() {
     items = []
   }
   const ts = Number(safeGetItem(CART_TS_KEY)) || 0
-  if (items.length && ts && Date.now() - ts > DAY_MS) {
+  if (items.length && ts && Date.now() - ts > CART_TTL_MS) {
     safeSetItem(CART_RESTORE_KEY, JSON.stringify(items))
     return { items: [], restorable: items }
   }
@@ -55,6 +60,7 @@ function loadInitial() {
 const CartContext = createContext(null)
 
 export function CartProvider({ children }) {
+  const { user } = useAuth()
   const initial = loadInitial()
   const [items, setItems] = useState(initial.items) // [{ id, name, price, ... }]
   const [restorable, setRestorable] = useState(initial.restorable)
@@ -65,6 +71,26 @@ export function CartProvider({ children }) {
     safeSetItem(CART_KEY, JSON.stringify(items))
     safeSetItem(CART_TS_KEY, String(Date.now()))
   }, [items])
+
+  // Mirror a signed-in customer's cart to Supabase so the shop can see who has
+  // items in their cart (the "abandoned carts" admin view). Guests stay local
+  // only. Debounced; an empty cart removes the row. RLS scopes it to the owner.
+  useEffect(() => {
+    if (!user?.id) return
+    const t = setTimeout(() => {
+      if (items.length === 0) {
+        supabase.from('carts').delete().eq('id', user.id).then(() => {})
+      } else {
+        const data = {
+          items: items.map((i) => ({ id: i.id, name: i.name, image: i.image || '', price: i.price, qty: i.qty, color: i.color || '' })),
+          subtotal: items.reduce((s, i) => s + i.price * i.qty, 0),
+          customer: { name: user.name || '', email: user.email || '', phone: user.phone || '' },
+        }
+        supabase.from('carts').upsert({ id: user.id, user_id: user.id, data, updated_at: new Date().toISOString() }).then(() => {})
+      }
+    }, 800)
+    return () => clearTimeout(t)
+  }, [items, user?.id, user?.name, user?.email, user?.phone])
 
   // Restore the items that were auto-cleared after 24h.
   const restoreCart = useCallback(() => {

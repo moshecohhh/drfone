@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Mail, Phone, Trash2, MailOpen, Inbox, ShoppingBag, Send, Headset } from 'lucide-react'
+import { Mail, Phone, Trash2, MailOpen, Inbox, ShoppingBag, Send, Headset, Heart } from 'lucide-react'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { PanelHead, EmptyState } from './ui.jsx'
@@ -14,7 +14,7 @@ const CATS = [
 const catOf = (q) => (q.category === 'post-purchase' ? 'post-purchase' : 'site')
 
 export default function InquiriesPanel({ onOpenOrder }) {
-  const { inquiries, markInquiryRead, deleteInquiry, replyToInquiry } = useSettings()
+  const { inquiries, markInquiryRead, deleteInquiry, replyToInquiry, toggleMessageReaction } = useSettings()
   const { user } = useAuth()
   const [cat, setCat] = useState('site')
   const list = inquiries.filter((q) => catOf(q) === cat)
@@ -55,6 +55,7 @@ export default function InquiriesPanel({ onOpenOrder }) {
               q={q}
               author={user?.name}
               onReply={replyToInquiry}
+              onReact={toggleMessageReaction}
               onToggleRead={() => markInquiryRead(q.id, !q.read)}
               onDelete={() => window.confirm('למחוק את הפנייה?') && deleteInquiry(q.id)}
               onOpenOrder={onOpenOrder}
@@ -66,7 +67,7 @@ export default function InquiriesPanel({ onOpenOrder }) {
   )
 }
 
-function InquiryCard({ q, author, onReply, onToggleRead, onDelete, onOpenOrder }) {
+function InquiryCard({ q, author, onReply, onReact, onToggleRead, onDelete, onOpenOrder }) {
   const [reply, setReply] = useState('')
   const [busy, setBusy] = useState(false)
   const messages = Array.isArray(q.messages) ? q.messages : []
@@ -137,14 +138,22 @@ function InquiryCard({ q, author, onReply, onToggleRead, onDelete, onOpenOrder }
 
       {/* Conversation thread */}
       <div className="mt-3 space-y-2">
-        {messages.map((m) => (
-          <div key={m.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${m.from === 'shop' ? 'mr-auto bg-brand-500 text-white' : 'ml-auto bg-black/[0.04] text-ink'}`}>
-            <p className="whitespace-pre-wrap">{m.text}</p>
-            <span className={`mt-1 block text-[10px] ${m.from === 'shop' ? 'text-white/70' : 'text-ink-light'}`}>
-              {m.from === 'shop' ? 'החנות' : q.name || 'לקוח'} · {fmt(m.at)}
-            </span>
-          </div>
-        ))}
+        {messages.map((m) => {
+          const shop = m.from === 'shop'
+          return (
+            <div key={m.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${shop ? 'mr-auto bg-brand-500 text-white' : 'ml-auto bg-black/[0.04] text-ink'}`}>
+              <p className="whitespace-pre-wrap">{m.text}</p>
+              <div className="mt-1 flex items-center justify-between gap-2">
+                <span className={`text-[10px] ${shop ? 'text-white/70' : 'text-ink-light'}`}>
+                  {shop ? 'החנות' : q.name || 'לקוח'} · {fmt(m.at)}
+                </span>
+                <button type="button" onClick={() => onReact(q.id, m.id)} aria-label="לב על ההודעה" className="shrink-0">
+                  <Heart size={13} className={m.reaction ? 'fill-red-500 text-red-500' : shop ? 'text-white/60 hover:text-white' : 'text-ink-light hover:text-red-500'} />
+                </button>
+              </div>
+            </div>
+          )
+        })}
         {messages.length === 0 && q.message && (
           <p className="whitespace-pre-wrap rounded-xl bg-black/[0.03] p-3 text-sm text-ink">{q.message}</p>
         )}
