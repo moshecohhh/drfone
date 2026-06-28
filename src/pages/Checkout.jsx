@@ -53,28 +53,35 @@ export default function Checkout() {
     setForm((f) => ({ ...f, [k]: val }))
   }
 
-  // Pre-fill a signed-in customer's details: the saved default address on their
-  // profile takes priority, falling back to their most recent order (orders are
-  // sorted newest-first and RLS-scoped to the user). Runs once and only fills
-  // fields the customer hasn't already typed, so it never overwrites input.
+  // Saved delivery addresses (the customer can pick one at checkout).
+  const savedAddresses = Array.isArray(user?.addresses) ? user.addresses : []
+  const [selectedAddressId, setSelectedAddressId] = useState(null)
+  const applyAddress = (a) =>
+    setForm((f) => ({ ...f, city: a.city || '', street: a.street || '', house: a.house || '', apartment: a.apartment || '' }))
+
+  // Pre-fill a signed-in customer's details. Address priority: the chosen/default
+  // saved address → legacy single default → most recent order. Runs once and only
+  // fills fields the customer hasn't already typed, so it never overwrites input.
   const lastOrder = user
     ? orders.find((o) => o.customer?.email?.toLowerCase() === String(user.email || '').toLowerCase())
     : null
   const prefilled = useRef(false)
   useEffect(() => {
     if (prefilled.current || !user) return
-    const ap = user.addressParts || {}
+    const def = savedAddresses.find((a) => a.isDefault) || savedAddresses[0] || null
+    const addr = def || user.addressParts || {}
     const c = lastOrder?.customer || {}
     const src = {
       name: user.name || c.name || '',
       phone: user.phone || c.phone || '',
-      city: ap.city || c.city || '',
-      street: ap.street || c.street || '',
-      house: ap.house || c.house || '',
-      apartment: ap.apartment || c.apartment || '',
+      city: addr.city || c.city || '',
+      street: addr.street || c.street || '',
+      house: addr.house || c.house || '',
+      apartment: addr.apartment || c.apartment || '',
     }
     if (!src.name && !src.phone && !src.city && !src.street) return // data not ready yet
     prefilled.current = true
+    if (def) setSelectedAddressId(def.id)
     const savedDelivery = lastOrder && deliveryMethods.some((d) => d.id === lastOrder.delivery) ? lastOrder.delivery : null
     setForm((f) => ({
       ...f,
@@ -305,6 +312,35 @@ export default function Checkout() {
             {/* Shipping address — only for non-pickup methods. */}
             {!isPickup && (
               <div className="mt-4 grid gap-4 rounded-xl bg-brand-50/50 p-4 sm:grid-cols-2">
+                {/* Saved-address picker (when the customer has any saved). */}
+                {savedAddresses.length > 0 && (
+                  <div className="sm:col-span-2">
+                    <span className="mb-1 block text-xs font-semibold text-ink-light">בחירת כתובת שמורה</span>
+                    <div className="flex flex-wrap gap-2">
+                      {savedAddresses.map((a) => (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => { setSelectedAddressId(a.id); applyAddress(a) }}
+                          className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                            selectedAddressId === a.id ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-black/10 bg-white text-ink hover:border-brand-300'
+                          }`}
+                        >
+                          {a.street} {a.house}, {a.city}{a.isDefault ? ' ⭐' : ''}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedAddressId('new'); setForm((f) => ({ ...f, city: '', street: '', house: '', apartment: '' })) }}
+                        className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                          selectedAddressId === 'new' ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-black/10 bg-white text-ink hover:border-brand-300'
+                        }`}
+                      >
+                        + כתובת אחרת
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="sm:col-span-2">
                   <span className="mb-1 block text-xs font-semibold text-ink-light">עיר <Req /></span>
                   <CitySelect id="co-city" value={form.city} onChange={(v) => set('city', v)} />
