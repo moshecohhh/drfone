@@ -1,15 +1,54 @@
 import { useState, useRef, useEffect } from 'react'
 import { MapPin, ChevronDown, Check, Search, X } from 'lucide-react'
-import CITIES from '../data/israelCities.js'
+import BUNDLED_CITIES from '../data/israelCities.js'
+import { supabase } from '../lib/supabase.js'
 
-// Searchable city picker backed by the bundled Israeli-localities list.
-// The customer must pick from the list; a "city not listed" escape switches to
-// a free-text field so a rare settlement never blocks an order.
+// The full national localities list (cities + moshavim + kibbutzim…) is fetched
+// ONCE from the CBS dataset (via the `localities` edge function) and cached, so
+// the picker shows everything with no latency. The bundled list is the instant
+// fallback while it loads / if it's unavailable.
+const LS_KEY = 'drfone_localities'
+const LS_TTL = 30 * 24 * 60 * 60 * 1000 // 30 days
+let memCities = null
+
+function loadCachedCities() {
+  if (memCities) return memCities
+  try {
+    const raw = JSON.parse(localStorage.getItem(LS_KEY) || 'null')
+    if (raw && Array.isArray(raw.cities) && raw.cities.length && Date.now() - (raw.at || 0) < LS_TTL) {
+      memCities = raw.cities
+      return memCities
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
+// Searchable city picker. A "city not listed" escape switches to a free-text
+// field so a truly rare settlement never blocks an order.
 export default function CitySelect({ value, onChange, invalid, id }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [other, setOther] = useState(false)
+  const [cities, setCities] = useState(() => loadCachedCities() || BUNDLED_CITIES)
   const boxRef = useRef(null)
+
+  // Fetch the complete localities list once (cached across the session + 30d).
+  useEffect(() => {
+    if (loadCachedCities()) { setCities(memCities); return }
+    let active = true
+    supabase.functions
+      .invoke('localities', { body: {} })
+      .then(({ data }) => {
+        const list = Array.isArray(data?.localities) ? data.localities : []
+        if (list.length) {
+          memCities = list
+          try { localStorage.setItem(LS_KEY, JSON.stringify({ at: Date.now(), cities: list })) } catch { /* ignore */ }
+          if (active) setCities(list)
+        }
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
 
   // Close the dropdown on an outside click.
   useEffect(() => {
@@ -21,7 +60,7 @@ export default function CitySelect({ value, onChange, invalid, id }) {
   }, [])
 
   const q = query.trim()
-  const matches = (q ? CITIES.filter((c) => c.includes(q)) : CITIES).slice(0, 60)
+  const matches = (q ? cities.filter((c) => c.includes(q)) : cities).slice(0, 60)
 
   const baseCls = `w-full rounded-xl border bg-white py-2.5 pr-9 pl-3 text-sm text-ink outline-none transition focus:ring-2 focus:ring-brand-500/30 ${
     invalid ? 'border-red-400 focus:border-red-500' : 'border-black/10 focus:border-brand-500'
