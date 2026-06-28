@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowRight, LogOut, ShoppingBag, UserCog, CreditCard, Mail, Package,
-  Plus, Trash2, Check, AlertCircle, BellRing, BellOff, ChevronDown, RotateCcw, Headset, MapPin, Star, FileText,
+  Plus, Trash2, Check, AlertCircle, BellRing, BellOff, ChevronDown, RotateCcw, Headset, MapPin, Star, FileText, Heart,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useOrders } from '../context/OrdersContext.jsx'
@@ -104,6 +104,7 @@ function OrdersTab({ email }) {
   const [openId, setOpenId] = useState(null)
   const [serviceOrder, setServiceOrder] = useState(null) // order whose service-request modal is open
   const [reorderOrder, setReorderOrder] = useState(null) // multi-item order whose re-order picker is open
+  const [invoiceNoticeId, setInvoiceNoticeId] = useState(null) // order showing the "no invoice yet" note
   const mine = orders.filter((o) => o.customer?.email?.toLowerCase() === String(email).toLowerCase())
 
   const prodById = (id) => (Array.isArray(store) ? store.find((p) => p.id === id) : null)
@@ -225,7 +226,7 @@ function OrdersTab({ email }) {
                   >
                     <Headset size={15} /> פנייה לשירות
                   </button>
-                  {o.invoice?.url && (
+                  {o.invoice?.url ? (
                     <a
                       href={o.invoice.url}
                       target="_blank"
@@ -234,8 +235,21 @@ function OrdersTab({ email }) {
                     >
                       <FileText size={15} /> צפייה בחשבונית
                     </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceNoticeId((id) => (id === o.id ? null : o.id))}
+                      className="flex items-center gap-1.5 rounded-xl border border-black/10 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-black/5"
+                    >
+                      <FileText size={15} /> צפייה בחשבונית
+                    </button>
                   )}
                 </div>
+                {invoiceNoticeId === o.id && !o.invoice?.url && (
+                  <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2.5 text-xs font-medium text-amber-700">
+                    ההזמנה עדיין לא אושרה ולכן טרם הופקה חשבונית. נעדכן אותך ברגע שהיא תהיה זמינה.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -393,7 +407,7 @@ function ServiceRequestModal({ order, onClose }) {
 
 // ---- Service tickets: the customer's requests + the shop's replies ----
 function ServiceTicketsTab() {
-  const { myInquiries, addTicketMessage } = useSettings()
+  const { myInquiries, addTicketMessage, toggleMessageReaction } = useSettings()
   const tickets = Array.isArray(myInquiries) ? myInquiries : []
 
   if (tickets.length === 0) {
@@ -405,13 +419,13 @@ function ServiceTicketsTab() {
     <div className="space-y-3">
       <p className="text-sm text-ink-light">כאן תוכלו לעקוב אחר הפניות שלכם ולראות את תשובות החנות.</p>
       {tickets.map((t) => (
-        <TicketCard key={t.id} ticket={t} onSend={addTicketMessage} />
+        <TicketCard key={t.id} ticket={t} onSend={addTicketMessage} onReact={toggleMessageReaction} />
       ))}
     </div>
   )
 }
 
-function TicketCard({ ticket, onSend }) {
+function TicketCard({ ticket, onSend, onReact }) {
   const [open, setOpen] = useState(false)
   const [reply, setReply] = useState('')
   const [busy, setBusy] = useState(false)
@@ -450,14 +464,22 @@ function TicketCard({ ticket, onSend }) {
           )}
 
           <div className="space-y-2">
-            {messages.map((m) => (
-              <div key={m.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${m.from === 'shop' ? 'ml-auto bg-brand-500 text-white' : 'mr-auto bg-black/[0.04] text-ink'}`}>
-                <p className="whitespace-pre-wrap">{m.text}</p>
-                <span className={`mt-1 block text-[10px] ${m.from === 'shop' ? 'text-white/70' : 'text-ink-light'}`}>
-                  {m.from === 'shop' ? 'החנות' : 'אני'} · {fmtDate(m.at)}
-                </span>
-              </div>
-            ))}
+            {messages.map((m) => {
+              const shop = m.from === 'shop'
+              return (
+                <div key={m.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${shop ? 'ml-auto bg-brand-500 text-white' : 'mr-auto bg-black/[0.04] text-ink'}`}>
+                  <p className="whitespace-pre-wrap">{m.text}</p>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <span className={`text-[10px] ${shop ? 'text-white/70' : 'text-ink-light'}`}>
+                      {shop ? 'החנות' : 'אני'} · {fmtDate(m.at)}
+                    </span>
+                    <button type="button" onClick={() => onReact(ticket.id, m.id)} aria-label="לב על ההודעה" className="shrink-0">
+                      <Heart size={13} className={m.reaction ? 'fill-red-500 text-red-500' : shop ? 'text-white/60 hover:text-white' : 'text-ink-light hover:text-red-500'} />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
 
           <div className="mt-3 flex items-end gap-2 border-t border-black/5 pt-3">
