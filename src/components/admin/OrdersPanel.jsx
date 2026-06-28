@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronDown, Trash2, Package, Phone, MapPin, CreditCard, User, Mail, MessageSquare, Pencil, Plus, X, Check, CheckCircle2, FileText } from 'lucide-react'
+import { ChevronDown, Trash2, Package, Phone, MapPin, CreditCard, User, Mail, MessageSquare, Pencil, Plus, X, Check, CheckCircle2, FileText, AlertTriangle } from 'lucide-react'
 import { useOrders } from '../../context/OrdersContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import { useCatalogStore } from '../../context/CatalogContext.jsx'
@@ -248,9 +248,9 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
   const [search, setSearch] = useState('')
   const [invBusy, setInvBusy] = useState(false)
   const [invErr, setInvErr] = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
-  const onIssueInvoice = async (draft) => {
-    if (!draft && !window.confirm('להפיק חשבונית מס אמיתית? פעולה זו יוצרת מסמך מס רשמי (לא ניתן למחיקה רגילה).')) return
+  const doIssue = async (draft) => {
     setInvErr('')
     setInvBusy(true)
     const res = await issueInvoice(order, { draft })
@@ -307,16 +307,16 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
             </button>
           )}
           {/* Draft (preview) — always available. */}
-          <button type="button" onClick={() => onIssueInvoice(true)} disabled={invBusy} className="flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-ink hover:bg-black/5 disabled:opacity-60">
+          <button type="button" onClick={() => doIssue(true)} disabled={invBusy} className="flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-ink hover:bg-black/5 disabled:opacity-60">
             <FileText size={14} /> {invBusy ? '…' : 'טיוטה'}
           </button>
-          {/* Real invoice — open the issued one, or create it. */}
+          {/* Real invoice — open the issued one, or open the confirm dialog. */}
           {order.invoice?.url ? (
             <a href={order.invoice.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-700 hover:bg-brand-100">
               <FileText size={14} /> חשבונית{order.invoice.number ? ` ${order.invoice.number}` : ''}
             </a>
           ) : (
-            <button type="button" onClick={() => onIssueInvoice(false)} disabled={invBusy} className="flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-bold text-white hover:bg-ink-dark disabled:opacity-60">
+            <button type="button" onClick={() => setConfirmOpen(true)} disabled={invBusy} className="flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-bold text-white hover:bg-ink-dark disabled:opacity-60">
               <FileText size={14} /> {invBusy ? 'מפיק…' : 'הפקת חשבונית'}
             </button>
           )}
@@ -385,6 +385,35 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
             <button type="button" onClick={save} className="flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-600">
               <Check size={14} /> שמירת שינויים
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm dialog before issuing a REAL (irreversible) tax invoice. */}
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmOpen(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-card-hover" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-col items-center text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600"><AlertTriangle size={24} /></span>
+              <h3 className="mt-3 text-base font-extrabold text-ink">הפקת חשבונית מס</h3>
+              <p className="mt-1 text-sm text-ink-light">האם אתה בטוח שברצונך להפיק את המסמך? פעולה זו אינה ניתנת לביטול.</p>
+            </div>
+            <div className="mt-5 space-y-2">
+              <button type="button" onClick={() => { setConfirmOpen(false); doIssue(false) }} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-ink py-2.5 text-sm font-bold text-white hover:bg-ink-dark">
+                <Check size={16} /> כן, הפק את החשבונית
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => { setConfirmOpen(false); doIssue(true) }} className="flex items-center justify-center gap-1.5 rounded-xl border border-black/10 py-2.5 text-sm font-bold text-ink hover:bg-black/5">
+                  <FileText size={15} /> צפייה בטיוטה
+                </button>
+                <button type="button" onClick={() => { setConfirmOpen(false); setEditing(true) }} className="flex items-center justify-center gap-1.5 rounded-xl border border-black/10 py-2.5 text-sm font-bold text-ink hover:bg-black/5">
+                  <Pencil size={15} /> עריכת הזמנה
+                </button>
+              </div>
+              <button type="button" onClick={() => setConfirmOpen(false)} className="w-full rounded-xl py-2 text-sm font-semibold text-ink-light hover:text-ink">
+                לא, ביטול
+              </button>
+            </div>
           </div>
         </div>
       )}
