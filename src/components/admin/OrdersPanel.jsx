@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronDown, Trash2, Package, Phone, MapPin, CreditCard, User, Mail, MessageSquare } from 'lucide-react'
+import { ChevronDown, Trash2, Package, Phone, MapPin, CreditCard, User, Mail, MessageSquare, Pencil, Plus, X, Check, CheckCircle2 } from 'lucide-react'
 import { useOrders } from '../../context/OrdersContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import PhoneActions from './PhoneActions.jsx'
@@ -11,7 +11,7 @@ const fmtDate = (iso) =>
   new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 export default function OrdersPanel({ focusId = null }) {
-  const { orders, updateStatus, deleteOrder, addOrderLog, markOrderRead } = useOrders()
+  const { orders, updateStatus, updateOrderItems, deleteOrder, addOrderLog, markOrderRead } = useOrders()
   const { orderStatuses, orderStatusMeta, paymentLabel: payLabel, deliveryLabel } = useSettings()
   const { user } = useAuth()
   const [expanded, setExpanded] = useState(null)
@@ -218,6 +218,11 @@ export default function OrdersPanel({ focusId = null }) {
                   </div>
                 </div>
 
+                {/* Edit items / add custom item + approve */}
+                <div className="sm:col-span-2">
+                  <OrderEditor order={o} updateOrderItems={updateOrderItems} updateStatus={updateStatus} />
+                </div>
+
                 <div className="sm:col-span-2 border-t border-black/5 pt-3">
                   <JournalLog entries={o.log} onAdd={(text) => addOrderLog(o.id, text, user?.name)} />
                 </div>
@@ -227,6 +232,103 @@ export default function OrdersPanel({ focusId = null }) {
         )
       })}
       </div>
+    </div>
+  )
+}
+
+// Admin order editor — change quantities, remove lines, add a custom line item
+// (name + price), then save. Also approves a pending order. Lets the shop fix
+// stock issues with the customer before finalising, instead of refunding.
+function OrderEditor({ order, updateOrderItems, updateStatus }) {
+  const [editing, setEditing] = useState(false)
+  const [items, setItems] = useState(order.items || [])
+  const [custom, setCustom] = useState({ name: '', price: '', qty: 1 })
+
+  // Re-sync if the order changes underneath us (e.g. another save).
+  useEffect(() => { setItems(order.items || []) }, [order.items])
+
+  const subtotal = items.reduce((n, it) => n + (Number(it.price) || 0) * (Number(it.qty) || 0), 0)
+  const total = subtotal + (Number(order.deliveryPrice) || 0)
+
+  const setQty = (i, q) => setItems((arr) => arr.map((it, idx) => (idx === i ? { ...it, qty: Math.max(1, Number(q) || 1) } : it)))
+  const removeItem = (i) => setItems((arr) => arr.filter((_, idx) => idx !== i))
+  const addCustom = () => {
+    const price = Number(custom.price)
+    if (!custom.name.trim() || !(price >= 0)) return
+    const id = `custom-${Date.now()}`
+    setItems((arr) => [...arr, { id, lineId: id, name: custom.name.trim(), price, listPrice: price, qty: Math.max(1, Number(custom.qty) || 1), image: '', custom: true }])
+    setCustom({ name: '', price: '', qty: 1 })
+  }
+  const save = () => { updateOrderItems(order.id, items); setEditing(false) }
+  const cancel = () => { setItems(order.items || []); setEditing(false) }
+
+  const isPending = order.status === 'pending' || order.status === 'new'
+
+  return (
+    <div className="rounded-xl border border-black/5 bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-bold text-ink-light">עריכת הזמנה</span>
+        <div className="flex items-center gap-2">
+          {isPending && (
+            <button
+              type="button"
+              onClick={() => updateStatus(order.id, 'processing')}
+              className="flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-600"
+            >
+              <CheckCircle2 size={14} /> אישור הזמנה
+            </button>
+          )}
+          {!editing && (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-ink hover:bg-black/5"
+            >
+              <Pencil size={14} /> עריכת פריטים
+            </button>
+          )}
+        </div>
+      </div>
+
+      {editing && (
+        <div className="mt-3 space-y-2 border-t border-black/5 pt-3">
+          {items.map((it, i) => (
+            <div key={it.lineId || it.id || i} className="flex items-center gap-2 text-sm">
+              <span className="min-w-0 flex-1 break-words">{it.name}{it.custom && <span className="mr-1 rounded bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">כללי</span>}</span>
+              <input
+                type="number"
+                min="1"
+                value={it.qty}
+                onChange={(e) => setQty(i, e.target.value)}
+                className="w-14 rounded-lg border border-black/10 px-2 py-1 text-center text-sm outline-none focus:border-brand-500"
+              />
+              <span className="w-16 shrink-0 text-left font-bold text-ink">₪{(Number(it.price) || 0) * (Number(it.qty) || 0)}</span>
+              <button type="button" onClick={() => removeItem(i)} aria-label="הסרה" className="shrink-0 rounded-lg p-1.5 text-ink-light hover:bg-red-50 hover:text-red-600">
+                <X size={15} />
+              </button>
+            </div>
+          ))}
+
+          {/* Add a custom (general) line item with an admin-set price. */}
+          <div className="mt-2 grid grid-cols-[1fr_5rem_4rem_auto] items-center gap-2 rounded-lg bg-brand-50/60 p-2">
+            <input value={custom.name} onChange={(e) => setCustom((c) => ({ ...c, name: e.target.value }))} placeholder="שם פריט כללי" className="rounded-lg border border-black/10 px-2 py-1.5 text-sm outline-none focus:border-brand-500" />
+            <input type="number" min="0" value={custom.price} onChange={(e) => setCustom((c) => ({ ...c, price: e.target.value }))} placeholder="מחיר ₪" className="rounded-lg border border-black/10 px-2 py-1.5 text-sm outline-none focus:border-brand-500" />
+            <input type="number" min="1" value={custom.qty} onChange={(e) => setCustom((c) => ({ ...c, qty: e.target.value }))} placeholder="כמות" className="rounded-lg border border-black/10 px-2 py-1.5 text-sm outline-none focus:border-brand-500" />
+            <button type="button" onClick={addCustom} className="flex items-center justify-center rounded-lg bg-brand-500 p-2 text-white hover:bg-brand-600"><Plus size={16} /></button>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-black/5 pt-2 text-sm">
+            <span className="font-semibold text-ink-light">סה״כ חדש (כולל משלוח)</span>
+            <span className="text-lg font-extrabold text-ink">₪{total}</span>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={cancel} className="rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-ink hover:bg-black/5">ביטול</button>
+            <button type="button" onClick={save} className="flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-600">
+              <Check size={14} /> שמירת שינויים
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

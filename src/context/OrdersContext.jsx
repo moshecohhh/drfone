@@ -77,7 +77,7 @@ export function OrdersProvider({ children }) {
         id,
         number,
         createdAt: new Date().toISOString(),
-        status: 'new',
+        status: 'pending', // new orders await the shop's approval before processing
         read: false, // new orders start unread (red) until an admin opens them
         customer,
         payment,
@@ -95,7 +95,7 @@ export function OrdersProvider({ children }) {
         .insert({
           id,
           number,
-          status: 'new',
+          status: 'pending',
           user_id: user?.id || null,
           data: orderToData(order),
         })
@@ -109,6 +109,20 @@ export function OrdersProvider({ children }) {
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)))
     supabase.from('orders').update({ status }).eq('id', id).then(({ error }) => {
       if (error) console.warn('[orders] updateStatus failed:', error.message)
+    })
+  }, [])
+
+  // Admin: replace an order's line items (edit/remove/add custom) and re-total.
+  // Shipping is preserved; total = items subtotal + delivery price.
+  const updateOrderItems = useCallback((id, items) => {
+    const current = ordersRef.current.find((o) => o.id === id)
+    if (!current) return
+    const subtotal = items.reduce((n, it) => n + (Number(it.price) || 0) * (Number(it.qty) || 0), 0)
+    const total = subtotal + (Number(current.deliveryPrice) || 0)
+    const merged = { ...current, items, total }
+    setOrders((prev) => prev.map((o) => (o.id === id ? merged : o)))
+    supabase.from('orders').update({ data: orderToData(merged) }).eq('id', id).then(({ error }) => {
+      if (error) console.warn('[orders] updateOrderItems failed:', error.message)
     })
   }, [])
 
@@ -141,7 +155,7 @@ export function OrdersProvider({ children }) {
     })
   }, [])
 
-  const value = { orders, addOrder, updateStatus, deleteOrder, addOrderLog, markOrderRead }
+  const value = { orders, addOrder, updateStatus, updateOrderItems, deleteOrder, addOrderLog, markOrderRead }
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>
 }
