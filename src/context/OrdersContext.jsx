@@ -138,13 +138,15 @@ export function OrdersProvider({ children }) {
     })
   }, [])
 
-  // Admin: create a real tax invoice in SUMIT (via the sumit-invoice edge
-  // function) and store the result on the order. Returns { ok, error? }.
-  const issueInvoice = useCallback(async (order) => {
-    const { data, error } = await supabase.functions.invoke('sumit-invoice', { body: order })
+  // Admin: create a document in SUMIT via the sumit-invoice edge function.
+  // opts.draft = true → a draft for preview (NOT stored on the order); otherwise
+  // a real tax invoice, which is stored on the order. Returns { ok, invoice?, error? }.
+  const issueInvoice = useCallback(async (order, opts = {}) => {
+    const draft = !!opts.draft
+    const { data, error } = await supabase.functions.invoke('sumit-invoice', { body: { ...order, draft } })
     if (error) return { ok: false, error: error.message }
     if (!data?.ok) return { ok: false, error: data?.error || 'יצירת החשבונית נכשלה' }
-    setOrderInvoice(order.id, data.invoice)
+    if (!draft) setOrderInvoice(order.id, data.invoice)
     return { ok: true, invoice: data.invoice }
   }, [setOrderInvoice])
 

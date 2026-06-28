@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ChevronDown, Trash2, Package, Phone, MapPin, CreditCard, User, Mail, MessageSquare, Pencil, Plus, X, Check, CheckCircle2, FileText } from 'lucide-react'
 import { useOrders } from '../../context/OrdersContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
+import { useCatalogStore } from '../../context/CatalogContext.jsx'
 import PhoneActions from './PhoneActions.jsx'
 import JournalLog from './JournalLog.jsx'
 import { PanelSearch } from './ui.jsx'
@@ -240,18 +241,22 @@ export default function OrdersPanel({ focusId = null }) {
 // (name + price), then save. Also approves a pending order. Lets the shop fix
 // stock issues with the customer before finalising, instead of refunding.
 function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
+  const { store } = useCatalogStore()
   const [editing, setEditing] = useState(false)
   const [items, setItems] = useState(order.items || [])
   const [custom, setCustom] = useState({ name: '', price: '', qty: 1 })
+  const [search, setSearch] = useState('')
   const [invBusy, setInvBusy] = useState(false)
   const [invErr, setInvErr] = useState('')
 
-  const onIssueInvoice = async () => {
+  const onIssueInvoice = async (draft) => {
+    if (!draft && !window.confirm('להפיק חשבונית מס אמיתית? פעולה זו יוצרת מסמך מס רשמי (לא ניתן למחיקה רגילה).')) return
     setInvErr('')
     setInvBusy(true)
-    const res = await issueInvoice(order)
+    const res = await issueInvoice(order, { draft })
     setInvBusy(false)
-    if (!res.ok) setInvErr(res.error || 'יצירת החשבונית נכשלה')
+    if (!res.ok) { setInvErr(res.error || 'יצירת החשבונית נכשלה'); return }
+    if (draft && res.invoice?.url) window.open(res.invoice.url, '_blank') // preview the draft
   }
 
   // Re-sync if the order changes underneath us (e.g. another save).
@@ -261,6 +266,7 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
   const total = subtotal + (Number(order.deliveryPrice) || 0)
 
   const setQty = (i, q) => setItems((arr) => arr.map((it, idx) => (idx === i ? { ...it, qty: Math.max(1, Number(q) || 1) } : it)))
+  const setPrice = (i, p) => setItems((arr) => arr.map((it, idx) => (idx === i ? { ...it, price: Math.max(0, Number(p) || 0) } : it)))
   const removeItem = (i) => setItems((arr) => arr.filter((_, idx) => idx !== i))
   const addCustom = () => {
     const price = Number(custom.price)
@@ -269,52 +275,49 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
     setItems((arr) => [...arr, { id, lineId: id, name: custom.name.trim(), price, listPrice: price, qty: Math.max(1, Number(custom.qty) || 1), image: '', custom: true }])
     setCustom({ name: '', price: '', qty: 1 })
   }
+  const addProduct = (p) => {
+    const price = Number(p.price) || 0
+    setItems((arr) => [...arr, { id: p.id, lineId: `${p.id}-${Date.now()}`, name: p.name, price, listPrice: price, qty: 1, image: p.image || (Array.isArray(p.images) ? p.images[0] : '') || '' }])
+    setSearch('')
+  }
   const save = () => { updateOrderItems(order.id, items); setEditing(false) }
   const cancel = () => { setItems(order.items || []); setEditing(false) }
 
+  const term = search.trim().toLowerCase()
+  const matches = term && Array.isArray(store)
+    ? store.filter((p) => (p.name || '').toLowerCase().includes(term)).slice(0, 8)
+    : []
+
   const isPending = order.status === 'pending' || order.status === 'new'
+  const inputCls = 'rounded-lg border border-black/10 px-2 py-1.5 text-sm outline-none focus:border-brand-500'
 
   return (
     <div className="rounded-xl border border-black/5 bg-white p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-bold text-ink-light">עריכת הזמנה</span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isPending && (
-            <button
-              type="button"
-              onClick={() => updateStatus(order.id, 'processing')}
-              className="flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-600"
-            >
+            <button type="button" onClick={() => updateStatus(order.id, 'processing')} className="flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-600">
               <CheckCircle2 size={14} /> אישור הזמנה
             </button>
           )}
           {!editing && (
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-ink hover:bg-black/5"
-            >
+            <button type="button" onClick={() => setEditing(true)} className="flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-ink hover:bg-black/5">
               <Pencil size={14} /> עריכת פריטים
             </button>
           )}
-          {/* Invoice: open the issued one, or create it in SUMIT. */}
+          {/* Draft (preview) — always available. */}
+          <button type="button" onClick={() => onIssueInvoice(true)} disabled={invBusy} className="flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-ink hover:bg-black/5 disabled:opacity-60">
+            <FileText size={14} /> {invBusy ? '…' : 'טיוטה'}
+          </button>
+          {/* Real invoice — open the issued one, or create it. */}
           {order.invoice?.url ? (
-            <a
-              href={order.invoice.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-700 hover:bg-brand-100"
-            >
+            <a href={order.invoice.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-700 hover:bg-brand-100">
               <FileText size={14} /> חשבונית{order.invoice.number ? ` ${order.invoice.number}` : ''}
             </a>
           ) : (
-            <button
-              type="button"
-              onClick={onIssueInvoice}
-              disabled={invBusy}
-              className="flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-ink hover:bg-black/5 disabled:opacity-60"
-            >
-              <FileText size={14} /> {invBusy ? 'מפיק חשבונית…' : 'הפקת חשבונית'}
+            <button type="button" onClick={() => onIssueInvoice(false)} disabled={invBusy} className="flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-bold text-white hover:bg-ink-dark disabled:opacity-60">
+              <FileText size={14} /> {invBusy ? 'מפיק…' : 'הפקת חשבונית'}
             </button>
           )}
         </div>
@@ -322,30 +325,55 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice }) {
       {invErr && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{invErr}</p>}
 
       {editing && (
-        <div className="mt-3 space-y-2 border-t border-black/5 pt-3">
+        <div className="mt-3 space-y-3 border-t border-black/5 pt-3">
+          {/* Item rows — name on top, then price / qty / total / remove (wraps on mobile) */}
           {items.map((it, i) => (
-            <div key={it.lineId || it.id || i} className="flex items-center gap-2 text-sm">
-              <span className="min-w-0 flex-1 break-words">{it.name}{it.custom && <span className="mr-1 rounded bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">כללי</span>}</span>
-              <input
-                type="number"
-                min="1"
-                value={it.qty}
-                onChange={(e) => setQty(i, e.target.value)}
-                className="w-14 rounded-lg border border-black/10 px-2 py-1 text-center text-sm outline-none focus:border-brand-500"
-              />
-              <span className="w-16 shrink-0 text-left font-bold text-ink">₪{(Number(it.price) || 0) * (Number(it.qty) || 0)}</span>
-              <button type="button" onClick={() => removeItem(i)} aria-label="הסרה" className="shrink-0 rounded-lg p-1.5 text-ink-light hover:bg-red-50 hover:text-red-600">
-                <X size={15} />
-              </button>
+            <div key={it.lineId || it.id || i} className="rounded-lg border border-black/10 p-2">
+              <div className="flex items-start justify-between gap-2">
+                <span className="min-w-0 flex-1 break-words text-sm font-semibold text-ink">
+                  {it.name}
+                  {it.custom && <span className="ms-1 rounded bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">כללי</span>}
+                </span>
+                <button type="button" onClick={() => removeItem(i)} aria-label="הסרה" className="shrink-0 rounded-lg p-1 text-ink-light hover:bg-red-50 hover:text-red-600">
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-ink-light">
+                <label className="flex items-center gap-1">מחיר ₪
+                  <input type="number" min="0" value={it.price} onChange={(e) => setPrice(i, e.target.value)} className={`w-20 text-center ${inputCls} py-1`} />
+                </label>
+                <label className="flex items-center gap-1">כמות
+                  <input type="number" min="1" value={it.qty} onChange={(e) => setQty(i, e.target.value)} className={`w-16 text-center ${inputCls} py-1`} />
+                </label>
+                <span className="ms-auto text-sm font-bold text-ink">₪{(Number(it.price) || 0) * (Number(it.qty) || 0)}</span>
+              </div>
             </div>
           ))}
 
-          {/* Add a custom (general) line item with an admin-set price. */}
-          <div className="mt-2 grid grid-cols-[1fr_5rem_4rem_auto] items-center gap-2 rounded-lg bg-brand-50/60 p-2">
-            <input value={custom.name} onChange={(e) => setCustom((c) => ({ ...c, name: e.target.value }))} placeholder="שם פריט כללי" className="rounded-lg border border-black/10 px-2 py-1.5 text-sm outline-none focus:border-brand-500" />
-            <input type="number" min="0" value={custom.price} onChange={(e) => setCustom((c) => ({ ...c, price: e.target.value }))} placeholder="מחיר ₪" className="rounded-lg border border-black/10 px-2 py-1.5 text-sm outline-none focus:border-brand-500" />
-            <input type="number" min="1" value={custom.qty} onChange={(e) => setCustom((c) => ({ ...c, qty: e.target.value }))} placeholder="כמות" className="rounded-lg border border-black/10 px-2 py-1.5 text-sm outline-none focus:border-brand-500" />
-            <button type="button" onClick={addCustom} className="flex items-center justify-center rounded-lg bg-brand-500 p-2 text-white hover:bg-brand-600"><Plus size={16} /></button>
+          {/* Add from inventory */}
+          <div>
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="חיפוש מוצר מהמלאי להוספה…" className={`w-full ${inputCls}`} />
+            {term && (
+              <div className="mt-1 max-h-44 overflow-y-auto rounded-lg border border-black/10">
+                {matches.length ? matches.map((p) => (
+                  <button key={p.id} type="button" onClick={() => addProduct(p)} className="flex w-full items-center justify-between gap-2 px-3 py-2 text-right text-sm hover:bg-brand-50">
+                    <span className="min-w-0 flex-1 truncate text-ink">{p.name}</span>
+                    <span className="shrink-0 text-xs text-ink-light">₪{p.price} · מלאי {p.stock ?? 0}</span>
+                  </button>
+                )) : <p className="px-3 py-2 text-xs text-ink-light">לא נמצא מוצר</p>}
+              </div>
+            )}
+          </div>
+
+          {/* Add a custom (general) line item with an admin-set price */}
+          <div className="rounded-lg bg-brand-50/60 p-2">
+            <p className="mb-2 text-xs font-bold text-ink-light">הוספת פריט כללי (מחיר חופשי)</p>
+            <div className="flex flex-wrap gap-2">
+              <input value={custom.name} onChange={(e) => setCustom((c) => ({ ...c, name: e.target.value }))} placeholder="שם הפריט" className={`min-w-[8rem] flex-1 ${inputCls}`} />
+              <input type="number" min="0" value={custom.price} onChange={(e) => setCustom((c) => ({ ...c, price: e.target.value }))} placeholder="מחיר ₪" className={`w-24 ${inputCls}`} />
+              <input type="number" min="1" value={custom.qty} onChange={(e) => setCustom((c) => ({ ...c, qty: e.target.value }))} placeholder="כמות" className={`w-20 ${inputCls}`} />
+              <button type="button" onClick={addCustom} className="flex items-center gap-1 rounded-lg bg-brand-500 px-3 py-1.5 text-sm font-bold text-white hover:bg-brand-600"><Plus size={16} /> הוסף</button>
+            </div>
           </div>
 
           <div className="flex items-center justify-between border-t border-black/5 pt-2 text-sm">

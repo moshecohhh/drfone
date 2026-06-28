@@ -77,9 +77,9 @@ Deno.serve(async (req) => {
   const payload = {
     Credentials: { CompanyID: SUMIT_COMPANY_ID, APIKey: SUMIT_API_KEY },
     Details: {
-      // TESTING: issue a DRAFT (not a finalized tax document) so the shop can
-      // verify the data safely. Flip to false to issue real tax invoices.
-      IsDraft: true,
+      // The admin chooses: a draft (preview, deletable, not a tax document) or a
+      // real finalized tax invoice. Controlled per request via `draft`.
+      IsDraft: order.draft === true,
       Customer: {
         Name: String(cust.name ?? 'לקוח'),
         Phone: String(cust.phone ?? ''),
