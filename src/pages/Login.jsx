@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { LogIn, Mail, Lock, AlertCircle, KeyRound, ArrowRight } from 'lucide-react'
+import { LogIn, Mail, Lock, AlertCircle, KeyRound, ArrowRight, MailCheck } from 'lucide-react'
 import { useAuth, ROLES } from '../context/AuthContext.jsx'
 import { savePasswordCredential } from '../utils/credentials.js'
 import Logo from '../components/Logo.jsx'
@@ -76,7 +76,10 @@ export default function Login() {
         </form>
       ) : !otpSent ? (
         <form onSubmit={onSendOtp} className="space-y-4">
-          <p className="text-sm text-ink-light">נשלח קוד התחברות חד-פעמי לכתובת המייל שלך.</p>
+          <div className="flex flex-col items-center gap-2 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><KeyRound size={24} /></span>
+            <p className="text-sm text-ink-light">נשלח אליך קוד התחברות חד-פעמי למייל — בלי צורך בסיסמה.</p>
+          </div>
           <Field icon={Mail} name="email" type="email" placeholder="אימייל" value={form.email} onChange={onChange} autoComplete="email" />
           <button type="submit" disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 font-semibold text-white transition hover:bg-brand-600 disabled:opacity-60">
             <KeyRound size={18} /> {busy ? 'שולח…' : 'שליחת קוד למייל'}
@@ -84,14 +87,31 @@ export default function Login() {
         </form>
       ) : (
         <form onSubmit={onVerifyOtp} className="space-y-4">
-          <p className="text-sm text-ink-light">הזן את הקוד שנשלח ל-<span dir="ltr" className="font-semibold text-ink">{form.email}</span></p>
-          <Field icon={KeyRound} name="otp" type="text" inputMode="numeric" placeholder="קוד בן 6 ספרות" value={otp} onChange={(e) => setOtp(e.target.value)} autoComplete="one-time-code" />
+          <div className="flex flex-col items-center gap-2 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><MailCheck size={24} /></span>
+            <h2 className="text-base font-extrabold text-ink">הזנת קוד האימות</h2>
+            <p className="text-sm text-ink-light">שלחנו קוד לכתובת<br /><span dir="ltr" className="font-semibold text-ink">{form.email}</span></p>
+          </div>
+          <input
+            value={otp}
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            autoFocus
+            placeholder="••••••"
+            className="w-full rounded-xl border border-black/10 bg-white py-3.5 text-center text-2xl font-bold tracking-[0.4em] text-ink outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+          />
           <button type="submit" disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 py-3 font-semibold text-white transition hover:bg-brand-600 disabled:opacity-60">
             <LogIn size={18} /> {busy ? 'מאמת…' : 'אימות והתחברות'}
           </button>
-          <button type="button" onClick={() => { setOtpSent(false); setOtp(''); setError('') }} className="flex w-full items-center justify-center gap-1 text-sm font-medium text-ink-light hover:text-ink">
-            <ArrowRight size={14} /> חזרה / שליחת קוד מחדש
-          </button>
+          <div className="flex items-center justify-between text-sm">
+            <button type="button" onClick={() => { setOtpSent(false); setOtp(''); setError('') }} className="flex items-center gap-1 font-medium text-ink-light hover:text-ink">
+              <ArrowRight size={14} /> שינוי מייל
+            </button>
+            <button type="button" disabled={busy} onClick={onSendOtp} className="font-semibold text-brand-600 hover:underline disabled:opacity-60">
+              שליחת קוד מחדש
+            </button>
+          </div>
         </form>
       )}
 

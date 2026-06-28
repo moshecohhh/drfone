@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowRight, LogOut, ShoppingBag, UserCog, CreditCard, Mail, Package,
-  Plus, Trash2, Check, AlertCircle, BellRing, BellOff, ChevronDown, RotateCcw, Headset, MapPin, Star, FileText, Heart,
+  Plus, Trash2, Check, AlertCircle, BellRing, BellOff, ChevronDown, RotateCcw, Headset, MapPin, Star, FileText, Heart, CheckCheck,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useOrders } from '../context/OrdersContext.jsx'
@@ -407,7 +407,7 @@ function ServiceRequestModal({ order, onClose }) {
 
 // ---- Service tickets: the customer's requests + the shop's replies ----
 function ServiceTicketsTab() {
-  const { myInquiries, addTicketMessage, toggleMessageReaction } = useSettings()
+  const { myInquiries, addTicketMessage, toggleMessageReaction, markTicketRead } = useSettings()
   const tickets = Array.isArray(myInquiries) ? myInquiries : []
 
   if (tickets.length === 0) {
@@ -419,18 +419,20 @@ function ServiceTicketsTab() {
     <div className="space-y-3">
       <p className="text-sm text-ink-light">כאן תוכלו לעקוב אחר הפניות שלכם ולראות את תשובות החנות.</p>
       {tickets.map((t) => (
-        <TicketCard key={t.id} ticket={t} onSend={addTicketMessage} onReact={toggleMessageReaction} />
+        <TicketCard key={t.id} ticket={t} onSend={addTicketMessage} onReact={toggleMessageReaction} onMarkRead={markTicketRead} />
       ))}
     </div>
   )
 }
 
-function TicketCard({ ticket, onSend, onReact }) {
+function TicketCard({ ticket, onSend, onReact, onMarkRead }) {
   const [open, setOpen] = useState(false)
   const [reply, setReply] = useState('')
   const [busy, setBusy] = useState(false)
   const messages = Array.isArray(ticket.messages) ? ticket.messages : []
   const answered = ticket.status === 'answered'
+  // Opening the ticket marks the shop's messages as read (blue ticks for them).
+  useEffect(() => { if (open) onMarkRead?.(ticket.id, 'customer') }, [open, ticket.id, messages.length, onMarkRead])
 
   const send = async () => {
     if (!reply.trim()) return
@@ -470,8 +472,10 @@ function TicketCard({ ticket, onSend, onReact }) {
                 <div key={m.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${shop ? 'ml-auto bg-brand-500 text-white' : 'mr-auto bg-black/[0.04] text-ink'}`}>
                   <p className="whitespace-pre-wrap">{m.text}</p>
                   <div className="mt-1 flex items-center justify-between gap-2">
-                    <span className={`text-[10px] ${shop ? 'text-white/70' : 'text-ink-light'}`}>
+                    <span className={`flex items-center gap-1 text-[10px] ${shop ? 'text-white/70' : 'text-ink-light'}`}>
                       {shop ? 'החנות' : 'אני'} · {fmtDate(m.at)}
+                      {/* Read receipt on my own messages (did the shop read?). */}
+                      {!shop && <CheckCheck size={14} className={m.read ? 'text-blue-500' : 'text-ink-light/50'} />}
                     </span>
                     <button type="button" onClick={() => onReact(ticket.id, m.id)} aria-label="לב על ההודעה" className="shrink-0">
                       <Heart size={13} className={m.reaction ? 'fill-red-500 text-red-500' : shop ? 'text-white/60 hover:text-white' : 'text-ink-light hover:text-red-500'} />
