@@ -28,14 +28,15 @@ Deno.serve(async (req) => {
     /* empty body → empty result */
   }
   const city = String(body.city ?? '').trim()
-  const q = String(body.q ?? '').trim()
   if (!city) return json({ streets: [] })
 
   try {
-    // `q` as a JSON object does a lenient per-field full-text search, which
-    // tolerates the CBS city_name spacing/format (exact `filters` would not).
-    const search = JSON.stringify(q ? { city_name: city, street_name: q } : { city_name: city })
-    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${RESOURCE_ID}&limit=120&q=${encodeURIComponent(search)}`
+    // Return the WHOLE street list for the city in one shot — the client caches
+    // it and filters locally, so typing is instant and revisits need no network.
+    // `q` as a JSON object is a lenient per-field search (tolerates the CBS
+    // city_name spacing/format that exact `filters` would miss).
+    const search = JSON.stringify({ city_name: city })
+    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${RESOURCE_ID}&limit=5000&q=${encodeURIComponent(search)}`
     const res = await fetch(url, { headers: { Accept: 'application/json' } })
     const data = await res.json().catch(() => ({}))
     const records = data?.result?.records ?? []

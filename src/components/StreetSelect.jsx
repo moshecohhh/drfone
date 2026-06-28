@@ -3,10 +3,31 @@ import { MapPin, ChevronDown, Check, Search, X } from 'lucide-react'
 import { useSettings } from '../context/SettingsContext.jsx'
 import { supabase } from '../lib/supabase.js'
 
-// Street picker — mirrors CitySelect. Streets come from the national CBS dataset
-// (via the `streets` edge function, scoped to the chosen city), plus any
-// admin-defined streets (Settings → "רשימת רחובות למשלוח"). A "street not listed"
-// escape switches to free text so nothing is ever blocked.
+// Street picker — mirrors CitySelect. A city's full street list is fetched ONCE
+// (national CBS dataset, via the `streets` edge function) and cached in memory +
+// localStorage, then filtered locally — so typing is instant and revisits need
+// no network. Admin-defined streets (Settings) are merged in. A "street not
+// listed" escape switches to free text so nothing is ever blocked.
+const memCache = new Map() // city -> string[]  (lives for the page session)
+const LS_PREFIX = 'drfone_streets:'
+const LS_TTL = 30 * 24 * 60 * 60 * 1000 // 30 days
+
+function readCache(city) {
+  if (memCache.has(city)) return memCache.get(city)
+  try {
+    const raw = JSON.parse(localStorage.getItem(LS_PREFIX + city) || 'null')
+    if (raw && Array.isArray(raw.streets) && Date.now() - (raw.at || 0) < LS_TTL) {
+      memCache.set(city, raw.streets)
+      return raw.streets
+    }
+  } catch { /* ignore */ }
+  return null
+}
+function writeCache(city, streets) {
+  memCache.set(city, streets)
+  try { localStorage.setItem(LS_PREFIX + city, JSON.stringify({ at: Date.now(), streets })) } catch { /* ignore */ }
+}
+
 export default function StreetSelect({ value, onChange, city, id, invalid }) {
   const { settings } = useSettings()
   const baseList = Array.isArray(settings?.streets) ? settings.streets : []
@@ -16,7 +37,6 @@ export default function StreetSelect({ value, onChange, city, id, invalid }) {
   const [remote, setRemote] = useState([])
   const [loading, setLoading] = useState(false)
   const boxRef = useRef(null)
-  const timer = useRef(null)
 
   useEffect(() => {
     const onDoc = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false) }
@@ -24,25 +44,24 @@ export default function StreetSelect({ value, onChange, city, id, invalid }) {
     return () => document.removeEventListener('mousedown', onDoc)
   }, [])
 
-  // Load the chosen city's streets from the national dataset (server-side proxy
-  // → no browser CORS issues). Reloads as the city changes or the search refines.
+  // Load the city's full street list ONCE (cached). No per-keystroke network.
   useEffect(() => {
-    clearTimeout(timer.current)
     if (!city) { setRemote([]); return }
+    const cached = readCache(city)
+    if (cached) { setRemote(cached); return }
     let active = true
     setLoading(true)
-    timer.current = setTimeout(async () => {
-      try {
-        const { data } = await supabase.functions.invoke('streets', { body: { city, q: query.trim() } })
-        if (active) setRemote(Array.isArray(data?.streets) ? data.streets : [])
-      } catch {
-        if (active) setRemote([])
-      } finally {
-        if (active) setLoading(false)
-      }
-    }, 250)
-    return () => { active = false; clearTimeout(timer.current) }
-  }, [query, city])
+    supabase.functions
+      .invoke('streets', { body: { city } })
+      .then(({ data }) => {
+        const streets = Array.isArray(data?.streets) ? data.streets : []
+        if (streets.length) writeCache(city, streets)
+        if (active) setRemote(streets)
+      })
+      .catch(() => active && setRemote([]))
+      .finally(() => active && setLoading(false))
+    return () => { active = false }
+  }, [city])
 
   const q = query.trim()
   const merged = [...new Set([...baseList, ...remote])]
