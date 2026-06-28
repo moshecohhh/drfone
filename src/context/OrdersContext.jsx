@@ -147,13 +147,23 @@ export function OrdersProvider({ children }) {
     return data || { ok: false, error: 'failed' }
   }, [])
 
+  // Cancel/retire a SUMIT document (e.g. a superseded draft) — best-effort.
+  const cancelDocument = useCallback(async (documentId, description) => {
+    if (!documentId) return { ok: false }
+    const { data, error } = await supabase.functions.invoke('sumit-invoice', { body: { action: 'cancel', documentId, description } })
+    if (error) return { ok: false, error: error.message }
+    return data || { ok: false }
+  }, [])
+
   // Admin: create a document in SUMIT via the sumit-invoice edge function.
   // opts.draft = true → a draft for preview; otherwise a real tax invoice.
   // When a real invoice is issued we store it AND clear any open draft in a
   // single write, so no orphan draft is left behind after the document is final.
   const issueInvoice = useCallback(async (order, opts = {}) => {
     const draft = !!opts.draft
-    const { data, error } = await supabase.functions.invoke('sumit-invoice', { body: { ...order, draft } })
+    // Finalizing a real invoice from an existing draft: link & retire the draft.
+    const originalDocumentId = !draft && order.draftInvoice?.id ? order.draftInvoice.id : undefined
+    const { data, error } = await supabase.functions.invoke('sumit-invoice', { body: { ...order, draft, originalDocumentId } })
     if (error) return { ok: false, error: error.message }
     if (!data?.ok) return { ok: false, error: data?.error || 'יצירת החשבונית נכשלה' }
     if (!draft) {
@@ -198,7 +208,7 @@ export function OrdersProvider({ children }) {
     })
   }, [])
 
-  const value = { orders, addOrder, updateStatus, updateOrderItems, issueInvoice, setOrderDraft, getInvoicePdf, deleteOrder, addOrderLog, markOrderRead }
+  const value = { orders, addOrder, updateStatus, updateOrderItems, issueInvoice, setOrderDraft, getInvoicePdf, cancelDocument, deleteOrder, addOrderLog, markOrderRead }
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>
 }

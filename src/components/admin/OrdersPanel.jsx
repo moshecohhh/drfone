@@ -12,7 +12,7 @@ const fmtDate = (iso) =>
   new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 export default function OrdersPanel({ focusId = null }) {
-  const { orders, updateStatus, updateOrderItems, issueInvoice, setOrderDraft, getInvoicePdf, deleteOrder, addOrderLog, markOrderRead } = useOrders()
+  const { orders, updateStatus, updateOrderItems, issueInvoice, setOrderDraft, getInvoicePdf, cancelDocument, deleteOrder, addOrderLog, markOrderRead } = useOrders()
   const { orderStatuses, orderStatusMeta, paymentLabel: payLabel, deliveryLabel } = useSettings()
   const { user } = useAuth()
   const [expanded, setExpanded] = useState(null)
@@ -221,7 +221,7 @@ export default function OrdersPanel({ focusId = null }) {
 
                 {/* Edit items / add custom item + approve */}
                 <div className="sm:col-span-2">
-                  <OrderEditor order={o} updateOrderItems={updateOrderItems} updateStatus={updateStatus} issueInvoice={issueInvoice} setOrderDraft={setOrderDraft} getInvoicePdf={getInvoicePdf} />
+                  <OrderEditor order={o} updateOrderItems={updateOrderItems} updateStatus={updateStatus} issueInvoice={issueInvoice} setOrderDraft={setOrderDraft} getInvoicePdf={getInvoicePdf} cancelDocument={cancelDocument} />
                 </div>
 
                 <div className="sm:col-span-2 border-t border-black/5 pt-3">
@@ -240,7 +240,7 @@ export default function OrdersPanel({ focusId = null }) {
 // Admin order editor — change quantities, remove lines, add a custom line item
 // (name + price), then save. Also approves a pending order. Lets the shop fix
 // stock issues with the customer before finalising, instead of refunding.
-function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice, setOrderDraft, getInvoicePdf }) {
+function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice, setOrderDraft, getInvoicePdf, cancelDocument }) {
   const { store } = useCatalogStore()
   const [editing, setEditing] = useState(false)
   const [items, setItems] = useState(order.items || [])
@@ -291,8 +291,12 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice, setO
       if (res?.ok && res.pdfBase64) { openInvoicePreview({ pdfBase64: res.pdfBase64 }); return }
       // Couldn't re-fetch (deleted/expired) — fall through to create a new one.
     }
+    // Replacing a stale draft (the order changed): retire the old draft in
+    // SUMIT first — there's no edit endpoint, so a new draft supersedes it.
+    const staleId = order.draftInvoice?.id
     const inv = await createDocument(true)
     if (inv) {
+      if (staleId && staleId !== inv.id) cancelDocument(staleId, 'טיוטה הוחלפה לאחר שינוי בהזמנה')
       setOrderDraft(order.id, { id: inv.id, number: inv.number, sig: orderSig })
       openInvoicePreview(inv)
     }

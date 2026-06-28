@@ -45,6 +45,23 @@ async function isMasterAdmin(token: string): Promise<boolean> {
   }
 }
 
+// Cancel an existing SUMIT document (the API has no delete — cancel is the
+// documented way to retire a document/draft). Returns the parsed SUMIT body.
+async function cancelDocument(documentId: number, description: string) {
+  const res = await fetch(`${SUMIT_BASE}/accounting/documents/cancel/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      Credentials: { CompanyID: SUMIT_COMPANY_ID, APIKey: SUMIT_API_KEY },
+      DocumentID: documentId,
+      Description: description || 'ביטול טיוטה',
+    }),
+  })
+  const body = await res.json().catch(() => ({}))
+  const ok = res.ok && (body?.Status === 0 || String(body?.Status).toLowerCase().includes('success'))
+  return { ok, body }
+}
+
 // Fetch a document's PDF (raw binary) from SUMIT and return it base64-encoded,
 // or null if unavailable. Works by DocumentID, so any device can re-open it.
 async function fetchPdf(documentId: number): Promise<string | null> {
@@ -89,6 +106,13 @@ Deno.serve(async (req) => {
     return json({ ok: !!pdf, pdfBase64: pdf, error: pdf ? undefined : 'PDF unavailable' })
   }
 
+  // Mode: cancel/retire an existing document (e.g. a superseded draft). SUMIT
+  // has no delete; cancel is the documented equivalent.
+  if (order.action === 'cancel') {
+    const { ok, body } = await cancelDocument(Number(order.documentId), String(order.description ?? 'ביטול טיוטה'))
+    return json({ ok, error: ok ? undefined : (body?.UserErrorMessage || body?.TechnicalErrorDetails || 'ביטול נכשל') })
+  }
+
   const cust = (order.customer ?? {}) as Record<string, unknown>
   const rawItems = Array.isArray(order.items) ? order.items : []
   // Each order line → a SUMIT document item. Prices include VAT (VATIncluded).
@@ -110,6 +134,9 @@ Deno.serve(async (req) => {
       // The admin chooses: a draft (preview, deletable, not a tax document) or a
       // real finalized tax invoice. Controlled per request via `draft`.
       IsDraft: order.draft === true,
+      // When finalizing from a draft, link the invoice to its source draft so
+      // the relationship is recorded in SUMIT ("produced from the draft").
+      ...(order.originalDocumentId ? { OriginalDocumentID: Number(order.originalDocumentId) } : {}),
       Customer: {
         Name: String(cust.name ?? 'לקוח'),
         Phone: String(cust.phone ?? ''),
@@ -140,6 +167,12 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: body?.UserErrorMessage || body?.TechnicalErrorDetails || `SUMIT error (${res.status})` }, 200)
     }
     const d = body.Data ?? {}
+
+    // Finalizing a real invoice from a draft: retire the source draft so no
+    // open draft is left behind. Best-effort — never fail the invoice over it.
+    if (order.draft !== true && order.originalDocumentId) {
+      await cancelDocument(Number(order.originalDocumentId), `הופקה חשבונית ${d.DocumentNumber ?? ''}`).catch(() => {})
+    }
 
     // Fetch the actual PDF so the admin previews the real document (not SUMIT's
     // customer payment page).
