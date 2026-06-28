@@ -100,7 +100,9 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
           (it.description || '').toLowerCase().includes(term) ||
           brandLabel(it.brand).toLowerCase().includes(term) ||
           catLabel(it.category).toLowerCase().includes(term) ||
-          (!!it.barcode && String(it.barcode).toLowerCase().includes(term)),
+          (!!it.barcode && String(it.barcode).toLowerCase().includes(term)) ||
+          (!!it.imei1 && String(it.imei1).includes(term)) ||
+          (!!it.imei2 && String(it.imei2).includes(term)),
       )
     }
     if (lowOnly && !isService) list = list.filter((it) => (Number(it.stock) || 0) <= LOW_STOCK_THRESHOLD)
@@ -178,7 +180,7 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
         <PanelSearch
           value={query}
           onChange={setQuery}
-          placeholder={isService ? 'חיפוש שירות…' : 'חיפוש מוצר / ברקוד…'}
+          placeholder={isService ? 'חיפוש שירות…' : 'חיפוש מוצר / ברקוד / IMEI…'}
           className="w-full sm:w-56"
         />
 
@@ -265,7 +267,12 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
                     <ImagePlus size={15} />
                   </span>
                 </button>
-                <span className="font-semibold text-ink">{item.name}</span>
+                <span className="min-w-0">
+                  <span className="font-semibold text-ink">{item.name}</span>
+                  {item.hasSerial && item.imei1 && (
+                    <span className="block font-mono text-[11px] text-ink-light" dir="ltr">IMEI: {item.imei1}{item.imei2 ? ` / ${item.imei2}` : ''}</span>
+                  )}
+                </span>
               </div>
             </td>
             <td className="px-4 py-3 text-ink-light">{brandLabel(item.brand)}</td>

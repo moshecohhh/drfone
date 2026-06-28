@@ -22,6 +22,13 @@ const RANGES = [
 const ils = (n) => `₪${Math.round(n).toLocaleString()}`
 const startOfDay = (ts) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime() }
 
+// Israeli VAT (18%); on VAT-inclusive prices the VAT owed on a sale is the
+// margin times this fraction (the input VAT on the purchase is reclaimed).
+const VAT_RATE = 0.18
+const VAT_FRACTION = VAT_RATE / (1 + VAT_RATE)
+// Clearing (סליקה) fee as a % of the transaction, per number of payments.
+const CLEARING_RATES = { 1: 0.65, 2: 0.576, 3: 0.864, 4: 1.151 }
+
 // A comprehensive statistics dashboard built entirely from the live data
 // (orders, catalog, customers) — no external charting dependency.
 export default function StatisticsPanel({ onBack }) {
@@ -30,16 +37,22 @@ export default function StatisticsPanel({ onBack }) {
   const { orderStatuses, paymentLabel } = useSettings()
   const { customers } = useLab()
   const [range, setRange] = useState(30)
+  const [payments, setPayments] = useState(1) // assumed payment count for clearing fee
+  const [customFrom, setCustomFrom] = useState('') // custom date-range (overrides range)
+  const [customTo, setCustomTo] = useState('')
+  const clearingPct = (CLEARING_RATES[payments] || CLEARING_RATES[1]) / 100
 
   const stats = useMemo(() => {
     const now = Date.now()
-    const days = range === 'all' ? null : range
-    const startTs = days == null ? 0 : now - days * DAY
-    const prevStart = days == null ? null : now - 2 * days * DAY
+    const custom = !!(customFrom && customTo)
+    const days = custom ? null : range === 'all' ? null : range
     const ts = (o) => new Date(o.createdAt).getTime()
+    const fromTs = custom ? new Date(customFrom).getTime() : days == null ? 0 : now - days * DAY
+    const toTs = custom ? new Date(customTo).getTime() + DAY : Infinity
+    const prevStart = !custom && days != null ? now - 2 * days * DAY : null
 
-    const cur = orders.filter((o) => ts(o) >= startTs)
-    const prev = days == null ? [] : orders.filter((o) => ts(o) >= prevStart && ts(o) < startTs)
+    const cur = orders.filter((o) => ts(o) >= fromTs && ts(o) <= toTs)
+    const prev = prevStart == null ? [] : orders.filter((o) => ts(o) >= prevStart && ts(o) < fromTs)
 
     const sumTotal = (arr) => arr.reduce((s, o) => s + (Number(o.total) || 0), 0)
     const sumItems = (arr) => arr.reduce((s, o) => s + (o.items || []).reduce((q, it) => q + (Number(it.qty) || 0), 0), 0)
@@ -57,9 +70,11 @@ export default function StatisticsPanel({ onBack }) {
 
     // ---- Revenue over time (daily buckets; monthly when "all") ----
     let buckets = []
-    if (days != null) {
-      for (let i = days - 1; i >= 0; i--) {
-        const d0 = startOfDay(now - i * DAY)
+    const dailyDays = custom ? Math.min(120, Math.max(1, Math.round((toTs - fromTs) / DAY))) : days
+    const anchorTs = custom ? toTs - 1 : now
+    if (dailyDays != null) {
+      for (let i = dailyDays - 1; i >= 0; i--) {
+        const d0 = startOfDay(anchorTs - i * DAY)
         const dOrders = cur.filter((o) => { const t = ts(o); return t >= d0 && t < d0 + DAY })
         buckets.push({ label: new Date(d0).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' }), revenue: sumTotal(dOrders), orders: dOrders.length })
       }
@@ -93,7 +108,10 @@ export default function StatisticsPanel({ onBack }) {
       const catLabel = catLabels[cat] || 'אחר'
       catMap[catLabel] = (catMap[catLabel] || 0) + lineRev
     }))
-    const profit = revenue - totalCost
+    const profit = revenue - totalCost // gross profit (after product cost)
+    const vat = Math.max(0, profit) * VAT_FRACTION // VAT owed on the margin
+    const clearing = revenue * clearingPct // card-clearing fee
+    const netProfit = profit - vat - clearing // final profit after VAT + clearing
     const topProducts = Object.values(prodMap).sort((a, b) => b.revenue - a.revenue).slice(0, 8)
     const byCategory = Object.entries(catMap).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value)
 
@@ -113,13 +131,15 @@ export default function StatisticsPanel({ onBack }) {
 
     return {
       revenue, ordersN, itemsSold, aov, buyers,
-      profit, totalCost, margin: revenue > 0 ? Math.round((profit / revenue) * 100) : null,
+      profit, totalCost, vat, clearing, netProfit,
+      margin: revenue > 0 ? Math.round((profit / revenue) * 100) : null,
+      netMargin: revenue > 0 ? Math.round((netProfit / revenue) * 100) : null,
       trendRevenue: trend(revenue, prevRevenue), trendOrders: trend(ordersN, prev.length), trendAov: trend(aov, prevAov),
       buckets, topProducts, byCategory, byStatus, byPayment, weekday,
       inventoryValue, outOfStock, lowStock, productCount: store.length,
       hasData: cur.length > 0,
     }
-  }, [orders, store, range, orderStatuses, paymentLabel, getCategories, getCost])
+  }, [orders, store, range, customFrom, customTo, clearingPct, orderStatuses, paymentLabel, getCategories, getCost])
 
   return (
     <div className="space-y-5">
@@ -136,27 +156,73 @@ export default function StatisticsPanel({ onBack }) {
           </h2>
         </div>
         <div className="inline-flex rounded-full bg-white p-1 shadow-card">
-          {RANGES.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setRange(r.id)}
-              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${range === r.id ? 'bg-brand-500 text-white shadow-sm' : 'text-ink-light hover:text-ink'}`}
-            >
-              {r.label}
-            </button>
-          ))}
+          {RANGES.map((r) => {
+            const active = !customFrom && !customTo && range === r.id
+            return (
+              <button
+                key={r.id}
+                onClick={() => { setRange(r.id); setCustomFrom(''); setCustomTo('') }}
+                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${active ? 'bg-brand-500 text-white shadow-sm' : 'text-ink-light hover:text-ink'}`}
+              >
+                {r.label}
+              </button>
+            )
+          })}
         </div>
+      </div>
+
+      {/* Custom date range + clearing-fee assumption */}
+      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-black/5 bg-white p-3 shadow-card">
+        <label className="text-xs font-semibold text-ink-light">
+          מתאריך
+          <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="mt-1 block rounded-lg border border-black/10 px-2 py-1.5 text-sm text-ink outline-none focus:border-brand-500" />
+        </label>
+        <label className="text-xs font-semibold text-ink-light">
+          עד תאריך
+          <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="mt-1 block rounded-lg border border-black/10 px-2 py-1.5 text-sm text-ink outline-none focus:border-brand-500" />
+        </label>
+        {(customFrom || customTo) && (
+          <button onClick={() => { setCustomFrom(''); setCustomTo('') }} className="rounded-lg border border-black/10 px-3 py-1.5 text-xs font-semibold text-ink-light hover:bg-black/5">
+            ניקוי טווח
+          </button>
+        )}
+        <label className="ms-auto text-xs font-semibold text-ink-light">
+          עלות סליקה לפי
+          <select value={payments} onChange={(e) => setPayments(Number(e.target.value))} className="mt-1 block rounded-lg border border-black/10 px-2 py-1.5 text-sm text-ink outline-none focus:border-brand-500">
+            <option value={1}>תשלום אחד ({CLEARING_RATES[1]}%)</option>
+            <option value={2}>2 תשלומים ({CLEARING_RATES[2]}%)</option>
+            <option value={3}>3 תשלומים ({CLEARING_RATES[3]}%)</option>
+            <option value={4}>4 תשלומים ({CLEARING_RATES[4]}%)</option>
+          </select>
+        </label>
       </div>
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Kpi Icon={Banknote} label="הכנסות" value={ils(stats.revenue)} trend={stats.trendRevenue} tint="bg-brand-50 text-brand-600" />
-        <Kpi Icon={TrendingUp} label={`רווח לאחר עלות${stats.margin != null ? ` · ${stats.margin}%` : ''}`} value={ils(stats.profit)} tint="bg-emerald-50 text-emerald-600" />
+        <Kpi Icon={TrendingUp} label={`רווח נקי סופי${stats.netMargin != null ? ` · ${stats.netMargin}%` : ''}`} value={ils(stats.netProfit)} tint="bg-emerald-50 text-emerald-600" />
         <Kpi Icon={ShoppingBag} label="הזמנות" value={stats.ordersN} trend={stats.trendOrders} tint="bg-blue-50 text-blue-600" />
         <Kpi Icon={BarChart3} label="ממוצע להזמנה" value={ils(stats.aov)} trend={stats.trendAov} tint="bg-violet-50 text-violet-600" />
         <Kpi Icon={Boxes} label="פריטים שנמכרו" value={stats.itemsSold} tint="bg-amber-50 text-amber-600" />
         <Kpi Icon={Users} label="לקוחות בתקופה" value={stats.buyers} tint="bg-indigo-50 text-indigo-600" />
       </div>
+
+      {/* Profitability breakdown */}
+      <Card title="פירוט רווחיות" Icon={Banknote}>
+        <div className="space-y-1.5">
+          <ProfitRow label="הכנסות (כולל מע״מ)" value={ils(stats.revenue)} />
+          <ProfitRow label="עלות המוצרים" value={`−${ils(stats.totalCost)}`} muted />
+          <ProfitRow label="רווח גולמי" value={ils(stats.profit)} bold />
+          <div className="my-2 border-t border-black/5" />
+          <ProfitRow label={`מע״מ לתשלום (${Math.round(VAT_RATE * 100)}% על הרווח)`} value={`−${ils(stats.vat)}`} muted />
+          <ProfitRow label={`עלות סליקה (${CLEARING_RATES[payments]}%)`} value={`−${ils(stats.clearing)}`} muted />
+          <div className="my-2 border-t border-black/5" />
+          <ProfitRow label="רווח נקי סופי" value={ils(stats.netProfit)} bold tone="emerald" />
+        </div>
+        <p className="mt-3 text-[11px] leading-relaxed text-ink-light">
+          המע״מ מחושב על פער הרווח (יש לך זיכוי על המע״מ בחשבונית הרכישה). עלות הסליקה לפי מספר התשלומים שבחרת למעלה.
+        </p>
+      </Card>
 
       {/* Revenue trend */}
       <Card title="מגמת הכנסות" Icon={TrendingUp}>
@@ -344,6 +410,15 @@ function Mini({ label, value, tone }) {
     <div className="rounded-xl bg-brand-50/50 p-3 text-center">
       <p className={`text-lg font-extrabold ${tint}`}>{value}</p>
       <p className="text-[11px] text-ink-light">{label}</p>
+    </div>
+  )
+}
+function ProfitRow({ label, value, bold, muted, tone }) {
+  const valueCls = tone === 'emerald' ? 'text-emerald-600' : muted ? 'text-ink-light' : 'text-ink'
+  return (
+    <div className="flex items-center justify-between gap-2 text-sm">
+      <span className={bold ? 'font-bold text-ink' : 'text-ink-light'}>{label}</span>
+      <span className={`${bold ? 'text-base font-extrabold' : 'font-semibold'} ${valueCls}`}>{value}</span>
     </div>
   )
 }

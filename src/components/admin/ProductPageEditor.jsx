@@ -133,8 +133,10 @@ export default function ProductPageEditor({ value, onChange, presets = [] }) {
 
                 {/* Options */}
                 <div className="mt-3 space-y-1.5">
-                  {(g.options || []).map((o) => (
-                    <div key={o.id} className="flex items-center gap-2">
+                  {(g.options || []).map((o) => {
+                    const optOff = o.enabled === false
+                    return (
+                    <div key={o.id} className={`flex items-center gap-2 ${optOff ? 'opacity-50' : ''}`}>
                       <input
                         value={o.label}
                         onChange={(e) => updOption(g.id, o.id, { label: e.target.value })}
@@ -152,11 +154,14 @@ export default function ProductPageEditor({ value, onChange, presets = [] }) {
                           className="w-16 py-1.5 text-sm outline-none"
                         />
                       </div>
+                      {/* Hide/show this single option (kept in config, not rendered in the store). */}
+                      <EnableBtn on={!optOff} onClick={() => updOption(g.id, o.id, { enabled: optOff })} />
                       <button type="button" onClick={() => delOption(g.id, o.id)} aria-label="הסרת אפשרות" className="shrink-0 text-ink-light hover:text-red-500">
                         <X size={15} />
                       </button>
                     </div>
-                  ))}
+                    )
+                  })}
                   <button type="button" onClick={() => addOption(g.id)} className="mt-1 flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700">
                     <Plus size={14} /> הוספת אפשרות
                   </button>

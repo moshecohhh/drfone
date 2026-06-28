@@ -75,7 +75,10 @@ export default function ProductPage() {
 
   // Only items that aren't switched off in the admin are shown (disabled items
   // stay in the config but never render).
-  const optionGroups = (Array.isArray(page.optionGroups) ? page.optionGroups : []).filter((g) => g.enabled !== false)
+  const optionGroups = (Array.isArray(page.optionGroups) ? page.optionGroups : [])
+    .filter((g) => g.enabled !== false)
+    // Drop individually-hidden options so the store shows only the enabled ones.
+    .map((g) => ({ ...g, options: (g.options || []).filter((o) => o.enabled !== false) }))
   const specs = (Array.isArray(page.specs) ? page.specs : []).filter((s) => s.enabled !== false)
   const rawMarketing = Array.isArray(page.marketing) && page.marketing.length ? page.marketing : productPage.defaultMarketing || []
   const marketing = rawMarketing.filter((m) => m.enabled !== false)
