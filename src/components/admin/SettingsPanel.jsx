@@ -154,6 +154,19 @@ export default function SettingsPanel() {
             />
           </Card>
 
+          {/* Delivery street list — offered as a dropdown at checkout */}
+          <Card>
+            <CardTitle icon={Truck} title="רשימת רחובות למשלוח" hint="הרחובות שיוצעו לבחירה בקופה ובכתובות. ניתן תמיד להזין רחוב שאינו ברשימה." />
+            <EditableList
+              items={(settings.streets || []).map((s, i) => ({ id: String(i), label: s }))}
+              onAdd={(label) => label.trim() && updateSettings({ streets: [...(settings.streets || []), label.trim()] })}
+              onUpdate={(id, label) => updateSettings({ streets: (settings.streets || []).map((s, i) => (String(i) === id ? label.trim() : s)) })}
+              onDelete={(id) => updateSettings({ streets: (settings.streets || []).filter((_, i) => String(i) !== id) })}
+              placeholder="הוספת רחוב"
+              scroll
+            />
+          </Card>
+
           {/* Order statuses */}
           <Card>
             <CardTitle icon={ShoppingBag} title="סטטוסי הזמנה" />
