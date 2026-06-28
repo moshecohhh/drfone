@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ShoppingBag, Wrench, Smartphone, HardDrive,
   Tags, Users, UserCog, Settings as SettingsIcon, LogOut, Home, Tag, Mail,
-  LayoutTemplate, Inbox, DatabaseBackup, PenSquare, GripVertical, RotateCcw, Check, ChevronDown, Ticket,
+  LayoutTemplate, Inbox, DatabaseBackup, PenSquare, GripVertical, RotateCcw, Check, ChevronDown, Ticket, ShoppingCart,
 } from 'lucide-react'
 import { useAuth, ROLE_LABELS } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
@@ -18,6 +18,7 @@ import HomePanel from '../components/admin/HomePanel.jsx'
 import InquiriesPanel from '../components/admin/InquiriesPanel.jsx'
 import CatalogPanel from '../components/admin/CatalogPanel.jsx'
 import CouponsPanel from '../components/admin/CouponsPanel.jsx'
+import CartsPanel from '../components/admin/CartsPanel.jsx'
 import BrandsPanel from '../components/admin/BrandsPanel.jsx'
 import ProductPagePanel from '../components/admin/ProductPagePanel.jsx'
 import OrdersPanel from '../components/admin/OrdersPanel.jsx'
@@ -48,6 +49,7 @@ const NAV = [
     items: [
       { id: 'overview', label: 'סקירה', Icon: LayoutDashboard },
       { id: 'orders', label: 'הזמנות', Icon: ShoppingBag },
+      { id: 'carts', label: 'עגלות', Icon: ShoppingCart },
       { id: 'inquiries', label: 'פניות', Icon: Inbox },
     ],
   },
@@ -85,6 +87,7 @@ const PANELS = {
   brands: BrandsPanel,
   'product-page': ProductPagePanel,
   orders: OrdersPanel,
+  carts: CartsPanel,
   inquiries: InquiriesPanel,
   repairs: RepairsPanel,
   customers: CustomersPanel,

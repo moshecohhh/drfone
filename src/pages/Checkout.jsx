@@ -21,7 +21,7 @@ const PAY_ICONS = { credit: CreditCard, bit: Smartphone, representative: Headset
 const money = (n) => '₪' + Number(n || 0).toLocaleString('he-IL')
 
 export default function Checkout() {
-  const { items, subtotal, clear } = useCart()
+  const { items, subtotal, clear, removeItem } = useCart()
   const { addOrder, orders } = useOrders()
   const { decrementStock, getItems } = useCatalogStore()
   const { validateCoupon, redeemCoupon } = useCoupons()
@@ -155,6 +155,18 @@ export default function Checkout() {
   }
   const clearCoupon = () => { setCoupon(null); setCouponCode(''); setCouponMsg('') }
 
+  // Live stock: a cart item may have sold out since it was added. Out-of-stock
+  // lines block checkout; the shopper can drop them and continue with the rest,
+  // or — if everything is out of stock — checkout is disabled.
+  const liveStock = (id) => {
+    const p = (getItems(DOMAINS.STORE) || []).find((x) => x.id === id)
+    return p ? Number(p.stock) || 0 : 0
+  }
+  const oosItems = items.filter((i) => liveStock(i.id) <= 0)
+  const allOOS = items.length > 0 && oosItems.length === items.length
+  const [oosModal, setOosModal] = useState(false)
+  const dropOOS = () => { oosItems.forEach((i) => removeItem(i.lineId || i.id)); setOosModal(false) }
+
   // Live phone validation (same rule/message as the registration page).
   const phoneErr =
     form.phone.trim() && !isValidMobileIL(form.phone)
@@ -225,6 +237,8 @@ export default function Checkout() {
       }
       if (!termsAccepted) return setError('יש לאשר את תקנון האתר כדי להמשיך.')
     }
+    // A product sold out since it was added → ask before continuing without it.
+    if (oosItems.length > 0) { setError(''); setOosModal(true); return }
     setError('')
 
     // Compose a single readable address string (empty for self-collect).
@@ -510,7 +524,9 @@ export default function Checkout() {
                     <span className="h-3 w-3 shrink-0 rounded-full border border-black/15" style={{ background: i.color }} />
                   )}
                   <span>{i.name} × {i.qty}</span>
-                  {i.listPrice > i.price && (
+                  {liveStock(i.id) <= 0 ? (
+                    <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">אזל מהמלאי</span>
+                  ) : i.listPrice > i.price && (
                     <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-600">
                       {Math.round((1 - i.price / i.listPrice) * 100)}% הנחה
                     </span>
@@ -607,9 +623,15 @@ export default function Checkout() {
             </label>
           </div>
 
+          {allOOS && (
+            <p className="mt-4 rounded-xl bg-red-50 px-3 py-2.5 text-xs font-medium text-red-600">
+              כל המוצרים בסל אזלו מהמלאי. לא ניתן להמשיך לתשלום.
+            </p>
+          )}
           <button
             type="submit"
-            className="mt-4 w-full rounded-xl bg-brand-500 py-3 font-semibold text-white transition hover:bg-brand-600 active:scale-[.99]"
+            disabled={allOOS}
+            className="mt-4 w-full rounded-xl bg-brand-500 py-3 font-semibold text-white transition hover:bg-brand-600 active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-50"
           >
             אישור ושליחת הזמנה
           </button>
@@ -618,6 +640,29 @@ export default function Checkout() {
           </Link>
         </aside>
       </form>
+
+      {/* Out-of-stock confirmation: drop sold-out items and continue. */}
+      {oosModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setOosModal(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-card-hover" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-col items-center text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600"><AlertCircle size={24} /></span>
+              <h3 className="mt-3 text-base font-extrabold text-ink">חלק מהמוצרים אזלו מהמלאי</h3>
+              <p className="mt-1 text-sm text-ink-light">
+                {oosItems.map((i) => i.name).join(', ')} כבר לא במלאי. להמשיך עם שאר המוצרים בסל?
+              </p>
+            </div>
+            <div className="mt-5 space-y-2">
+              <button type="button" onClick={dropOOS} className="w-full rounded-xl bg-brand-500 py-2.5 text-sm font-bold text-white hover:bg-brand-600">
+                המשך עם שאר המוצרים
+              </button>
+              <button type="button" onClick={() => setOosModal(false)} className="w-full rounded-xl py-2 text-sm font-semibold text-ink-light hover:text-ink">
+                חזרה לסל
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </CheckoutShell>
   )
 }
