@@ -12,7 +12,7 @@ const fmtDate = (iso) =>
   new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 export default function OrdersPanel({ focusId = null }) {
-  const { orders, updateStatus, updateOrderItems, issueInvoice, setOrderDraft, getInvoicePdf, cancelDocument, deleteOrder, addOrderLog, markOrderRead } = useOrders()
+  const { orders, updateStatus, updateOrderItems, issueInvoice, setOrderDraft, getInvoicePdf, deleteOrder, addOrderLog, markOrderRead } = useOrders()
   const { orderStatuses, orderStatusMeta, paymentLabel: payLabel, deliveryLabel } = useSettings()
   const { user } = useAuth()
   const [expanded, setExpanded] = useState(null)
@@ -213,7 +213,13 @@ export default function OrdersPanel({ focusId = null }) {
                       </li>
                     ))}
                   </ul>
-                  <div className="mt-2 flex justify-between border-t border-black/5 pt-2 text-sm">
+                  {o.coupon?.discountAmount > 0 && (
+                    <div className="mt-2 flex justify-between border-t border-black/5 pt-2 text-sm text-brand-700">
+                      <span className="font-semibold">הנחת קופון ({o.coupon.code})</span>
+                      <span className="font-bold">−₪{o.coupon.discountAmount}</span>
+                    </div>
+                  )}
+                  <div className={`flex justify-between text-sm ${o.coupon?.discountAmount > 0 ? 'mt-1' : 'mt-2 border-t border-black/5 pt-2'}`}>
                     <span className="font-semibold text-ink-light">סה״כ</span>
                     <span className="font-extrabold text-ink">₪{o.total}</span>
                   </div>
@@ -221,7 +227,7 @@ export default function OrdersPanel({ focusId = null }) {
 
                 {/* Edit items / add custom item + approve */}
                 <div className="sm:col-span-2">
-                  <OrderEditor order={o} updateOrderItems={updateOrderItems} updateStatus={updateStatus} issueInvoice={issueInvoice} setOrderDraft={setOrderDraft} getInvoicePdf={getInvoicePdf} cancelDocument={cancelDocument} />
+                  <OrderEditor order={o} updateOrderItems={updateOrderItems} updateStatus={updateStatus} issueInvoice={issueInvoice} setOrderDraft={setOrderDraft} getInvoicePdf={getInvoicePdf} />
                 </div>
 
                 <div className="sm:col-span-2 border-t border-black/5 pt-3">
@@ -240,7 +246,7 @@ export default function OrdersPanel({ focusId = null }) {
 // Admin order editor — change quantities, remove lines, add a custom line item
 // (name + price), then save. Also approves a pending order. Lets the shop fix
 // stock issues with the customer before finalising, instead of refunding.
-function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice, setOrderDraft, getInvoicePdf, cancelDocument }) {
+function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice, setOrderDraft, getInvoicePdf }) {
   const { store } = useCatalogStore()
   const [editing, setEditing] = useState(false)
   const [items, setItems] = useState(order.items || [])
@@ -291,12 +297,12 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice, setO
       if (res?.ok && res.pdfBase64) { openInvoicePreview({ pdfBase64: res.pdfBase64 }); return }
       // Couldn't re-fetch (deleted/expired) — fall through to create a new one.
     }
-    // Replacing a stale draft (the order changed): retire the old draft in
-    // SUMIT first — there's no edit endpoint, so a new draft supersedes it.
-    const staleId = order.draftInvoice?.id
+    // The order changed → create a fresh draft that matches it. We do NOT cancel
+    // the previous draft: SUMIT has no draft-delete, and "cancel" would issue a
+    // real credit document (זיכוי). A superseded draft is harmless — it's not a
+    // tax document — so it's simply left behind.
     const inv = await createDocument(true)
     if (inv) {
-      if (staleId && staleId !== inv.id) cancelDocument(staleId, 'טיוטה הוחלפה לאחר שינוי בהזמנה')
       setOrderDraft(order.id, { id: inv.id, number: inv.number, sig: orderSig })
       openInvoicePreview(inv)
     }

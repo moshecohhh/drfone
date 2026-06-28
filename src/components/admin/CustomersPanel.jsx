@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Plus, Trash2, Pencil, MapPin, X, Users, Check, Eye, EyeOff, Mail, AlertCircle, Download } from 'lucide-react'
+import { Plus, Trash2, Pencil, MapPin, X, Users, Check, Eye, EyeOff, Mail, AlertCircle, Download, Ticket } from 'lucide-react'
 import { useLab } from '../../context/LabContext.jsx'
+import { useCoupons } from '../../context/CouponsContext.jsx'
 import { useAuth, ROLES, ROLE_OPTIONS } from '../../context/AuthContext.jsx'
 import { PanelHead, Table, Card, Field, PrimaryBtn, GhostBtn, IconBtn, EmptyState, PanelSearch, inputCls } from './ui.jsx'
 import PhoneActions from './PhoneActions.jsx'
@@ -22,6 +23,7 @@ export default function CustomersPanel() {
   const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
+  const [couponFor, setCouponFor] = useState(null) // customer to issue a compensation coupon to
 
   const term = query.trim().toLowerCase()
   const filtered = term
@@ -210,6 +212,13 @@ export default function CustomersPanel() {
               </td>
               <td className="px-4 py-3 text-left">
                 <div className="flex justify-end gap-1">
+                  <IconBtn
+                    aria-label="מתן קופון"
+                    title={c.email ? 'מתן קופון פיצוי' : 'נדרש אימייל ללקוח כדי לשייך קופון'}
+                    onClick={() => c.email && setCouponFor(c)}
+                  >
+                    <Ticket size={16} className={c.email ? '' : 'opacity-40'} />
+                  </IconBtn>
                   <IconBtn aria-label="עריכה" onClick={() => openEdit(c)}>
                     <Pencil size={16} />
                   </IconBtn>
@@ -224,6 +233,73 @@ export default function CustomersPanel() {
       )}
       </>
       )}
+      {couponFor && <GiveCouponModal customer={couponFor} onClose={() => setCouponFor(null)} />}
+    </div>
+  )
+}
+
+// Issue a personal compensation coupon bound to a customer's email.
+function GiveCouponModal({ customer, onClose }) {
+  const { addCoupon } = useCoupons()
+  const suggested = `${(customer.name || 'GIFT').replace(/[^A-Za-z֐-׿]/g, '').slice(0, 4).toUpperCase() || 'GIFT'}${Math.floor(1000 + Math.random() * 9000)}`
+  const [code, setCode] = useState(suggested)
+  const [percent, setPercent] = useState(10)
+  const [oneTime, setOneTime] = useState(true)
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
+
+  const save = () => {
+    const c = code.trim().toUpperCase()
+    if (!c) return setError('יש להזין קוד קופון.')
+    const p = Number(percent)
+    if (!(p > 0 && p <= 100)) return setError('אחוז ההנחה חייב להיות בין 1 ל-100.')
+    setError('')
+    const res = addCoupon({ code: c, percent: p, scope: 'all', customerEmail: customer.email, oneTime, active: true })
+    if (!res.ok) return setError(res.error || 'שמירה נכשלה.')
+    setDone(true)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-card-hover" onClick={(e) => e.stopPropagation()}>
+        {done ? (
+          <div className="flex flex-col items-center py-3 text-center">
+            <Check size={40} className="text-brand-500" />
+            <p className="mt-3 font-bold text-ink">הקופון נוצר!</p>
+            <p className="mt-1 text-sm text-ink-light">קוד <span className="font-mono font-bold text-ink">{code.toUpperCase()}</span> שויך ל-{customer.name}.</p>
+            <button onClick={onClose} className="mt-4 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600">סגירה</button>
+          </div>
+        ) : (
+          <>
+            <div className="mb-3 flex items-center gap-2">
+              <Ticket size={18} className="text-brand-500" />
+              <h3 className="text-base font-extrabold text-ink">קופון ללקוח</h3>
+            </div>
+            <p className="mb-3 text-sm text-ink-light">שיוך קופון אישי ל-<span className="font-semibold text-ink">{customer.name}</span> <span dir="ltr">({customer.email})</span></p>
+            {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{error}</p>}
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-ink-light">קוד</span>
+                <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} className="w-full rounded-lg border border-black/10 px-3 py-2 font-mono text-sm outline-none focus:border-brand-500" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-ink-light">אחוז הנחה</span>
+                <input type="number" min="1" max="100" value={percent} onChange={(e) => setPercent(e.target.value)} className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-brand-500" />
+              </label>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button type="button" onClick={() => setOneTime(true)} className={`flex-1 rounded-lg border px-3 py-2 text-sm font-semibold transition ${oneTime ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-black/10 text-ink'}`}>חד-פעמי</button>
+              <button type="button" onClick={() => setOneTime(false)} className={`flex-1 rounded-lg border px-3 py-2 text-sm font-semibold transition ${!oneTime ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-black/10 text-ink'}`}>תמידי</button>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={onClose} className="rounded-xl border border-black/10 px-4 py-2 text-sm font-semibold text-ink hover:bg-black/5">ביטול</button>
+              <button type="button" onClick={save} className="flex items-center gap-1.5 rounded-xl bg-brand-500 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-600">
+                <Check size={15} /> יצירה
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

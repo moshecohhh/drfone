@@ -31,6 +31,7 @@ export default function ContactSection() {
     if (form.email.trim() && emailIssue(form.email)) return setError(emailIssue(form.email))
     setError('')
     addInquiry({
+      category: 'site', // general site contact (vs. a post-purchase service request)
       name: form.name.trim(),
       phone: form.phone.trim(),
       email: form.email.trim(),

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ShoppingBag, Wrench, Smartphone, HardDrive,
   Tags, Users, UserCog, Settings as SettingsIcon, LogOut, Home, Tag, Mail,
-  LayoutTemplate, Inbox, DatabaseBackup, PenSquare, GripVertical, RotateCcw, Check, ChevronDown,
+  LayoutTemplate, Inbox, DatabaseBackup, PenSquare, GripVertical, RotateCcw, Check, ChevronDown, Ticket,
 } from 'lucide-react'
 import { useAuth, ROLE_LABELS } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
@@ -17,6 +17,7 @@ import DashboardSummary from '../components/admin/DashboardSummary.jsx'
 import HomePanel from '../components/admin/HomePanel.jsx'
 import InquiriesPanel from '../components/admin/InquiriesPanel.jsx'
 import CatalogPanel from '../components/admin/CatalogPanel.jsx'
+import CouponsPanel from '../components/admin/CouponsPanel.jsx'
 import BrandsPanel from '../components/admin/BrandsPanel.jsx'
 import ProductPagePanel from '../components/admin/ProductPagePanel.jsx'
 import OrdersPanel from '../components/admin/OrdersPanel.jsx'
@@ -36,6 +37,7 @@ const CATALOG_TABS = [
   { id: 'brands', label: 'מותגים', Icon: Tag },
   { id: 'product-page', label: 'דף מוצר', Icon: LayoutTemplate },
   { id: 'categories', label: 'קטגוריות', Icon: Tags },
+  { id: 'coupons', label: 'קופונים', Icon: Ticket },
 ]
 
 // `store: true` marks the only sections a STORE account may see. The master
@@ -89,6 +91,7 @@ const PANELS = {
   loaners: LoanersPanel,
   devices: DevicesPanel,
   categories: CategoriesPanel,
+  coupons: CouponsPanel,
   users: UsersPanelGate,
   backup: BackupPanelGate,
   settings: SettingsPanel,

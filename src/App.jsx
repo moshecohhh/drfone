@@ -16,6 +16,7 @@ const Account = lazy(() => import('./pages/Account.jsx'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard.jsx'))
 const ProductPage = lazy(() => import('./pages/ProductPage.jsx'))
 const OrderTracking = lazy(() => import('./pages/OrderTracking.jsx'))
+const Terms = lazy(() => import('./pages/Terms.jsx'))
 
 // Lightweight fallback while a lazy route's code is being fetched.
 function PageLoading() {
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/account" element={<Account />} />
+          <Route path="/terms" element={<Terms />} />
           {/* Public order tracking via a per-order token (works for guests). */}
           <Route path="/track/:token" element={<OrderTracking />} />
           <Route

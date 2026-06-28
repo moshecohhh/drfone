@@ -124,6 +124,14 @@ Deno.serve(async (req) => {
   if (Number(order.deliveryPrice) > 0) {
     Items.push({ Quantity: 1, UnitPrice: Number(order.deliveryPrice), Item: { Name: 'משלוח', Price: Number(order.deliveryPrice) } })
   }
+  // A redeemed coupon is recorded as a negative line so the document total
+  // matches what the customer actually pays.
+  const coupon = (order.coupon ?? {}) as Record<string, unknown>
+  const couponDiscount = Number(coupon.discountAmount) || 0
+  if (couponDiscount > 0) {
+    const label = coupon.code ? `הנחת קופון (${coupon.code})` : 'הנחת קופון'
+    Items.push({ Quantity: 1, UnitPrice: -couponDiscount, Item: { Name: label, Price: -couponDiscount } })
+  }
 
   // DocumentType: 0 = Invoice (חשבונית מס). Admin may override via documentType.
   const docType = typeof order.documentType === 'number' ? order.documentType : 0
@@ -131,12 +139,11 @@ Deno.serve(async (req) => {
   const payload = {
     Credentials: { CompanyID: SUMIT_COMPANY_ID, APIKey: SUMIT_API_KEY },
     Details: {
-      // The admin chooses: a draft (preview, deletable, not a tax document) or a
-      // real finalized tax invoice. Controlled per request via `draft`.
+      // The admin chooses: a draft (preview, not a tax document) or a real
+      // finalized tax invoice. Controlled per request via `draft`. We do NOT
+      // link/cancel any previous draft: SUMIT has no draft-delete and "cancel"
+      // would issue a real credit document, so a superseded draft is just left.
       IsDraft: order.draft === true,
-      // When finalizing from a draft, link the invoice to its source draft so
-      // the relationship is recorded in SUMIT ("produced from the draft").
-      ...(order.originalDocumentId ? { OriginalDocumentID: Number(order.originalDocumentId) } : {}),
       Customer: {
         Name: String(cust.name ?? 'לקוח'),
         Phone: String(cust.phone ?? ''),
@@ -167,12 +174,6 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: body?.UserErrorMessage || body?.TechnicalErrorDetails || `SUMIT error (${res.status})` }, 200)
     }
     const d = body.Data ?? {}
-
-    // Finalizing a real invoice from a draft: retire the source draft so no
-    // open draft is left behind. Best-effort — never fail the invoice over it.
-    if (order.draft !== true && order.originalDocumentId) {
-      await cancelDocument(Number(order.originalDocumentId), `הופקה חשבונית ${d.DocumentNumber ?? ''}`).catch(() => {})
-    }
 
     // Fetch the actual PDF so the admin previews the real document (not SUMIT's
     // customer payment page).

@@ -19,7 +19,7 @@ const rowToOrder = (row) => ({
 })
 
 // Extract the jsonb `data` payload from a flat order object.
-const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items, total, log, read, trackToken, invoice, draftInvoice }) => ({
+const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items, total, coupon, log, read, trackToken, invoice, draftInvoice }) => ({
   customer,
   payment,
   delivery,
@@ -27,6 +27,7 @@ const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items,
   notes: notes || '', // optional customer note
   items,
   total,
+  coupon: coupon || null, // applied discount coupon { code, percent, discountAmount }
   trackToken: trackToken || '', // unguessable token for the public order-tracking link
   invoice: invoice || null, // SUMIT invoice { id, number, url } once issued
   draftInvoice: draftInvoice || null, // last SUMIT draft { id, number, sig } for the unchanged order
@@ -72,7 +73,7 @@ export function OrdersProvider({ children }) {
   // Create an order. Returns the created order (with its generated number) so
   // the checkout can show a confirmation immediately.
   const addOrder = useCallback(
-    ({ customer, payment, delivery, deliveryPrice, notes, items, total }) => {
+    ({ customer, payment, delivery, deliveryPrice, notes, items, total, coupon }) => {
       const id = `ord-${Date.now()}`
       const number = `#${String(Date.now()).slice(-6)}`
       const order = {
@@ -88,6 +89,7 @@ export function OrdersProvider({ children }) {
         notes: notes || '',
         items,
         total,
+        coupon: coupon || null,
         trackToken: makeTrackToken(),
         log: [],
       }
@@ -161,9 +163,7 @@ export function OrdersProvider({ children }) {
   // single write, so no orphan draft is left behind after the document is final.
   const issueInvoice = useCallback(async (order, opts = {}) => {
     const draft = !!opts.draft
-    // Finalizing a real invoice from an existing draft: link & retire the draft.
-    const originalDocumentId = !draft && order.draftInvoice?.id ? order.draftInvoice.id : undefined
-    const { data, error } = await supabase.functions.invoke('sumit-invoice', { body: { ...order, draft, originalDocumentId } })
+    const { data, error } = await supabase.functions.invoke('sumit-invoice', { body: { ...order, draft } })
     if (error) return { ok: false, error: error.message }
     if (!data?.ok) return { ok: false, error: data?.error || 'יצירת החשבונית נכשלה' }
     if (!draft) {

@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   User, Phone, Mail, MapPin, Home, Hash, CreditCard, Smartphone, Headset,
-  CheckCircle2, ArrowRight, AlertCircle, Truck, ShoppingBag, MessageSquare,
+  CheckCircle2, ArrowRight, AlertCircle, Truck, ShoppingBag, MessageSquare, Ticket,
 } from 'lucide-react'
 import { DOMAINS } from '../context/AppContext.jsx'
 import { useCart } from '../context/CartContext.jsx'
 import { useOrders } from '../context/OrdersContext.jsx'
 import { useCatalogStore } from '../context/CatalogContext.jsx'
+import { useCoupons, computeCouponDiscount } from '../context/CouponsContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
 import { sanitizePhone, isValidMobileIL, luhnValid, emailIssue } from '../utils/validation.js'
@@ -21,12 +22,18 @@ const money = (n) => '₪' + Number(n || 0).toLocaleString('he-IL')
 export default function Checkout() {
   const { items, subtotal, clear } = useCart()
   const { addOrder, orders } = useOrders()
-  const { decrementStock } = useCatalogStore()
-  const { user, isMasterAdminAccount } = useAuth()
+  const { decrementStock, getItems } = useCatalogStore()
+  const { validateCoupon, redeemCoupon } = useCoupons()
+  const { user, isMasterAdminAccount, updateProfile } = useAuth()
   const { paymentMethods, deliveryMethods } = useSettings()
   const bypass = isMasterAdminAccount
   const navigate = useNavigate()
   const [error, setError] = useState('')
+  // Offer newsletter opt-in to anyone not already subscribed; terms must be
+  // accepted to place an order (pre-checked for convenience).
+  const showNewsletter = !user || !user.newsletter
+  const [newsletter, setNewsletter] = useState(true)
+  const [termsAccepted, setTermsAccepted] = useState(true)
 
   const [form, setForm] = useState({
     name: user?.name || '',
@@ -100,7 +107,49 @@ export default function Checkout() {
   const selectedDelivery = deliveryMethods.find((d) => d.id === form.delivery) || deliveryMethods[0]
   const isPickup = !!selectedDelivery?.pickup || selectedDelivery?.id === 'pickup'
   const deliveryPrice = Number(selectedDelivery?.price) || 0
-  const total = subtotal + deliveryPrice
+
+  // Coupon: a validated coupon (from the RPC) + the discount it yields against
+  // the current cart. The discount only covers eligible lines (scope-aware).
+  const [couponCode, setCouponCode] = useState('')
+  const [coupon, setCoupon] = useState(null) // validated coupon object
+  const [couponMsg, setCouponMsg] = useState('') // error / status text
+  const [couponBusy, setCouponBusy] = useState(false)
+  const prodCategory = (id) => (getItems(DOMAINS.STORE) || []).find((p) => p.id === id)?.category
+  const { amount: rawDiscount } = computeCouponDiscount(coupon, items, prodCategory)
+  const discount = Math.min(rawDiscount, subtotal) // never below the shipping-only total
+  const total = Math.max(0, subtotal - discount) + deliveryPrice
+
+  const COUPON_ERRORS = {
+    not_found: 'קוד הקופון אינו קיים.',
+    inactive: 'הקופון אינו פעיל.',
+    wrong_customer: 'הקופון משויך ללקוח אחר.',
+    used: 'הקופון כבר נוצל.',
+    error: 'אירעה שגיאה. נסו שוב.',
+  }
+  const applyCoupon = async () => {
+    const code = couponCode.trim()
+    if (!code) return
+    setCouponBusy(true)
+    setCouponMsg('')
+    const email = user?.email || form.email.trim()
+    const res = await validateCoupon(code, email)
+    setCouponBusy(false)
+    if (!res?.ok) {
+      setCoupon(null)
+      setCouponMsg(COUPON_ERRORS[res?.reason] || COUPON_ERRORS.error)
+      return
+    }
+    // Make sure it actually discounts something in this cart (scope match).
+    const { amount } = computeCouponDiscount(res, items, prodCategory)
+    if (amount <= 0) {
+      setCoupon(null)
+      setCouponMsg('הקופון אינו חל על המוצרים שבסל.')
+      return
+    }
+    setCoupon(res)
+    setCouponMsg('')
+  }
+  const clearCoupon = () => { setCoupon(null); setCouponCode(''); setCouponMsg('') }
 
   // Live phone validation (same rule/message as the registration page).
   const phoneErr =
@@ -170,6 +219,7 @@ export default function Checkout() {
       if (form.payment === 'credit' && !luhnValid(form.cardNumber)) {
         return setError('מספר כרטיס האשראי אינו תקין.')
       }
+      if (!termsAccepted) return setError('יש לאשר את תקנון האתר כדי להמשיך.')
     }
     setError('')
 
@@ -206,11 +256,30 @@ export default function Checkout() {
         // the admin sees exactly what the customer ordered.
         selections: Array.isArray(i.selections) ? i.selections : [],
       })),
+      coupon: coupon ? { code: coupon.code, percent: Number(coupon.percent) || 0, discountAmount: discount } : null,
       total,
     })
 
     // Inventory: reduce stock for each purchased STORE product.
     items.forEach((i) => decrementStock(DOMAINS.STORE, i.id, i.qty))
+
+    // Mark the coupon redeemed (best-effort) once the order is placed.
+    if (coupon) redeemCoupon(coupon.code)
+
+    // Newsletter opt-in: persist on the profile for a logged-in customer; keep a
+    // local record for guests (used by the account toggle on this device).
+    if (newsletter && showNewsletter) {
+      if (user) {
+        updateProfile({ newsletter: true })
+      } else {
+        try {
+          const list = new Set(JSON.parse(localStorage.getItem('drfone_newsletter')) || [])
+          const mail = form.email.trim()
+          if (mail) list.add(mail)
+          localStorage.setItem('drfone_newsletter', JSON.stringify([...list]))
+        } catch { /* ignore */ }
+      }
+    }
 
     clear()
     setPlacedOrder(order)
@@ -441,11 +510,52 @@ export default function Checkout() {
             ))}
           </ul>
 
+          {/* Coupon code */}
+          <div className="mt-4 border-t border-black/5 pt-4">
+            {coupon ? (
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-brand-50 px-3 py-2.5 text-sm">
+                <span className="flex items-center gap-1.5 font-semibold text-brand-700">
+                  <Ticket size={15} /> {coupon.code} · {coupon.percent}% הנחה
+                </span>
+                <button type="button" onClick={clearCoupon} className="shrink-0 text-xs font-semibold text-ink-light hover:text-red-600" aria-label="הסרת קופון">
+                  הסר
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div className="flex gap-2">
+                  <input
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon() } }}
+                    placeholder="קוד קופון"
+                    className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-mono text-ink outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyCoupon}
+                    disabled={couponBusy || !couponCode.trim()}
+                    className="shrink-0 rounded-xl border border-brand-500 px-4 py-2.5 text-sm font-semibold text-brand-600 transition hover:bg-brand-50 disabled:opacity-50"
+                  >
+                    {couponBusy ? '…' : 'החל'}
+                  </button>
+                </div>
+                {couponMsg && <p className="mt-1.5 text-xs font-medium text-red-600">{couponMsg}</p>}
+              </div>
+            )}
+          </div>
+
           <div className="mt-4 space-y-1.5 border-t border-black/5 pt-4 text-sm">
             <div className="flex justify-between text-ink-light">
               <span>סכום ביניים</span>
               <span className="font-semibold text-ink">{money(subtotal)}</span>
             </div>
+            {discount > 0 && (
+              <div className="flex justify-between text-brand-700">
+                <span>הנחת קופון{coupon?.code ? ` (${coupon.code})` : ''}</span>
+                <span className="font-semibold">−{money(discount)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-ink-light">
               <span>{selectedDelivery?.label || 'משלוח'}</span>
               <span className="font-semibold text-ink">{deliveryPrice > 0 ? money(deliveryPrice) : 'חינם'}</span>
@@ -457,9 +567,38 @@ export default function Checkout() {
             <span className="text-2xl font-extrabold text-ink">{money(total)}</span>
           </div>
 
+          {/* Newsletter opt-in (only when not already subscribed) + terms */}
+          <div className="mt-4 space-y-2.5 border-t border-black/5 pt-4">
+            {showNewsletter && (
+              <label className="flex cursor-pointer items-start gap-2 text-sm text-ink-light">
+                <input
+                  type="checkbox"
+                  checked={newsletter}
+                  onChange={(e) => setNewsletter(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-black/20 text-brand-500 focus:ring-brand-500"
+                />
+                <span>אני מעוניין/ת לקבל עדכונים ומבצעים לניוזלטר</span>
+              </label>
+            )}
+            <label className="flex cursor-pointer items-start gap-2 text-sm text-ink-light">
+              <input
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-black/20 text-brand-500 focus:ring-brand-500"
+              />
+              <span>
+                קראתי ואני מאשר/ת את{' '}
+                <Link to="/terms" target="_blank" className="font-semibold text-brand-600 hover:underline">
+                  תקנון האתר
+                </Link>
+              </span>
+            </label>
+          </div>
+
           <button
             type="submit"
-            className="mt-5 w-full rounded-xl bg-brand-500 py-3 font-semibold text-white transition hover:bg-brand-600 active:scale-[.99]"
+            className="mt-4 w-full rounded-xl bg-brand-500 py-3 font-semibold text-white transition hover:bg-brand-600 active:scale-[.99]"
           >
             אישור ושליחת הזמנה
           </button>

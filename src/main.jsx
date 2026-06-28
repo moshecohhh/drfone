@@ -7,6 +7,7 @@ import { ThemeProvider } from './context/ThemeContext.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
 import { SettingsProvider } from './context/SettingsContext.jsx'
 import { CatalogProvider } from './context/CatalogContext.jsx'
+import { CouponsProvider } from './context/CouponsContext.jsx'
 import { BrandsProvider } from './context/BrandsContext.jsx'
 import { OrdersProvider } from './context/OrdersContext.jsx'
 import { CartProvider } from './context/CartContext.jsx'
@@ -22,6 +23,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <AuthProvider>
         <SettingsProvider>
         <CatalogProvider>
+          <CouponsProvider>
           <BrandsProvider>
           <OrdersProvider>
             <CartProvider>
@@ -33,6 +35,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             </CartProvider>
           </OrdersProvider>
           </BrandsProvider>
+          </CouponsProvider>
         </CatalogProvider>
         </SettingsProvider>
       </AuthProvider>
