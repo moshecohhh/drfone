@@ -246,9 +246,15 @@ Deno.serve(async (req) => {
     const data = record.data ?? {}
 
     if (table === 'inquiries') {
-      subject = `📨 פנייה חדשה מ${data.name ?? 'לקוח'}`
+      // Two kinds of inquiry: a general site contact, or a post-purchase
+      // service request tied to a specific order (shows the order number).
+      const isService = data.category === 'post-purchase'
+      subject = isService
+        ? `🛠️ פניית שירות${data.orderNumber ? ` · הזמנה ${data.orderNumber}` : ''} · ${data.name ?? 'לקוח'}`
+        : `📨 פנייה חדשה מ${data.name ?? 'לקוח'}`
       html = `<div dir="rtl" style="font-family:Arial,sans-serif">
-        <h2>פנייה חדשה מהאתר</h2>
+        <h2>${isService ? 'פניית שירות (לאחר רכישה)' : 'פנייה חדשה מהאתר'}</h2>
+        ${data.orderNumber ? `<p><b>מספר הזמנה:</b> ${esc(data.orderNumber)}</p>` : ''}
         <p><b>שם:</b> ${esc(data.name)}</p>
         <p><b>טלפון:</b> ${esc(data.phone)}</p>
         ${data.email ? `<p><b>אימייל:</b> <a href="mailto:${esc(data.email)}">${esc(data.email)}</a></p>` : ''}

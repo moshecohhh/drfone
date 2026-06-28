@@ -90,10 +90,11 @@ export default function Account() {
 // ---- Orders (click an order to expand: status timeline, items, actions) ----
 function OrdersTab({ email }) {
   const { orders } = useOrders()
-  const { orderStatusMeta, waLink } = useSettings()
+  const { orderStatusMeta } = useSettings()
   const { store } = useCatalogStore()
   const { addItem, setOpen } = useCart()
   const [openId, setOpenId] = useState(null)
+  const [serviceOrder, setServiceOrder] = useState(null) // order whose service-request modal is open
   const mine = orders.filter((o) => o.customer?.email?.toLowerCase() === String(email).toLowerCase())
 
   const prodById = (id) => (Array.isArray(store) ? store.find((p) => p.id === id) : null)
@@ -189,14 +190,13 @@ function OrdersTab({ email }) {
                   >
                     <RotateCcw size={15} /> קנייה חוזרת
                   </button>
-                  <a
-                    href={waLink(`שלום, ברצוני לפנות בנוגע להזמנה ${o.number}`)}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => setServiceOrder(o)}
                     className="flex items-center gap-1.5 rounded-xl border border-black/10 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-black/5"
                   >
                     <Headset size={15} /> פנייה לשירות
-                  </a>
+                  </button>
                   {o.invoice?.url && (
                     <a
                       href={o.invoice.url}
@@ -213,6 +213,70 @@ function OrdersTab({ email }) {
           </div>
         )
       })}
+      {serviceOrder && <ServiceRequestModal order={serviceOrder} onClose={() => setServiceOrder(null)} />}
+    </div>
+  )
+}
+
+// ---- Service request from an order (opens a ticket → admin inquiries + email) ----
+function ServiceRequestModal({ order, onClose }) {
+  const { user } = useAuth()
+  const { addInquiry } = useSettings()
+  const [message, setMessage] = useState('')
+  const [sent, setSent] = useState(false)
+
+  const submit = (e) => {
+    e.preventDefault()
+    if (!message.trim()) return
+    addInquiry({
+      category: 'post-purchase', // a service request tied to an order
+      orderNumber: order.number,
+      name: user?.name || order.customer?.name || '',
+      phone: user?.phone || order.customer?.phone || '',
+      email: user?.email || order.customer?.email || '',
+      message: message.trim(),
+    })
+    setSent(true)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-card-hover" onClick={(e) => e.stopPropagation()}>
+        {sent ? (
+          <div className="flex flex-col items-center py-4 text-center">
+            <Check size={40} className="text-brand-500" />
+            <p className="mt-3 font-bold text-ink">הפנייה נשלחה!</p>
+            <p className="mt-1 text-sm text-ink-light">צוות השירות יחזור אליך בהקדם בנוגע להזמנה {order.number}.</p>
+            <button onClick={onClose} className="mt-4 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600">
+              סגירה
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={submit}>
+            <div className="mb-3 flex items-center gap-2">
+              <Headset size={18} className="text-brand-500" />
+              <h3 className="text-base font-extrabold text-ink">פנייה לשירות</h3>
+            </div>
+            <p className="mb-3 text-sm text-ink-light">בנוגע להזמנה <span className="font-bold text-ink">{order.number}</span>. נחזור אליך בהקדם.</p>
+            <textarea
+              rows={4}
+              autoFocus
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="כתבו לנו במה נוכל לעזור…"
+              className={inputCls}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={onClose} className="rounded-xl border border-black/10 px-4 py-2 text-sm font-semibold text-ink hover:bg-black/5">
+                ביטול
+              </button>
+              <button type="submit" disabled={!message.trim()} className="flex items-center gap-1.5 rounded-xl bg-brand-500 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-60">
+                <Headset size={15} /> שליחה
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   )
 }
