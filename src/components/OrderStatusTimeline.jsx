@@ -8,16 +8,24 @@ const STEP_ICONS = { new: ClipboardList, processing: Package, shipped: Truck, co
 
 export default function OrderStatusTimeline({ status }) {
   const currentIdx = Math.max(0, ORDER_STATUSES.findIndex((s) => s.id === status))
+  // While the order is still in progress, the current step "bubbles" (pulses).
+  // Once completed, everything is static.
+  const isCompleted = status === 'completed'
   return (
     <div className="flex items-start justify-between">
       {ORDER_STATUSES.map((s, i) => {
         const Icon = STEP_ICONS[s.id] || Package
         const done = i <= currentIdx
         const current = i === currentIdx
+        const pulse = current && !isCompleted
         return (
           <div key={s.id} className="relative flex flex-1 flex-col items-center text-center">
             {i > 0 && (
               <span className={`absolute left-1/2 top-5 -z-0 h-0.5 w-full ${i <= currentIdx ? 'bg-brand-500' : 'bg-black/10'}`} />
+            )}
+            {/* Pulsing halo behind the current (in-progress) step. */}
+            {pulse && (
+              <span className="pointer-events-none absolute left-1/2 top-0 z-0 h-10 w-10 -translate-x-1/2 animate-ping rounded-full bg-brand-500/40" />
             )}
             <span className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 transition ${
               done ? 'border-brand-500 bg-brand-500 text-white' : 'border-black/15 bg-white text-ink-light'

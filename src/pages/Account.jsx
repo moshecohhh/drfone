@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import {
   ArrowRight, LogOut, ShoppingBag, UserCog, CreditCard, Mail, Package,
-  Plus, Trash2, Check, AlertCircle, BellRing, BellOff, ChevronDown,
+  Plus, Trash2, Check, AlertCircle, BellRing, BellOff, ChevronDown, RotateCcw, Headset,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useOrders } from '../context/OrdersContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
+import { useCart } from '../context/CartContext.jsx'
+import { useCatalogStore } from '../context/CatalogContext.jsx'
 import { sanitizePhone, isValidPhone, luhnValid, passwordIssue } from '../utils/validation.js'
 import CitySelect from '../components/CitySelect.jsx'
 import OrderStatusTimeline from '../components/OrderStatusTimeline.jsx'
@@ -83,12 +85,31 @@ export default function Account() {
   )
 }
 
-// ---- Orders (click an order to expand its status timeline) ----
+// ---- Orders (click an order to expand: status timeline, items, actions) ----
 function OrdersTab({ email }) {
   const { orders } = useOrders()
-  const { orderStatusMeta } = useSettings()
+  const { orderStatusMeta, waLink } = useSettings()
+  const { store } = useCatalogStore()
+  const { addItem, setOpen } = useCart()
   const [openId, setOpenId] = useState(null)
   const mine = orders.filter((o) => o.customer?.email?.toLowerCase() === String(email).toLowerCase())
+
+  const prodById = (id) => (Array.isArray(store) ? store.find((p) => p.id === id) : null)
+  // Re-order is possible only when every line's product is still in stock.
+  const canReorder = (o) =>
+    (o.items || []).length > 0 &&
+    (o.items || []).every((it) => {
+      const p = prodById(it.id)
+      return p && (Number(p.stock) || 0) > 0
+    })
+  const reorder = (o) => {
+    let added = false
+    ;(o.items || []).forEach((it) => {
+      const p = prodById(it.id)
+      if (p) for (let k = 0; k < (Number(it.qty) || 1); k++) if (addItem(p, it.color || '')) added = true
+    })
+    if (added) setOpen(true)
+  }
 
   if (mine.length === 0) {
     return (
@@ -102,11 +123,12 @@ function OrdersTab({ email }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-ink-light">לחצו על הזמנה כדי לראות את הסטטוס שלה.</p>
+      <p className="text-sm text-ink-light">לחצו על הזמנה כדי לראות את הסטטוס והפרטים.</p>
       {mine.map((o) => {
         const meta = orderStatusMeta(o.status)
         const open = openId === o.id
         const items = o.items || []
+        const reorderable = canReorder(o)
         return (
           <div key={o.id} className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-card">
             <button
@@ -127,17 +149,54 @@ function OrdersTab({ email }) {
             {open && (
               <div className="border-t border-black/5 p-4 pt-5">
                 <OrderStatusTimeline status={o.status} />
-                <ul className="mt-5 space-y-1 border-t border-black/5 pt-4 text-sm">
-                  {items.map((it) => (
-                    <li key={it.lineId || it.id} className="flex justify-between">
-                      <span className="text-ink-light">{it.name} × {it.qty}</span>
-                      <span className="font-semibold text-ink">₪{it.price * it.qty}</span>
-                    </li>
-                  ))}
+
+                {/* Order meta */}
+                <div className="mt-5 grid gap-1.5 border-t border-black/5 pt-4 text-sm sm:grid-cols-2">
+                  <div className="text-ink-light">מספר הזמנה: <span className="font-semibold text-ink">{o.number}</span></div>
+                  <div className="text-ink-light">מועד ביצוע: <span className="font-semibold text-ink">{fmtDate(o.createdAt)}</span></div>
+                  <div className="text-ink-light sm:col-span-2">סה״כ שולם: <span className="font-extrabold text-ink">₪{o.total}</span></div>
+                </div>
+
+                {/* Items — image, qty, internal SKU/barcode */}
+                <ul className="mt-4 space-y-3 border-t border-black/5 pt-4">
+                  {items.map((it) => {
+                    const sku = prodById(it.id)?.barcode || ''
+                    return (
+                      <li key={it.lineId || it.id} className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-brand-50 text-lg">
+                          {it.image ? <img src={it.image} alt="" className="h-full w-full object-cover" /> : '📦'}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-ink">{it.name}</p>
+                          <p className="text-xs text-ink-light">כמות: {it.qty}{sku ? ` · מק״ט: ${sku}` : ''}</p>
+                        </div>
+                        <span className="shrink-0 text-sm font-bold text-ink">₪{it.price * it.qty}</span>
+                      </li>
+                    )
+                  })}
                 </ul>
-                <div className="mt-3 flex justify-between border-t border-black/5 pt-3">
-                  <span className="text-sm font-semibold text-ink-light">סה״כ</span>
-                  <span className="text-lg font-extrabold text-ink">₪{o.total}</span>
+
+                {/* Actions */}
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-black/5 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => reorderable && reorder(o)}
+                    disabled={!reorderable}
+                    title={reorderable ? '' : 'אחד המוצרים אינו זמין במלאי'}
+                    className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                      reorderable ? 'bg-brand-500 text-white hover:bg-brand-600' : 'cursor-not-allowed bg-black/10 text-ink-light'
+                    }`}
+                  >
+                    <RotateCcw size={15} /> קנייה חוזרת
+                  </button>
+                  <a
+                    href={waLink(`שלום, ברצוני לפנות בנוגע להזמנה ${o.number}`)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 rounded-xl border border-black/10 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-black/5"
+                  >
+                    <Headset size={15} /> פנייה לשירות
+                  </a>
                 </div>
               </div>
             )}
