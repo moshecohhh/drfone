@@ -66,22 +66,24 @@ def _new_driver():
     o.add_argument("--no-sandbox")
     o.add_argument("--disable-dev-shm-usage")
     o.add_argument("--disable-gpu")
-    # --- low-memory flags: squeeze headless Chrome into a 512MB (free) instance.
-    # Less robust than more RAM, but fine for an internal admin tool. ---
-    o.add_argument("--single-process")          # collapse browser+renderer+gpu → 1 process
-    o.add_argument("--no-zygote")
-    o.add_argument("--renderer-process-limit=1")
-    o.add_argument("--disable-extensions")
-    o.add_argument("--disable-background-networking")
-    o.add_argument("--disable-default-apps")
-    o.add_argument("--disable-sync")
-    o.add_argument("--disable-translate")
-    o.add_argument("--disable-software-rasterizer")
-    o.add_argument("--mute-audio")
-    o.add_argument("--disable-features=site-per-process,Translate,BackForwardCache")
-    o.add_argument("--blink-settings=imagesEnabled=false")   # skip images → big RAM/bandwidth cut
-    o.add_argument("--js-flags=--max-old-space-size=256")
     o.add_argument("--window-size=1280,900")
+    # --- low-memory flags (opt-in via KP_LOWMEM): squeeze headless Chrome into a
+    # tiny ~512MB instance. Less robust, so OFF by default — set KP_LOWMEM=1 only
+    # on a memory-constrained host. Local / roomy hosts run plain Chrome. ---
+    if os.environ.get("KP_LOWMEM"):
+        o.add_argument("--single-process")      # collapse browser+renderer+gpu → 1 process
+        o.add_argument("--no-zygote")
+        o.add_argument("--renderer-process-limit=1")
+        o.add_argument("--disable-extensions")
+        o.add_argument("--disable-background-networking")
+        o.add_argument("--disable-default-apps")
+        o.add_argument("--disable-sync")
+        o.add_argument("--disable-translate")
+        o.add_argument("--disable-software-rasterizer")
+        o.add_argument("--mute-audio")
+        o.add_argument("--disable-features=site-per-process,Translate,BackForwardCache")
+        o.add_argument("--blink-settings=imagesEnabled=false")  # skip images → big RAM cut
+        o.add_argument("--js-flags=--max-old-space-size=256")
     chrome_bin = os.environ.get("CHROME_BIN")
     if chrome_bin:
         o.binary_location = chrome_bin

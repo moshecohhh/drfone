@@ -69,7 +69,24 @@
       "Bash(git fetch *)",
       "Bash(git checkout *)",
       "PowerShell(Get-Content -Raw \"supabase/functions/check-kosher-imei/index.ts\" | Set-Clipboard; \"clipboard length: \" + \\(Get-Clipboard -Raw\\).Length)",
-      "PowerShell(Get-Content -Raw \"supabase/functions/kosherplay/index.ts\" | Set-Clipboard; \"clipboard length: \" + \\(Get-Clipboard -Raw\\).Length)"
+      "PowerShell(Get-Content -Raw \"supabase/functions/kosherplay/index.ts\" | Set-Clipboard; \"clipboard length: \" + \\(Get-Clipboard -Raw\\).Length)",
+      "PowerShell($bytes = New-Object byte[] 32; [System.Security.Cryptography.RandomNumberGenerator]::Create\\(\\).GetBytes\\($bytes\\); $secret = \\([System.BitConverter]::ToString\\($bytes\\) -replace '-'\\).ToLower\\(\\); \"KP_SHARED_SECRET=$secret\"; $secret | Set-Clipboard; \"\\(copied to clipboard\\)\")",
+      "PowerShell(try { $r = Invoke-RestMethod -Uri \"https://drfone.onrender.com/health\" -TimeoutSec 90; \"HEALTH: \" + \\($r | ConvertTo-Json -Compress\\) } catch { \"ERR: $\\($_.Exception.Message\\)\" })",
+      "Bash(curl -s -m 30 -w \"\\\\nHTTP:%{http_code}\\\\n\" https://drfone.onrender.com/health)",
+      "Bash(python -m venv 'C:\\\\Users\\\\Moshe Cohen/.kp-venv')",
+      "Bash('C:\\\\Users\\\\Moshe Cohen/.kp-venv/Scripts/python' -m pip install -q --upgrade pip)",
+      "Bash('C:\\\\Users\\\\Moshe Cohen/.kp-venv/Scripts/python' -m pip install -q flask selenium)",
+      "Bash('C:\\\\Users\\\\Moshe Cohen/.kp-venv/Scripts/python' -m pip list)",
+      "Bash(KP_USER=moshecohh@gmail.com KP_PWD=0556802800 KP_SHARED_SECRET=71acfbe6b68f1e88efaa34a0615d046eeaa71a534b94309d5d2c8b0a39091519 PORT=8000 'C:\\\\Users\\\\Moshe Cohen/.kp-venv/Scripts/python' app.py)",
+      "Bash(curl -s -m 15 http://127.0.0.1:8000/health)",
+      "Bash(curl -s -m 120 -X GET \"http://127.0.0.1:8000/api/balance\" -H \"X-KP-Secret: 71acfbe6b68f1e88efaa34a0615d046eeaa71a534b94309d5d2c8b0a39091519\")",
+      "Bash(echo \"\\(exit $?\\)\")",
+      "Bash(curl -L -s -o cloudflared.exe \"https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe\")",
+      "Bash(./cloudflared.exe --version)",
+      "Bash(./cloudflared.exe tunnel *)",
+      "Bash(curl -s -m 30 \"https://formation-shoes-occupational-bronze.trycloudflare.com/health\" -w \"\\\\nHTTP:%{http_code}\\\\n\")",
+      "Bash(clip.exe)",
+      "Bash(curl -s -m 130 -X POST https://ticfdidkigskxnpycvzd.supabase.co/functions/v1/kosherplay -H 'Authorization: Bearer __TRACKED_VAR__' -H 'apikey: __TRACKED_VAR__' -H 'Content-Type: application/json' --data '{\"op\":\"balance\"}' -w '\\\\nHTTP:%{http_code}\\\\n')"
     ]
   }
 }
