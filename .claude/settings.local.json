@@ -86,7 +86,25 @@
       "Bash(./cloudflared.exe tunnel *)",
       "Bash(curl -s -m 30 \"https://formation-shoes-occupational-bronze.trycloudflare.com/health\" -w \"\\\\nHTTP:%{http_code}\\\\n\")",
       "Bash(clip.exe)",
-      "Bash(curl -s -m 130 -X POST https://ticfdidkigskxnpycvzd.supabase.co/functions/v1/kosherplay -H 'Authorization: Bearer __TRACKED_VAR__' -H 'apikey: __TRACKED_VAR__' -H 'Content-Type: application/json' --data '{\"op\":\"balance\"}' -w '\\\\nHTTP:%{http_code}\\\\n')"
+      "Bash(curl -s -m 130 -X POST https://ticfdidkigskxnpycvzd.supabase.co/functions/v1/kosherplay -H 'Authorization: Bearer __TRACKED_VAR__' -H 'apikey: __TRACKED_VAR__' -H 'Content-Type: application/json' --data '{\"op\":\"balance\"}' -w '\\\\nHTTP:%{http_code}\\\\n')",
+      "Bash(KP_USER=moshecohh@gmail.com KP_PWD=0556802800 'C:\\\\Users\\\\Moshe Cohen/.kp-venv/Scripts/python' capture_api.py)",
+      "Bash(curl -s -X POST https://crm.kosherplay.com/api/auth/login -H 'Content-Type: application/json' --data '{\"email\":\"moshecohh@gmail.com\",\"password\":\"0556802800\"}')",
+      "Bash(KP_USER=moshecohh@gmail.com KP_PWD=0556802800 DEV=5eec2 PH=0556802800 'C:\\\\Users\\\\Moshe Cohen/.kp-venv/Scripts/python' capture_actions.py)",
+      "Bash(KP_USER=moshecohh@gmail.com KP_PWD=0556802800 DEV=5eec2 PH=0556802800 'C:\\\\Users\\\\Moshe Cohen/.kp-venv/Scripts/python' capture_gp.py)",
+      "Bash(python -c ' *)",
+      "Bash(KP_USER=moshecohh@gmail.com KP_PWD=0556802800 DEV=5eec2 PH=0556802800 'C:\\\\Users\\\\Moshe Cohen/.kp-venv/Scripts/python' capture_gp_diff.py)",
+      "Bash(KP_USER=moshecohh@gmail.com KP_PWD=0556802800 DEV=5eec2 PH=0556802800 'C:\\\\Users\\\\Moshe Cohen/.kp-venv/Scripts/python' capture_gp_putdiff.py)",
+      "Bash(KP_USER=moshecohh@gmail.com KP_PWD=0556802800 DEV=5eec2 PH=0556802800 'C:\\\\Users\\\\Moshe Cohen/.kp-venv/Scripts/python' capture_status_bodies.py)",
+      "Bash(KP_USER=moshecohh@gmail.com KP_PWD=0556802800 'C:\\\\Users\\\\Moshe Cohen/.kp-venv/Scripts/python' capture_code.py)",
+      "Bash(KP_USER=moshecohh@gmail.com KP_PWD=0556802800 'C:\\\\Users\\\\Moshe Cohen/.kp-venv/Scripts/python' capture_code_types.py)",
+      "Bash(curl -s -X POST __TRACKED_VAR__/api/auth/login -H 'Content-Type: application/json' --data '{\"email\":\"moshecohh@gmail.com\",\"password\":\"0556802800\"}')",
+      "Bash(KP_USER=moshecohh@gmail.com KP_PWD=0556802800 'C:\\\\Users\\\\Moshe Cohen/.kp-venv/Scripts/python' capture_code_meta.py)",
+      "Bash(python -c \"import sys,json; print\\(json.dumps\\(json.load\\(sys.stdin\\), ensure_ascii=False, indent=1\\)\\)\")",
+      "Bash(python -c \"import secrets; print\\('CRON='+secrets.token_hex\\(24\\)\\)\")",
+      "Bash(cat > *)",
+      "Bash(git rm *)",
+      "Bash(rm -rf kosherplay-service)",
+      "Bash(ls kosherplay-service *)"
     ]
   }
 }
