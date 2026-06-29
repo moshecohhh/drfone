@@ -18,6 +18,16 @@ All endpoints require the `X-KP-Secret` header (must equal `KP_SHARED_SECRET`).
 | POST | `/api/action` | `{device, phone, action}` — action ∈ `suspend\|activate\|gp_open\|gp_block` | `{ok, msg}` |
 | GET | `/api/code` | `?type=free\|chrome\|magen\|pc\|combined` | `{ok, code, msg}` |
 | GET | `/api/balance` | — | `{balance}` |
+| POST | `/api/timer/start` | `{device, phone, t, duration_ms}` — t ∈ `sub\|gp` | `{ok, msg, timer}` |
+| GET | `/api/timer/list` | — | `{timers:[…]}` |
+| POST | `/api/timer/finish` | `{id}` | `{ok, msg, id}` |
+
+**Temporary-action timers** run server-side: `start` does the immediate action
+and schedules the opposite action for `duration_ms` later — executed by a
+background thread, so the user can close the browser. Jobs persist to
+`KP_DATA_FILE` (default `kp_schedules.json`); a graceful restart resumes them.
+To survive a full redeploy, point `KP_DATA_FILE` at a persistent disk (e.g. on
+Render, mount a disk and set `KP_DATA_FILE=/data/kp_schedules.json`).
 
 ## Environment
 

@@ -3,21 +3,20 @@ import {
   Star, Plus, Trash2, Loader2, AlertCircle, CheckCircle2, PauseCircle,
   PlayCircle, Smartphone, Timer, ChevronDown,
 } from 'lucide-react'
-import { kpAction } from '../../lib/kosherplay.js'
+import { kpAction, kpTimerStart, kpTimerList, kpTimerFinish } from '../../lib/kosherplay.js'
 import { PanelHead, Field, PrimaryBtn, GhostBtn, IconBtn, inputCls } from './ui.jsx'
 import KosherPlayLogo from './KosherPlayLogo.jsx'
 
-// Temporary-action mapping: do `now` immediately, `end` when the timer expires.
+// Temporary-action labels. The timer itself runs server-side (it does the
+// immediate action now and the opposite action when it elapses), so the browser
+// can be closed. t ∈ 'sub' | 'gp'.
 const TARGETS = {
-  sub: { now: 'suspend', end: 'activate', label: 'מנוי — השהה עכשיו, הפעל בסיום' },
-  gp: { now: 'gp_open', end: 'gp_block', label: 'גוגל פליי — פתח עכשיו, חסום בסיום' },
+  sub: { label: 'מנוי — השהה עכשיו, הפעל בסיום' },
+  gp: { label: 'גוגל פליי — פתח עכשיו, חסום בסיום' },
 }
 
 const readFavs = () => {
   try { return JSON.parse(localStorage.getItem('kp_favs') || '[]') } catch { return [] }
-}
-const readTimer = () => {
-  try { return JSON.parse(localStorage.getItem('kp_timer') || 'null') } catch { return null }
 }
 const two = (n) => String(n).padStart(2, '0')
 const fmt = (ms) => {
@@ -70,33 +69,24 @@ export default function KosherPlayCustomerPanel() {
     }
   }
 
-  // Temporary-action timer ---------------------------------------------------
+  // Temporary-action timers (scheduled server-side) -------------------------
   const [tType, setTType] = useState('sub')
   const [hours, setHours] = useState(0)
   const [minutes, setMinutes] = useState(30)
-  const [timer, setTimer] = useState(readTimer)
-  const [remaining, setRemaining] = useState(0)
+  const [timers, setTimers] = useState([]) // active timers from the server
+  const [, setTick] = useState(0) // forces the countdown to re-render each second
 
-  // Drive the active timer; when it elapses, run the `end` action once.
+  const refreshTimers = async () => {
+    try { const r = await kpTimerList(); setTimers(Array.isArray(r?.timers) ? r.timers : []) } catch { /* ignore */ }
+  }
+  // Load on mount, re-render the countdown every second, and re-sync with the
+  // server periodically (so timers the server finished disappear here too).
+  useEffect(() => { refreshTimers() }, [])
   useEffect(() => {
-    if (!timer) return
-    let cancelled = false
-    const tick = async () => {
-      const left = timer.endTime - Date.now()
-      if (left <= 0) {
-        setTimer(null); localStorage.removeItem('kp_timer')
-        try {
-          const r = await kpAction(timer.device, timer.phone, TARGETS[timer.t].end)
-          if (!cancelled) setFlash({ ok: !!r?.ok, msg: `סיום טיימר — ${r?.msg || ''}` })
-        } catch { if (!cancelled) setFlash({ ok: false, msg: 'שגיאה בסיום הטיימר.' }) }
-        return
-      }
-      if (!cancelled) setRemaining(left)
-    }
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => { cancelled = true; clearInterval(id) }
-  }, [timer])
+    const tickId = setInterval(() => setTick((n) => n + 1), 1000)
+    const syncId = setInterval(refreshTimers, 30000)
+    return () => { clearInterval(tickId); clearInterval(syncId) }
+  }, [])
 
   const startTimer = async () => {
     if (!device.trim() || !phone.trim()) return setFlash({ ok: false, msg: 'יש למלא מזהה וטלפון.' })
@@ -105,22 +95,22 @@ export default function KosherPlayCustomerPanel() {
     if (busy) return
     setBusy('timer'); setFlash(null)
     try {
-      const r = await kpAction(device.trim(), phone.trim(), TARGETS[tType].now)
+      const r = await kpTimerStart(device.trim(), phone.trim(), tType, ms)
       setFlash({ ok: !!r?.ok, msg: `התחלת טיימר — ${r?.msg || ''}` })
-      const t = { endTime: Date.now() + ms, device: device.trim(), phone: phone.trim(), t: tType }
-      localStorage.setItem('kp_timer', JSON.stringify(t)); setTimer(t)
+      await refreshTimers()
     } catch {
       setFlash({ ok: false, msg: 'שגיאה בהתחלת הטיימר.' })
     } finally {
       setBusy('')
     }
   }
-  const endTimerNow = async () => {
-    const t = timer; if (!t || busy) return
-    setBusy('timer'); setTimer(null); localStorage.removeItem('kp_timer')
+  const finishTimer = async (id) => {
+    if (busy) return
+    setBusy('timer:' + id); setFlash(null)
     try {
-      const r = await kpAction(t.device, t.phone, TARGETS[t.t].end)
+      const r = await kpTimerFinish(id)
       setFlash({ ok: !!r?.ok, msg: `סיום ידני — ${r?.msg || ''}` })
+      await refreshTimers()
     } catch { setFlash({ ok: false, msg: 'שגיאה בסיום הטיימר.' }) } finally { setBusy('') }
   }
 
@@ -231,33 +221,42 @@ export default function KosherPlayCustomerPanel() {
         <p className="mt-3 text-xs text-ink-light">גוגל פליי זמין רק כשהמנוי פעיל.</p>
       </div>
 
-      {/* Temporary-action timer */}
+      {/* Temporary-action timers (server-scheduled) */}
       <div className="mt-4 rounded-2xl border border-black/5 bg-white p-5 shadow-card">
         <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-ink"><Timer size={16} /> פעולה זמנית</h3>
-        <p className="mb-3 text-xs text-ink-light">מבצע את הפעולה מיד, ובסיום הזמן מחזיר אוטומטית. יש להשאיר את הדף פתוח.</p>
+        <p className="mb-3 text-xs text-ink-light">מבצע את הפעולה מיד, ובסיום הזמן מחזיר אוטומטית — התזמון רץ בשרת, אז אפשר לסגור את הדף ולהמשיך לגלוש.</p>
 
-        {timer ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50 p-4">
-            <div>
-              <p className="text-xs font-semibold text-ink-light">{TARGETS[timer.t].label}</p>
-              <p className="text-2xl font-extrabold tabular-nums text-brand-700" dir="ltr">{fmt(remaining)}</p>
-              <p className="text-xs text-ink-light" dir="ltr">{timer.device} · {timer.phone}</p>
-            </div>
-            <GhostBtn type="button" onClick={endTimerNow} disabled={!!busy}>
-              {spin('timer') ? <Loader2 size={16} className="animate-spin" /> : null} סיום עכשיו
-            </GhostBtn>
-          </div>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto]">
-            <select value={tType} onChange={(e) => setTType(e.target.value)} className={inputCls}>
-              <option value="sub">{TARGETS.sub.label}</option>
-              <option value="gp">{TARGETS.gp.label}</option>
-            </select>
-            <input type="number" min="0" value={hours} onChange={(e) => setHours(e.target.value)} className={`${inputCls} w-24`} placeholder="שעות" aria-label="שעות" />
-            <input type="number" min="0" max="59" value={minutes} onChange={(e) => setMinutes(e.target.value)} className={`${inputCls} w-24`} placeholder="דקות" aria-label="דקות" />
-            <PrimaryBtn type="button" onClick={startTimer} disabled={!!busy}>
-              {spin('timer') ? <Loader2 size={16} className="animate-spin" /> : <Timer size={16} />} התחל
-            </PrimaryBtn>
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto]">
+          <select value={tType} onChange={(e) => setTType(e.target.value)} className={inputCls}>
+            <option value="sub">{TARGETS.sub.label}</option>
+            <option value="gp">{TARGETS.gp.label}</option>
+          </select>
+          <input type="number" min="0" value={hours} onChange={(e) => setHours(e.target.value)} className={`${inputCls} w-24`} placeholder="שעות" aria-label="שעות" />
+          <input type="number" min="0" max="59" value={minutes} onChange={(e) => setMinutes(e.target.value)} className={`${inputCls} w-24`} placeholder="דקות" aria-label="דקות" />
+          <PrimaryBtn type="button" onClick={startTimer} disabled={!!busy}>
+            {spin('timer') ? <Loader2 size={16} className="animate-spin" /> : <Timer size={16} />} התחל
+          </PrimaryBtn>
+        </div>
+
+        {/* Active timers (from the server) */}
+        {timers.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <p className="text-xs font-bold text-ink-light">טיימרים פעילים</p>
+            {timers.map((tm) => {
+              const left = tm.run_at_ms - Date.now()
+              return (
+                <div key={tm.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50 p-3">
+                  <div>
+                    <p className="text-xs font-semibold text-ink-light">{TARGETS[tm.t]?.label || tm.t}</p>
+                    <p className="text-xl font-extrabold tabular-nums text-brand-700" dir="ltr">{left > 0 ? fmt(left) : 'מסיים…'}</p>
+                    <p className="text-xs text-ink-light" dir="ltr">{tm.device} · {tm.phone}</p>
+                  </div>
+                  <GhostBtn type="button" onClick={() => finishTimer(tm.id)} disabled={!!busy}>
+                    {spin('timer:' + tm.id) ? <Loader2 size={16} className="animate-spin" /> : null} סיום עכשיו
+                  </GhostBtn>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

@@ -68,6 +68,25 @@ Deno.serve(async (req) => {
     if (op === 'balance') {
       return await forward('/api/balance')
     }
+    if (op === 'timer_start') {
+      const { device, phone, t, duration_ms } = b as Record<string, unknown>
+      return await forward('/api/timer/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device, phone, t, duration_ms }),
+      })
+    }
+    if (op === 'timer_list') {
+      return await forward('/api/timer/list')
+    }
+    if (op === 'timer_finish') {
+      const { id } = b as Record<string, unknown>
+      return await forward('/api/timer/finish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+    }
     return json({ ok: false, msg: 'unknown op' }, 400)
   } catch (e) {
     return json({ ok: false, msg: `proxy error: ${String(e)}` }, 502)

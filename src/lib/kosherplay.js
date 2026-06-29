@@ -14,3 +14,10 @@ export const kpAction = (device, phone, action) => call({ op: 'action', device, 
 // type ∈ 'free' | 'chrome' | 'magen' | 'pc' | 'combined'
 export const kpCode = (type) => call({ op: 'code', type })
 export const kpBalance = () => call({ op: 'balance' })
+
+// Temporary-action timers — scheduled server-side, so they fire even with the
+// browser closed. t ∈ 'sub' | 'gp'.
+export const kpTimerStart = (device, phone, t, durationMs) =>
+  call({ op: 'timer_start', device, phone, t, duration_ms: durationMs })
+export const kpTimerList = () => call({ op: 'timer_list' })
+export const kpTimerFinish = (id) => call({ op: 'timer_finish', id })

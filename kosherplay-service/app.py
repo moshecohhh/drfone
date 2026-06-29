@@ -19,7 +19,7 @@
 #   GET  /api/code?type=free|chrome|magen|pc|combined
 #   GET  /api/balance
 
-import os, time, threading, re
+import os, time, threading, re, json, uuid
 from functools import wraps
 from flask import Flask, request, jsonify
 from selenium import webdriver
@@ -204,6 +204,107 @@ def get_balance():
         return {"balance": m.group(1) if m else None}
 
 
+# ------------------------------------------------------- scheduled timers ----
+# "Temporary action": run an action now, and the opposite action when the timer
+# elapses — executed HERE in the always-on service, so the user can close the
+# browser entirely. Jobs are persisted to a file so a graceful restart resumes
+# them (set KP_DATA_FILE to a path on a persistent disk to survive redeploys).
+TIMER_TARGETS = {"sub": ("suspend", "activate"), "gp": ("gp_open", "gp_block")}
+DATA_FILE = os.environ.get("KP_DATA_FILE", "kp_schedules.json")
+_jobs = []  # [{id, device, phone, t, end_action, run_at_ms}]
+_jobs_lock = threading.Lock()
+
+
+def _save_jobs():
+    try:
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(_jobs, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def _load_jobs():
+    global _jobs
+    try:
+        with open(DATA_FILE, encoding="utf-8") as f:
+            _jobs = json.load(f) or []
+    except Exception:
+        _jobs = []
+
+
+def _run_end(job):
+    try:
+        do_action(job["device"], job["phone"], job["end_action"])
+    except Exception:
+        pass
+
+
+def _scheduler():
+    while True:
+        now = time.time() * 1000
+        due = []
+        with _jobs_lock:
+            if _jobs:
+                due = [j for j in _jobs if j["run_at_ms"] <= now]
+                if due:
+                    _jobs[:] = [j for j in _jobs if j["run_at_ms"] > now]
+                    _save_jobs()
+        for j in due:
+            _run_end(j)
+        time.sleep(5)
+
+
+def timer_start(device, phone, t, duration_ms):
+    now_action, end_action = TIMER_TARGETS[t]
+    res = do_action(device, phone, now_action)  # the immediate action, now
+    job = {
+        "id": uuid.uuid4().hex, "device": device, "phone": phone, "t": t,
+        "end_action": end_action, "run_at_ms": int(time.time() * 1000) + int(duration_ms),
+    }
+    with _jobs_lock:
+        _jobs.append(job)
+        _save_jobs()
+    return {"ok": res.get("ok", False), "msg": res.get("msg", ""), "timer": job}
+
+
+def timer_list():
+    with _jobs_lock:
+        return {"timers": list(_jobs)}
+
+
+def timer_finish(job_id):
+    job = None
+    with _jobs_lock:
+        for j in _jobs:
+            if j["id"] == job_id:
+                job = j
+                break
+        if job:
+            _jobs.remove(job)
+            _save_jobs()
+    if not job:
+        return {"ok": False, "msg": "טיימר לא נמצא"}
+    res = do_action(job["device"], job["phone"], job["end_action"])
+    return {"ok": res.get("ok", False), "msg": res.get("msg", ""), "id": job_id}
+
+
+def _bootstrap_jobs():
+    # On startup run any jobs that came due while the service was down.
+    now = time.time() * 1000
+    with _jobs_lock:
+        overdue = [j for j in _jobs if j["run_at_ms"] <= now]
+        if overdue:
+            _jobs[:] = [j for j in _jobs if j["run_at_ms"] > now]
+            _save_jobs()
+    for j in overdue:
+        _run_end(j)
+
+
+_load_jobs()
+threading.Thread(target=_bootstrap_jobs, daemon=True).start()
+threading.Thread(target=_scheduler, daemon=True).start()
+
+
 # ----------------------------------------------------------------- flask ----
 app = Flask(__name__)
 
@@ -258,6 +359,48 @@ def api_balance():
         return jsonify(get_balance())
     except Exception as e:
         return jsonify({"balance": None, "msg": f"שגיאה: {e}"}), 500
+
+
+@app.post("/api/timer/start")
+@require_secret
+def api_timer_start():
+    b = request.get_json(silent=True) or {}
+    device = str(b.get("device", "")).strip()
+    phone = str(b.get("phone", "")).strip()
+    t = str(b.get("t", "")).strip()
+    if t not in TIMER_TARGETS:
+        return jsonify({"ok": False, "msg": "סוג טיימר לא תקין"}), 400
+    if not device or not phone:
+        return jsonify({"ok": False, "msg": "חסר מזהה או טלפון"}), 400
+    try:
+        dm = int(b.get("duration_ms", 0))
+    except Exception:
+        dm = 0
+    if dm <= 0:
+        return jsonify({"ok": False, "msg": "משך זמן לא תקין"}), 400
+    try:
+        return jsonify(timer_start(device, phone, t, dm))
+    except Exception as e:
+        return jsonify({"ok": False, "msg": f"שגיאה: {e}"}), 500
+
+
+@app.get("/api/timer/list")
+@require_secret
+def api_timer_list():
+    return jsonify(timer_list())
+
+
+@app.post("/api/timer/finish")
+@require_secret
+def api_timer_finish():
+    b = request.get_json(silent=True) or {}
+    jid = str(b.get("id", "")).strip()
+    if not jid:
+        return jsonify({"ok": False, "msg": "חסר מזהה טיימר"}), 400
+    try:
+        return jsonify(timer_finish(jid))
+    except Exception as e:
+        return jsonify({"ok": False, "msg": f"שגיאה: {e}"}), 500
 
 
 if __name__ == "__main__":
