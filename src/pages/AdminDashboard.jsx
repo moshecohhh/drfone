@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ShoppingBag, Wrench, Smartphone, HardDrive,
   Tags, Users, UserCog, Settings as SettingsIcon, LogOut, Home, Tag, Mail,
-  LayoutTemplate, Inbox, DatabaseBackup, PenSquare, GripVertical, RotateCcw, Check, ChevronDown, Ticket, ShoppingCart,
+  LayoutTemplate, Inbox, DatabaseBackup, PenSquare, GripVertical, RotateCcw, Check, ChevronDown, Ticket, ShoppingCart, Signal,
 } from 'lucide-react'
 import { useAuth, ROLE_LABELS } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
@@ -30,6 +30,7 @@ import UsersPanelGate from '../components/admin/UsersPanelGate.jsx'
 import CustomersPanel from '../components/admin/CustomersPanel.jsx'
 import SettingsPanel from '../components/admin/SettingsPanel.jsx'
 import BackupPanelGate from '../components/admin/BackupPanelGate.jsx'
+import OperatorCheckPanel from '../components/admin/OperatorCheckPanel.jsx'
 
 // Catalog sub-pages — shown BOTH as expandable children in the sidebar AND as a
 // tab row at the top of each of these pages.
@@ -71,6 +72,12 @@ const NAV = [
     ],
   },
   {
+    group: 'חיבור קווי סלולר',
+    items: [
+      { id: 'operator-check', label: 'בדיקת מפעיל', Icon: Signal },
+    ],
+  },
+  {
     group: 'ניהול',
     items: [
       { id: 'users', label: 'משתמשים והרשאות', Icon: UserCog },
@@ -98,6 +105,7 @@ const PANELS = {
   users: UsersPanelGate,
   backup: BackupPanelGate,
   settings: SettingsPanel,
+  'operator-check': OperatorCheckPanel,
 }
 
 export default function AdminDashboard() {
