@@ -51,7 +51,18 @@
       "Bash(rm -f _tmp_payload.local)",
       "Bash(npx --yes supabase secrets set NOTIFY_TO=drfone4949@gmail.com)",
       "Bash(npx --yes supabase secrets set NOTIFY_TO=moshecohh@gmail.com)",
-      "Bash(curl -s -o /dev/null -w \"insert status=%{http_code}\\\\n\" -X POST \"https://ticfdidkigskxnpycvzd.supabase.co/rest/v1/inquiries\" -H \"Content-Type: application/json; charset=utf-8\" -H \"apikey: sb_publishable_miG44mm-4i_SLMK30O7yuw_D8t8MIQT\" -H \"Prefer: return=minimal\" --data-binary @_tmp_payload.local)"
+      "Bash(curl -s -o /dev/null -w \"insert status=%{http_code}\\\\n\" -X POST \"https://ticfdidkigskxnpycvzd.supabase.co/rest/v1/inquiries\" -H \"Content-Type: application/json; charset=utf-8\" -H \"apikey: sb_publishable_miG44mm-4i_SLMK30O7yuw_D8t8MIQT\" -H \"Prefer: return=minimal\" --data-binary @_tmp_payload.local)",
+      "Bash(node_modules/.bin/vite build *)",
+      "Bash(awk '{print $5, $9}')",
+      "PowerShell($ports = 5173,5174,4173,3000; foreach \\($p in $ports\\) { $c = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { \"LISTENING on $p\" } }; \"--- node/vite processes ---\"; Get-Process node -ErrorAction SilentlyContinue | Select-Object Id, StartTime | Format-Table -AutoSize | Out-String)",
+      "PowerShell(npm run build 2>&1)",
+      "PowerShell($cli = \\(Get-Command supabase -ErrorAction SilentlyContinue\\); if \\($cli\\) { \"supabase CLI: $\\($cli.Source\\)\"; supabase --version } else { \"supabase CLI NOT on PATH\" }; \"---\"; if \\(Test-Path supabase/.temp/linked-project.json\\) { \"linked-project.json:\"; Get-Content supabase/.temp/linked-project.json } else { \"not linked\" }; \"---\"; if \\(Test-Path supabase/config.toml\\) { \"config.toml exists\" } else { \"no config.toml\" })",
+      "mcp__Claude_in_Chrome__list_connected_browsers",
+      "mcp__Claude_in_Chrome__tabs_create_mcp",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__computer",
+      "PowerShell(Get-Content -Raw \"supabase/functions/check-operator/index.ts\" | Set-Clipboard; \"clipboard length: \" + \\(Get-Clipboard -Raw\\).Length)"
     ]
   }
 }
