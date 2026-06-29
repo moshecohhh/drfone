@@ -62,7 +62,9 @@
       "mcp__Claude_in_Chrome__tabs_context_mcp",
       "mcp__Claude_in_Chrome__navigate",
       "mcp__Claude_in_Chrome__computer",
-      "PowerShell(Get-Content -Raw \"supabase/functions/check-operator/index.ts\" | Set-Clipboard; \"clipboard length: \" + \\(Get-Clipboard -Raw\\).Length)"
+      "PowerShell(Get-Content -Raw \"supabase/functions/check-operator/index.ts\" | Set-Clipboard; \"clipboard length: \" + \\(Get-Clipboard -Raw\\).Length)",
+      "Bash(gh pr create --base main --head feature/operator-check --title 'Add \"operator check\" feature \\(CRM proxy + admin panel\\)' --body ' *)",
+      "PowerShell(Get-Content -Raw \"supabase/functions/send-ivr/index.ts\" | Set-Clipboard; \"clipboard length: \" + \\(Get-Clipboard -Raw\\).Length)"
     ]
   }
 }

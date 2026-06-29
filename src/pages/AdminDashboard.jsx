@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ShoppingBag, Wrench, Smartphone, HardDrive,
   Tags, Users, UserCog, Settings as SettingsIcon, LogOut, Home, Tag, Mail,
-  LayoutTemplate, Inbox, DatabaseBackup, PenSquare, GripVertical, RotateCcw, Check, ChevronDown, Ticket, ShoppingCart, Signal,
+  LayoutTemplate, Inbox, DatabaseBackup, PenSquare, GripVertical, RotateCcw, Check, ChevronDown, Ticket, ShoppingCart, Signal, PhoneOutgoing,
 } from 'lucide-react'
 import { useAuth, ROLE_LABELS } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
@@ -31,6 +31,7 @@ import CustomersPanel from '../components/admin/CustomersPanel.jsx'
 import SettingsPanel from '../components/admin/SettingsPanel.jsx'
 import BackupPanelGate from '../components/admin/BackupPanelGate.jsx'
 import OperatorCheckPanel from '../components/admin/OperatorCheckPanel.jsx'
+import IvrCallPanel from '../components/admin/IvrCallPanel.jsx'
 
 // Catalog sub-pages — shown BOTH as expandable children in the sidebar AND as a
 // tab row at the top of each of these pages.
@@ -75,6 +76,7 @@ const NAV = [
     group: 'חיבור קווי סלולר',
     items: [
       { id: 'operator-check', label: 'בדיקת מפעיל', Icon: Signal },
+      { id: 'ivr-call', label: 'ביצוע IVR', Icon: PhoneOutgoing },
     ],
   },
   {
@@ -106,6 +108,7 @@ const PANELS = {
   backup: BackupPanelGate,
   settings: SettingsPanel,
   'operator-check': OperatorCheckPanel,
+  'ivr-call': IvrCallPanel,
 }
 
 export default function AdminDashboard() {
