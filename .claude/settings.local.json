@@ -68,7 +68,8 @@
       "mcp__Claude_in_Chrome__find",
       "Bash(git fetch *)",
       "Bash(git checkout *)",
-      "PowerShell(Get-Content -Raw \"supabase/functions/check-kosher-imei/index.ts\" | Set-Clipboard; \"clipboard length: \" + \\(Get-Clipboard -Raw\\).Length)"
+      "PowerShell(Get-Content -Raw \"supabase/functions/check-kosher-imei/index.ts\" | Set-Clipboard; \"clipboard length: \" + \\(Get-Clipboard -Raw\\).Length)",
+      "PowerShell(Get-Content -Raw \"supabase/functions/kosherplay/index.ts\" | Set-Clipboard; \"clipboard length: \" + \\(Get-Clipboard -Raw\\).Length)"
     ]
   }
 }
