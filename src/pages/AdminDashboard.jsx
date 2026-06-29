@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ShoppingBag, Wrench, Smartphone, HardDrive,
   Tags, Users, UserCog, Settings as SettingsIcon, LogOut, Home, Tag, Mail,
-  LayoutTemplate, Inbox, DatabaseBackup, PenSquare, GripVertical, RotateCcw, Check, ChevronDown, Ticket, ShoppingCart, Signal, PhoneOutgoing, ShieldCheck,
+  LayoutTemplate, Inbox, DatabaseBackup, PenSquare, GripVertical, RotateCcw, Check, ChevronDown, Ticket, ShoppingCart, Signal, PhoneOutgoing, ShieldCheck, KeyRound,
 } from 'lucide-react'
 import { useAuth, ROLE_LABELS } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
@@ -33,6 +33,9 @@ import BackupPanelGate from '../components/admin/BackupPanelGate.jsx'
 import OperatorCheckPanel from '../components/admin/OperatorCheckPanel.jsx'
 import IvrCallPanel from '../components/admin/IvrCallPanel.jsx'
 import KosherImeiPanel from '../components/admin/KosherImeiPanel.jsx'
+import KosherPlayCustomerPanel from '../components/admin/KosherPlayCustomerPanel.jsx'
+import KosherPlayCodesPanel from '../components/admin/KosherPlayCodesPanel.jsx'
+import KosherPlayLogo from '../components/admin/KosherPlayLogo.jsx'
 
 // Catalog sub-pages — shown BOTH as expandable children in the sidebar AND as a
 // tab row at the top of each of these pages.
@@ -82,6 +85,13 @@ const NAV = [
     ],
   },
   {
+    group: 'מערכת כשר פליי',
+    items: [
+      { id: 'kp-customer', label: 'ניהול לקוח', Icon: KosherPlayLogo },
+      { id: 'kp-codes', label: 'קודים ויתרה', Icon: KeyRound },
+    ],
+  },
+  {
     group: 'ניהול',
     items: [
       { id: 'users', label: 'משתמשים והרשאות', Icon: UserCog },
@@ -112,6 +122,8 @@ const PANELS = {
   'operator-check': OperatorCheckPanel,
   'ivr-call': IvrCallPanel,
   'kosher-imei': KosherImeiPanel,
+  'kp-customer': KosherPlayCustomerPanel,
+  'kp-codes': KosherPlayCodesPanel,
 }
 
 export default function AdminDashboard() {
