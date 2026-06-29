@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ShoppingBag, Wrench, Smartphone, HardDrive,
   Tags, Users, UserCog, Settings as SettingsIcon, LogOut, Home, Tag, Mail,
-  LayoutTemplate, Inbox, DatabaseBackup, PenSquare, GripVertical, RotateCcw, Check, ChevronDown, Ticket, ShoppingCart, Signal, PhoneOutgoing,
+  LayoutTemplate, Inbox, DatabaseBackup, PenSquare, GripVertical, RotateCcw, Check, ChevronDown, Ticket, ShoppingCart, Signal, PhoneOutgoing, ShieldCheck,
 } from 'lucide-react'
 import { useAuth, ROLE_LABELS } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
@@ -32,6 +32,7 @@ import SettingsPanel from '../components/admin/SettingsPanel.jsx'
 import BackupPanelGate from '../components/admin/BackupPanelGate.jsx'
 import OperatorCheckPanel from '../components/admin/OperatorCheckPanel.jsx'
 import IvrCallPanel from '../components/admin/IvrCallPanel.jsx'
+import KosherImeiPanel from '../components/admin/KosherImeiPanel.jsx'
 
 // Catalog sub-pages — shown BOTH as expandable children in the sidebar AND as a
 // tab row at the top of each of these pages.
@@ -77,6 +78,7 @@ const NAV = [
     items: [
       { id: 'operator-check', label: 'בדיקת מפעיל', Icon: Signal },
       { id: 'ivr-call', label: 'ביצוע IVR', Icon: PhoneOutgoing },
+      { id: 'kosher-imei', label: 'בדיקת IMEI כשר', Icon: ShieldCheck },
     ],
   },
   {
@@ -109,6 +111,7 @@ const PANELS = {
   settings: SettingsPanel,
   'operator-check': OperatorCheckPanel,
   'ivr-call': IvrCallPanel,
+  'kosher-imei': KosherImeiPanel,
 }
 
 export default function AdminDashboard() {
