@@ -50,6 +50,16 @@
   .animate-fade-in {
     animation: fadeInUp 0.35s ease-out;
   }
+
+  /* Barcode scanner: a laser line that sweeps top↔bottom over the camera feed. */
+  @keyframes scanLine {
+    0% { top: 8%; opacity: 0.2; }
+    50% { top: 92%; opacity: 1; }
+    100% { top: 8%; opacity: 0.2; }
+  }
+  .animate-scan-line {
+    animation: scanLine 2s ease-in-out infinite;
+  }
 }
 
 /* Smooth, UNIFIED light/dark switch. The `theme-transition` class is added to
