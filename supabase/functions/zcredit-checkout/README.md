@@ -1,21 +1,25 @@
 # zcredit-checkout
 
-Z-Credit (זד קרדיט) **WebCheckout** integration — the hosted payment page flow.
-Used in the *approve-first, charge-after* model: the admin approves an order in the
-Orders panel, opens a payment link, and sends it to the customer. The customer pays
-on Z-Credit's secure page; a webhook marks the order paid.
+Z-Credit (זד קרדיט) integration — **tokenize the card, charge it later** model.
+The customer saves their card on Z-Credit's secure page (WebCheckout in Token
+mode); once the shop approves the order (and may adjust the amount) the admin
+charges the saved token for the final total via the Gateway API.
 
 ## Flow
 
-1. Admin clicks **קישור תשלום** on an order → frontend calls this function
-   (`action=create`).
-2. The function loads the order with the service role, recomputes the amount
-   server-side (never trusts the client), and calls Z-Credit `CreateSession`.
-3. Returns `SessionUrl`; the admin opens/sends it. The customer pays on Z-Credit.
-4. Z-Credit POSTs the result to `CallbackUrl` (`action=callback`) → the function
-   flips `data.paymentStatus` to `paid`/`failed` and stores the transaction
-   reference. The browser `SuccessUrl` redirect (`/track/{token}?paid=1`) is
-   cosmetic only and is never trusted for the paid state.
+1. A card-save session is opened (`action=create`) — by the customer at checkout
+   or via a link the admin sends. The function loads the order with the service
+   role and calls Z-Credit `CreateSession` with `PaymentType: 'Token'`.
+2. Returns `SessionUrl`; the customer enters their card on Z-Credit's secure page.
+3. Z-Credit POSTs to `CallbackUrl` (`action=callback`) → the function stores the
+   returned **card token** on the order and sets `paymentStatus = 'card_saved'`.
+4. After approval, the admin clicks **חיוב כרטיס** → `action=charge` → the
+   function charges the saved token for the order's current total via
+   `CommitFullTransaction` (J=4) and sets `paymentStatus = 'paid'`.
+
+`paymentStatus`: `null → pending → card_saved → paid` (or `failed`). The browser
+`SuccessUrl` redirect is cosmetic; the token/paid state comes only from the
+server-to-server calls.
 
 ## Deploy
 
@@ -28,14 +32,20 @@ supabase functions deploy zcredit-checkout --no-verify-jwt
 ## Secrets
 
 ```
+# card-save session (WebCheckout, Token mode):
 supabase secrets set ZCREDIT_WEBCHECKOUT_KEY="<WebCheckout terminal Key>"
+# charging the saved token (Gateway API) — REQUIRED for `action=charge`:
+supabase secrets set ZCREDIT_TERMINAL_NUMBER="<terminal number>"
+supabase secrets set ZCREDIT_PASSWORD="<gateway API password>"
 # optional:
 supabase secrets set SITE_URL="https://drfone.co.il"        # success/cancel origin
 supabase secrets set ZCREDIT_BASE="https://pci.zcredit.co.il" # override host if needed
 ```
 
-`ZCREDIT_WEBCHECKOUT_KEY` is the **WebCheckout** key from the Z-Credit panel
-(Settings → WebCheckout) — *not* the gateway terminal password.
+`ZCREDIT_WEBCHECKOUT_KEY` is the **WebCheckout** key (Settings → WebCheckout).
+`ZCREDIT_TERMINAL_NUMBER` + `ZCREDIT_PASSWORD` are the **Gateway API** credentials
+used to charge the token — different from the WebCheckout key. **Tokenization must
+be enabled on the terminal** (ask Z-Credit support).
 `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` are injected automatically.
 
 ## Verify against your terminal

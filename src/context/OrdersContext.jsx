@@ -221,6 +221,23 @@ export function OrdersProvider({ children }) {
     return { ok: true, sessionUrl: data.sessionUrl }
   }, [])
 
+  // Admin: charge the card token saved for an order (after approval / amount
+  // edits). The edge function charges the order's current total via Z-Credit and
+  // flips paymentStatus to 'paid'. Returns { ok, reference, amount }.
+  const chargeOrder = useCallback(async (order, amount) => {
+    const { data, error } = await supabase.functions.invoke('zcredit-checkout', {
+      body: { action: 'charge', orderId: order.id, trackToken: order.trackToken, amount },
+    })
+    if (error) return { ok: false, error: error.message }
+    if (!data?.ok) return { ok: false, error: data?.error || 'החיוב נכשל' }
+    const current = ordersRef.current.find((o) => o.id === order.id)
+    if (current) {
+      const merged = { ...current, paymentStatus: 'paid', zcredit: { ...(current.zcredit || {}), reference: data.reference, chargedAmount: data.amount } }
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? merged : o)))
+    }
+    return { ok: true, reference: data.reference, amount: data.amount }
+  }, [])
+
   // Mark an order as read (the admin opened it). Persists into the jsonb `data`.
   const markOrderRead = useCallback((id) => {
     const current = ordersRef.current.find((o) => o.id === id)
@@ -250,7 +267,7 @@ export function OrdersProvider({ children }) {
     })
   }, [])
 
-  const value = { orders, addOrder, updateStatus, updateOrderItems, issueInvoice, createPaymentLink, setOrderDraft, setOrderPayments, getInvoicePdf, cancelDocument, deleteOrder, addOrderLog, markOrderRead }
+  const value = { orders, addOrder, updateStatus, updateOrderItems, issueInvoice, createPaymentLink, chargeOrder, setOrderDraft, setOrderPayments, getInvoicePdf, cancelDocument, deleteOrder, addOrderLog, markOrderRead }
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>
 }

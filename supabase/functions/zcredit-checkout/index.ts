@@ -29,12 +29,19 @@
 
 const ZCREDIT_KEY = Deno.env.get('ZCREDIT_WEBCHECKOUT_KEY') ?? ''
 const ZCREDIT_BASE = (Deno.env.get('ZCREDIT_BASE') ?? 'https://pci.zcredit.co.il').replace(/\/$/, '')
+// Gateway API credentials — needed to CHARGE a saved card token later. These are
+// the terminal number + API password from Z-Credit, NOT the WebCheckout key.
+const ZCREDIT_TERMINAL = Deno.env.get('ZCREDIT_TERMINAL_NUMBER') ?? ''
+const ZCREDIT_PASSWORD = Deno.env.get('ZCREDIT_PASSWORD') ?? ''
 const SITE_URL = (Deno.env.get('SITE_URL') ?? 'https://drfone.co.il').replace(/\/$/, '')
 const SUPABASE_URL = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/$/, '')
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
-// WebCheckout endpoint that creates a hosted-payment session.
+// WebCheckout endpoint that creates a hosted-payment session (used here in
+// tokenize mode: the customer enters their card and we get back a token).
 const CREATE_SESSION_URL = `${ZCREDIT_BASE}/webcheckout/api/WebCheckout/CreateSession`
+// Gateway endpoint that charges a transaction — including by saved Token.
+const COMMIT_TXN_URL = `${ZCREDIT_BASE}/ZCreditWS/api/Transaction/CommitFullTransaction`
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -149,7 +156,10 @@ async function handleCreate(payload: Record<string, unknown>) {
     SuccessUrl: `${origin}/track/${trackToken}?paid=1`,
     CancelUrl: `${origin}/checkout?canceled=1`,
     CallbackUrl: callbackUrl,
-    PaymentType: 'regular',
+    // Tokenize the card instead of charging now: the customer enters their card
+    // at checkout, we store the returned token, and charge it for the final
+    // amount once the shop approves the order (the approve-then-charge model).
+    PaymentType: 'Token',
     CreateInvoice: 'false', // we issue the tax invoice ourselves via SUMIT
     AdditionalText: `הזמנה ${row.number ?? ''}`,
     ShowCart: 'true',
@@ -191,6 +201,81 @@ async function handleCreate(payload: Record<string, unknown>) {
   return json({ ok: true, sessionUrl, sessionId })
 }
 
+// Charge a previously-saved card token for the order's CURRENT total (the admin
+// may have adjusted it before approving). Uses the Gateway CommitFullTransaction
+// with the token in place of the card number (J=4, a real charge).
+async function handleCharge(payload: Record<string, unknown>) {
+  if (!ZCREDIT_TERMINAL || !ZCREDIT_PASSWORD) {
+    return json({ ok: false, error: 'ZCREDIT_TERMINAL_NUMBER / ZCREDIT_PASSWORD not configured' }, 500)
+  }
+  const orderId = String(payload.orderId ?? '')
+  const trackToken = String(payload.trackToken ?? '')
+  if (!orderId) return json({ ok: false, error: 'missing orderId' }, 400)
+
+  const row = await loadOrder(orderId)
+  if (!row) return json({ ok: false, error: 'order not found' }, 404)
+  const data = (row.data ?? {}) as Record<string, unknown>
+  if (!data.trackToken || data.trackToken !== trackToken) return json({ ok: false, error: 'forbidden' }, 403)
+  if (data.paymentStatus === 'paid') return json({ ok: false, error: 'order already paid' }, 409)
+
+  const zc = (typeof data.zcredit === 'object' && data.zcredit ? data.zcredit : {}) as Record<string, unknown>
+  const cardToken = zc.token
+  if (!cardToken) return json({ ok: false, error: 'no saved card token for this order' }, 400)
+
+  // The amount to charge: the admin may pass an explicit amount, else the order
+  // total (which itself reflects any admin edits). Always a positive number.
+  const amount = Number(payload.amount) || Number(data.total) || 0
+  if (!(amount > 0)) return json({ ok: false, error: 'invalid amount' }, 400)
+
+  const cust = (data.customer ?? {}) as Record<string, unknown>
+  const body = {
+    TerminalNumber: ZCREDIT_TERMINAL,
+    Password: ZCREDIT_PASSWORD,
+    Token: String(cardToken), // charge the saved card
+    CardNumber: String(cardToken), // some terminals expect the token here instead
+    TransactionSum: amount.toFixed(2),
+    CurrencyType: '1', // 1 = ILS
+    CreditType: '1', // 1 = regular (not installments)
+    NumOfPayments: '1',
+    J: '4', // 4 = charge (vs 5 = authorize-only / hold)
+    TransactionType: '01',
+    IsCustomerPresent: 'false',
+    CustomerName: String(cust.name ?? ''),
+    PhoneNumber: String(cust.phone ?? ''),
+    ExtraData: String(row.number ?? orderId),
+  }
+
+  let resp: Response
+  try {
+    resp = await fetch(COMMIT_TXN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  } catch (e) {
+    return json({ ok: false, error: `Z-Credit unreachable: ${e}` }, 502)
+  }
+
+  const out = await resp.json().catch(() => ({}))
+  // CommitFullTransaction returns ReturnCode 0 on success. Confirm against your
+  // terminal's response shape and tighten if needed.
+  const approved =
+    Number(out?.ReturnCode) === 0 ||
+    (out?.ReturnCode == null && String(out?.HasError).toLowerCase() === 'false')
+  if (!approved) {
+    return json({ ok: false, error: out?.ReturnMessage || out?.CardReaderErrorMessage || `Z-Credit declined (${resp.status})` }, 200)
+  }
+
+  const reference = out?.ReferenceNumber ?? out?.Reference ?? out?.ApprovalNumber ?? null
+  await patchOrder(orderId, {
+    ...data,
+    paymentStatus: 'paid',
+    zcredit: { ...zc, reference, chargedAmount: amount, paidAt: new Date().toISOString(), chargeRaw: out },
+  })
+
+  return json({ ok: true, reference, amount })
+}
+
 // Parse a callback body that may arrive as JSON or as form-urlencoded.
 async function readCallback(req: Request): Promise<Record<string, unknown>> {
   const ct = req.headers.get('content-type') || ''
@@ -224,14 +309,20 @@ async function handleCallback(req: Request, orderId: string) {
 
   const reference =
     payload.ReferenceNumber ?? payload.Reference ?? payload.TransactionID ?? payload.ApprovalNumber ?? null
+  // The card token Z-Credit returns after the customer enters their card. Field
+  // name varies by terminal — confirm against a real callback sample.
+  const token = payload.Token ?? payload.CardToken ?? payload.UniqueTransactionId ?? null
 
   await patchOrder(orderId, {
     ...data,
-    paymentStatus: approved ? 'paid' : 'failed',
+    // Tokenize flow: a successful callback means the card was saved (not yet
+    // charged). The actual charge happens later via the 'charge' action.
+    paymentStatus: approved ? 'card_saved' : 'failed',
     zcredit: {
       ...(typeof data.zcredit === 'object' && data.zcredit ? data.zcredit : {}),
+      token: token ?? (typeof data.zcredit === 'object' && data.zcredit ? (data.zcredit as Record<string, unknown>).token : null),
       reference,
-      paidAt: approved ? new Date().toISOString() : null,
+      cardSavedAt: approved ? new Date().toISOString() : null,
       raw: payload, // kept for the admin to reconcile / audit
     },
   })
@@ -260,6 +351,8 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: 'bad payload' }, 400)
   }
 
-  if ((payload.action ?? 'create') === 'create') return handleCreate(payload)
+  const act = payload.action ?? 'create'
+  if (act === 'create') return handleCreate(payload)
+  if (act === 'charge') return handleCharge(payload)
   return json({ ok: false, error: 'unknown action' }, 400)
 })
