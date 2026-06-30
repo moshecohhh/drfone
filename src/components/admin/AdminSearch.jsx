@@ -5,6 +5,7 @@ import { useLab } from '../../context/LabContext.jsx'
 import { useOrders } from '../../context/OrdersContext.jsx'
 import { useBrands } from '../../context/BrandsContext.jsx'
 import { DOMAINS } from '../../context/AppContext.jsx'
+import { imeiOf } from '../../utils/imei.js'
 
 // Global admin search — one box that finds products, services, customers,
 // repairs, orders, loaners and registered devices across every panel, and
@@ -37,7 +38,8 @@ export default function AdminSearch({ onNavigate }) {
     const out = []
 
     store.forEach((p) => {
-      if (has(p.name, brandLabel(p.brand), p.badge, p.category, p.barcode))
+      const imeis = [p.imei1, p.imei2, ...((p.imeis || []).map(imeiOf))]
+      if (has(p.name, brandLabel(p.brand), p.badge, p.category, p.barcode, ...imeis))
         out.push({ key: 'p' + p.id, type: 'מוצר', Icon: Package, label: p.name, sub: `${brandLabel(p.brand)} · ₪${p.price}`, section: 'catalog', editId: p.id, domain: DOMAINS.STORE })
     })
     lab.forEach((s) => {

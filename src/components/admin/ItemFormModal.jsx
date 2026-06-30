@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Save, Upload, ImageOff, Plus, Link2, Flame, BadgeCheck, Package, LayoutTemplate } from 'lucide-react'
+import { X, Save, Upload, ImageOff, Plus, Link2, Flame, BadgeCheck, Package, LayoutTemplate, ChevronDown, Palette, Type, RectangleHorizontal, Circle, Star } from 'lucide-react'
+import { cleanImeiList, imeiCountOf, normImei } from '../../utils/imei.js'
+import ProductTag, { TAG_TEXT_LIMITS } from '../ProductTag.jsx'
 import { useBrands } from '../../context/BrandsContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import { useCatalogStore } from '../../context/CatalogContext.jsx'
@@ -24,15 +26,18 @@ const emptyItem = {
   imei2: '',
   stock: 1,
   description: '',
-  badge: '',
+  badge: '', // legacy plain-text badge — superseded by the 'text' product tag
   emoji: '📦',
   barcode: '',
   image: '',
   images: [],
   inStock: true,
   colors: [],
-  tag: '', // '' | 'deal' | 'importer' | 'custom'  (visual product stamp)
+  tag: '', // '' | 'deal' | 'importer' | 'custom' | 'text'  (visual product stamp)
   tagImage: '', // round-image used when tag === 'custom'
+  tagText: '', // text shown when tag === 'text'
+  tagShape: 'pill', // 'pill' | 'circle' | 'star'  (shape for the text tag)
+  tagColor: '#0EA5E9', // background color for the text tag
   page: {}, // product-page config (option groups, specs, marketing…) — see "דף המוצר" tab
 }
 
@@ -59,6 +64,7 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
   const [confirmClose, setConfirmClose] = useState(false)
   const [tab, setTab] = useState('product') // 'product' | 'page' (products only)
   const [draftColor, setDraftColor] = useState('#3B82F6')
+  const [colorsOpen, setColorsOpen] = useState(false) // colors menu starts collapsed; click to open
   const [urlDraft, setUrlDraft] = useState('')
   const fileRef = useRef(null)
   const tagFileRef = useRef(null)
@@ -82,15 +88,24 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
         : item.image
           ? [item.image]
           : []
+      // Migrate a legacy plain-text "badge" into the new text product tag, so
+      // existing badges keep showing (now editable as a shaped/colored tag).
+      const legacyBadge = item.badge && !item.tag
       next = {
         ...emptyItem,
         ...item,
+        tag: legacyBadge ? 'text' : item.tag || '',
+        tagText: item.tagText || (legacyBadge ? item.badge : ''),
+        tagShape: item.tagShape || 'pill',
+        tagColor: item.tagColor || '#0EA5E9',
         oldPrice: item.oldPrice ?? '',
         cost: getCost(item.id) || '', // private cost lives in a separate admin table
         // IMEI list: prefer the array; fall back to the legacy imei1/imei2 pair.
-        imeis: Array.isArray(item.imeis) && item.imeis.length
+        // Normalize every entry to { imei, color } so the per-unit color link is preserved.
+        imeis: (Array.isArray(item.imeis) && item.imeis.length
           ? item.imeis
-          : [item.imei1, item.imei2].filter(Boolean),
+          : [item.imei1, item.imei2].filter(Boolean)
+        ).map(normImei),
         images,
         image: images[0] || '',
         colors: normColors(item.colors),
@@ -102,6 +117,7 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
     setForm(next)
     setInitialForm(next) // baseline for the unsaved-changes check
     setTab('product')
+    setColorsOpen(false) // colors menu always reopens collapsed
     setConfirmClose(false)
   }, [item, categories, open])
 
@@ -163,10 +179,8 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
 
   const buildPayload = () => {
     // For an IMEI-managed product, stock is DERIVED from the IMEI list; otherwise
-    // it's the plain stock number.
-    const cleanImeis = (Array.isArray(form.imeis) ? form.imeis : [])
-      .map((s) => String(s || '').replace(/\D/g, ''))
-      .filter(Boolean)
+    // it's the plain stock number. Each entry is { imei, color } (color may be '').
+    const cleanImeis = cleanImeiList(form.imeis)
     const serial = !!form.hasSerial && !isService
     const stock = isService
       ? undefined
@@ -175,6 +189,8 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
         : Math.max(0, Number(form.stock) || 0)
     return {
       ...form,
+      // The plain-text badge is fully replaced by the 'text' product tag.
+      badge: '',
       image: form.images[0] || '',
       price: Number(form.price) || 0,
       oldPrice: form.oldPrice === '' ? null : Number(form.oldPrice),
@@ -183,8 +199,8 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
       // the first two entries for search + back-compat.
       hasSerial: !!form.hasSerial,
       imeis: serial ? cleanImeis : [],
-      imei1: serial ? (cleanImeis[0] || '') : '',
-      imei2: serial ? (cleanImeis[1] || '') : '',
+      imei1: serial ? (cleanImeis[0]?.imei || '') : '',
+      imei2: serial ? (cleanImeis[1]?.imei || '') : '',
       // For products, availability is driven by stock.
       ...(isService ? {} : { stock, inStock: stock > 0 }),
     }
@@ -394,14 +410,9 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
             />
           </Row>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Row label="תווית (Badge)">
-              <input value={form.badge} onChange={(e) => set('badge', e.target.value)} className={inputCls} />
-            </Row>
-            <Row label="אימוג׳י">
-              <input value={form.emoji} onChange={(e) => set('emoji', e.target.value)} maxLength={4} className={inputCls} />
-            </Row>
-          </div>
+          <Row label="אימוג׳י (מוצג כשאין תמונה)">
+            <input value={form.emoji} onChange={(e) => set('emoji', e.target.value)} maxLength={4} className={`${inputCls} w-24`} />
+          </Row>
 
           {/* Barcode — internal only, never shown to customers. Lets a scan in
               the storefront search jump straight to this product. */}
@@ -420,14 +431,22 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
           {/* Serial number / IMEI — for individually-tracked devices. */}
           {!isService && (
             <div className="rounded-xl border border-black/10 bg-brand-50/30 p-3">
-              <Switch checked={!!form.hasSerial} onChange={(v) => set('hasSerial', v)} label="מוצר עם מספר סידורי (IMEI)" />
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-ink">מוצר עם מספר סידורי (IMEI)</span>
+                <Switch checked={!!form.hasSerial} onChange={(v) => set('hasSerial', v)} label="מוצר עם מספר סידורי (IMEI)" />
+              </div>
               {form.hasSerial && (
                 <div className="mt-3">
                   <p className="mb-2 text-xs font-semibold text-ink-light">
                     רשימת IMEI — שורה לכל יחידה. המלאי נקבע אוטומטית לפי מספר ה-IMEI
-                    {` (כרגע: ${(form.imeis || []).filter((s) => String(s || '').trim()).length})`}
+                    {` (כרגע: ${imeiCountOf(form.imeis)})`}
                   </p>
-                  <ImeiListEditor imeis={form.imeis || []} onChange={(next) => set('imeis', next)} />
+                  {form.colors.length === 0 && (
+                    <p className="mb-2 flex items-center gap-1 text-[11px] text-ink-light">
+                      <Palette size={12} /> הוסיפו צבעים למוצר כדי לשייך כל יחידה לצבע
+                    </p>
+                  )}
+                  <ImeiListEditor imeis={form.imeis || []} colors={form.colors} onChange={(next) => set('imeis', next)} />
                 </div>
               )}
             </div>
@@ -482,6 +501,102 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
                     label="תג תמונה עגול"
                   />
                 </div>
+
+                {/* Text tag — replaces the old "Badge" field. Free text in a
+                    chosen shape + color, with a length hint per shape. */}
+                <div className="rounded-lg border border-black/10 bg-white px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-sm font-medium text-ink">
+                      <Type size={16} className="text-brand-600" /> תג טקסט
+                    </span>
+                    <Switch
+                      checked={form.tag === 'text'}
+                      onChange={(v) => set('tag', v ? 'text' : '')}
+                      label="תג טקסט"
+                    />
+                  </div>
+
+                  {form.tag === 'text' && (() => {
+                    const limit = TAG_TEXT_LIMITS[form.tagShape] || TAG_TEXT_LIMITS.pill
+                    const len = (form.tagText || '').trim().length
+                    const over = len > limit
+                    return (
+                      <div className="mt-3 space-y-3">
+                        <div>
+                          <input
+                            value={form.tagText}
+                            onChange={(e) => set('tagText', e.target.value)}
+                            placeholder="טקסט התג (לדוגמה: חדש / מבצע)"
+                            className={inputCls}
+                          />
+                          <div className="mt-1 flex items-center justify-between text-[11px]">
+                            <span className={over ? 'font-semibold text-amber-600' : 'text-ink-light'}>
+                              {over ? `⚠️ חרגת מכמות התווים המומלצת לצורה זו — ייתכן שהתג ייראה צפוף` : 'אורך מומלץ לצורה הנבחרת'}
+                            </span>
+                            <span className={over ? 'font-bold text-amber-600' : 'text-ink-light'}>{len}/{limit}</span>
+                          </div>
+                        </div>
+
+                        {/* Shape */}
+                        <div>
+                          <span className="mb-1 block text-[11px] font-semibold text-ink-light">צורה</span>
+                          <div className="flex gap-2">
+                            {[
+                              { id: 'pill', label: 'מלבן', Icon: RectangleHorizontal },
+                              { id: 'circle', label: 'עיגול', Icon: Circle },
+                              { id: 'star', label: 'כוכב', Icon: Star },
+                            ].map((s) => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => set('tagShape', s.id)}
+                                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-semibold transition ${
+                                  form.tagShape === s.id ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-black/10 text-ink-light hover:text-ink'
+                                }`}
+                              >
+                                <s.Icon size={15} /> {s.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Color */}
+                        <div>
+                          <span className="mb-1 block text-[11px] font-semibold text-ink-light">צבע התג</span>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {TAG_COLORS.map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => set('tagColor', c)}
+                                aria-label={c}
+                                className={`h-7 w-7 rounded-full border transition ${
+                                  form.tagColor?.toUpperCase() === c ? 'border-brand-500 ring-2 ring-brand-500 ring-offset-1' : 'border-black/15 hover:scale-110'
+                                }`}
+                                style={{ background: c }}
+                              />
+                            ))}
+                            <label className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-dashed border-black/25 text-ink-light hover:border-brand-400" title="צבע מותאם אישית">
+                              <Plus size={14} />
+                              <input
+                                type="color"
+                                value={form.tagColor || '#0EA5E9'}
+                                onChange={(e) => set('tagColor', e.target.value.toUpperCase())}
+                                className="sr-only"
+                              />
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Live preview */}
+                        <div className="flex items-center justify-center rounded-lg bg-brand-50/50 py-3">
+                          <ProductTag tag="text" text={(form.tagText || '').trim() || 'תצוגה'} shape={form.tagShape} color={form.tagColor} />
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+
                 <input ref={tagFileRef} type="file" accept="image/*" onChange={onTagFile} className="hidden" />
               </div>
             </div>
@@ -491,8 +606,29 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
               so picking that color on the storefront swaps the shown image. */}
           {!isService && (
             <div className="rounded-xl border border-black/10 bg-brand-50/30 p-4">
-              <span className="mb-2 block text-xs font-semibold text-ink-light">צבעים זמינים למוצר</span>
+              {/* Collapsed by default — click the header to open the color menu. */}
+              <button
+                type="button"
+                onClick={() => setColorsOpen((v) => !v)}
+                className="flex w-full items-center justify-between gap-2 text-right"
+                aria-expanded={colorsOpen}
+              >
+                <span className="flex items-center gap-2 text-xs font-semibold text-ink-light">
+                  צבעים זמינים למוצר
+                  {form.colors.length > 0 && (
+                    <span className="flex items-center gap-1">
+                      {form.colors.slice(0, 6).map((c) => (
+                        <span key={c.hex} className="h-3.5 w-3.5 rounded-full border border-black/15" style={{ background: c.hex }} />
+                      ))}
+                      <span className="text-ink-light">({form.colors.length})</span>
+                    </span>
+                  )}
+                </span>
+                <ChevronDown size={16} className={`shrink-0 text-ink-light transition-transform ${colorsOpen ? '' : '-rotate-90'}`} />
+              </button>
 
+              {colorsOpen && (
+              <div className="mt-3">
               {/* Selected colors — per color: swatch + hex + name, then a grid of
                   gallery images to tag this color with. Picking that color on the
                   storefront shows ONLY its tagged images. */}
@@ -561,6 +697,8 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
               >
                 <Plus size={16} /> הוספת הצבע לרשימה
               </button>
+              </div>
+              )}
             </div>
           )}
 
@@ -579,7 +717,7 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
             <Row label="כמות במלאי">
               <input
                 type="number"
-                value={(form.imeis || []).filter((s) => String(s || '').trim()).length}
+                value={imeiCountOf(form.imeis)}
                 readOnly
                 className={`${inputCls} bg-black/5 text-ink-light`}
                 title="המלאי נקבע אוטומטית לפי מספר ה-IMEI"
@@ -632,6 +770,9 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
 
 const inputCls =
   'w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30'
+
+// Quick-pick palette for the text product tag.
+const TAG_COLORS = ['#0EA5E9', '#2563EB', '#16A34A', '#DC2626', '#F97316', '#EAB308', '#7C3AED', '#EC4899', '#0F172A', '#6B7280']
 
 function Row({ label, children }) {
   return (

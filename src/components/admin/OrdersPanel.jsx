@@ -219,6 +219,26 @@ export default function OrdersPanel({ focusId = null }) {
                               <span className="h-3.5 w-3.5 rounded-full border border-black/20" style={{ background: it.color }} /> צבע נבחר
                             </span>
                           )}
+                          {/* IMEI unit(s) locked to this line, matched to the chosen color. */}
+                          {Array.isArray(it.imeis) && it.imeis.length > 0 && (
+                            <ul className="mt-1 space-y-0.5">
+                              {it.imeis.map((m, idx) => {
+                                const imei = typeof m === 'object' ? m.imei : m
+                                const col = typeof m === 'object' ? m.color : ''
+                                return (
+                                  <li key={idx} className="flex items-center gap-1.5 text-xs text-ink-light">
+                                    {col && <span className="h-3 w-3 rounded-full border border-black/20" style={{ background: col }} />}
+                                    <span dir="ltr" className="font-mono text-ink">IMEI: {imei}</span>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          )}
+                          {it.imeiShortage > 0 && (
+                            <span className="mt-1 inline-flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[11px] font-bold text-red-600">
+                              חסרות {it.imeiShortage} יח׳ בצבע שנבחר — יש להשלים IMEI
+                            </span>
+                          )}
                           {Array.isArray(it.selections) && it.selections.length > 0 && (
                             <ul className="mt-1 space-y-0.5">
                               {it.selections.map((s, idx) => (

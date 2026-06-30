@@ -98,7 +98,7 @@ export default function ItemCard({ item, kind }) {
           the card and ~70% inside. */}
       {!isService && item.tag && (
         <div className="pointer-events-none absolute left-3 top-0 z-20 -translate-y-[30%]">
-          <ProductTag tag={item.tag} image={item.tagImage} />
+          <ProductTag tag={item.tag} image={item.tagImage} text={item.tagText} shape={item.tagShape} color={item.tagColor} />
         </div>
       )}
 
@@ -122,7 +122,9 @@ export default function ItemCard({ item, kind }) {
         ) : (
           <span aria-hidden>{item.emoji}</span>
         )}
-        {item.badge && (
+        {/* Legacy plain-text badge — only when no product tag is set (the tag
+            system, incl. the 'text' tag, now supersedes it). */}
+        {!item.tag && item.badge && (
           <span className="absolute right-3 top-3 rounded-full bg-brand-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm">
             {item.badge}
           </span>

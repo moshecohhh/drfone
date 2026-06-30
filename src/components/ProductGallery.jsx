@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { ZoomIn, Search, ChevronRight, ChevronLeft } from 'lucide-react'
+import ProductTag from './ProductTag.jsx'
 
 // Product image gallery with a main image + thumbnail strip and a cursor-following
 // zoom. The zoom is MOUSE-ONLY (hover on desktop) — it never activates on touch
@@ -7,7 +8,7 @@ import { ZoomIn, Search, ChevronRight, ChevronLeft } from 'lucide-react'
 //
 // Controlled active image: `active` / `onSelect` let the parent sync the shown
 // image with a chosen color (a color can be linked to a specific gallery image).
-export default function ProductGallery({ images = [], active, onSelect, emoji = '📦', name = '', badge = '' }) {
+export default function ProductGallery({ images = [], active, onSelect, emoji = '📦', name = '', badge = '', tag = '', tagImage = '', tagText = '', tagShape = 'pill', tagColor = '#0EA5E9' }) {
   const list = images.filter(Boolean)
   const current = list.includes(active) ? active : list[0] || ''
   const currentIndex = Math.max(0, list.indexOf(current))
@@ -59,11 +60,17 @@ export default function ProductGallery({ images = [], active, onSelect, emoji = 
           <div className="flex h-full w-full items-center justify-center text-[6rem]">{emoji}</div>
         )}
 
-        {badge && (
+        {/* Product tag (deal / importer / custom image / text) — falls back to
+            the legacy plain-text badge only when no tag is configured. */}
+        {tag ? (
+          <span className="absolute left-4 top-4 z-10">
+            <ProductTag tag={tag} image={tagImage} text={tagText} shape={tagShape} color={tagColor} />
+          </span>
+        ) : badge ? (
           <span className="absolute right-4 top-4 rounded-full bg-brand-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
             {badge}
           </span>
-        )}
+        ) : null}
 
         {/* Desktop-only magnifier affordance (zoom is mouse-hover only). */}
         {hasImage && (
