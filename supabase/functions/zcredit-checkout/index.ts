@@ -188,13 +188,19 @@ async function handleCreate(payload: Record<string, unknown>) {
   }
 
   const out = await resp.json().catch(() => ({}))
+  console.log('[zcredit] CreateSession response:', JSON.stringify(out))
   // WebCheckout signals success with HasError=false and returns Data.SessionUrl.
-  const sessionUrl = out?.Data?.SessionUrl ?? out?.SessionUrl ?? null
+  // Casing/structure varies, so look in a few likely places.
+  const sessionUrl =
+    out?.Data?.SessionUrl ?? out?.Data?.sessionUrl ?? out?.SessionUrl ??
+    out?.data?.SessionUrl ?? out?.data?.sessionUrl ?? out?.Url ?? null
   if (out?.HasError || !sessionUrl) {
-    return json({ ok: false, error: out?.ReturnMessage || out?.Message || `Z-Credit error (${resp.status})` }, 200)
+    const msg = out?.ReturnMessage || out?.Message || out?.Error || out?.ErrorMessage || out?.message
+    // Echo Z-Credit's raw reply so we can see the real field names/error.
+    return json({ ok: false, error: msg || `Z-Credit error (${resp.status})`, zcredit: out }, 200)
   }
 
-  const sessionId = out?.Data?.SessionId ?? out?.SessionId ?? null
+  const sessionId = out?.Data?.SessionId ?? out?.Data?.sessionId ?? out?.SessionId ?? null
   await patchOrder(orderId, {
     ...data,
     paymentStatus: 'pending',

@@ -220,7 +220,12 @@ export function OrdersProvider({ children }) {
       body: { action: 'create', orderId: order.id, trackToken: order.trackToken, origin: window.location.origin },
     })
     if (error) return { ok: false, error: await fnErrorMessage(error, 'פתיחת עמוד התשלום נכשלה') }
-    if (!data?.ok) return { ok: false, error: data?.error || 'פתיחת עמוד התשלום נכשלה' }
+    if (!data?.ok) {
+      // Append Z-Credit's raw reply (when present) so the exact field names /
+      // error text are visible in the panel without opening dev tools.
+      const detail = data?.zcredit ? ` — ${JSON.stringify(data.zcredit)}` : ''
+      return { ok: false, error: (data?.error || 'פתיחת עמוד התשלום נכשלה') + detail }
+    }
     const current = ordersRef.current.find((o) => o.id === order.id)
     if (current) {
       const merged = {
