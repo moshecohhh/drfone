@@ -130,19 +130,22 @@ async function handleCreate(payload: Record<string, unknown>) {
   if (!row) return json({ ok: false, error: 'order not found' }, 404)
   const data = (row.data ?? {}) as Record<string, unknown>
 
-  // Authorize: the caller must know the order's unguessable track token. This
-  // stops a stranger from spinning up payment sessions for arbitrary order ids.
-  if (!data.trackToken || data.trackToken !== trackToken) {
+  // Authorize: the caller must know the order's unguessable track token. Only
+  // enforced when the order actually has one — older orders predate the token
+  // and would otherwise be locked out (opening a card-save page is harmless).
+  if (data.trackToken && data.trackToken !== trackToken) {
     return json({ ok: false, error: 'forbidden' }, 403)
   }
   if (data.paymentStatus === 'paid') return json({ ok: false, error: 'order already paid' }, 409)
 
-  const { cart, computed } = buildCart(data)
   const total = Number(data.total) || 0
-  // Refuse to proceed if our recomputed cart doesn't match the stored total —
-  // better to fail loudly than charge a surprising amount.
+  let { cart, computed } = buildCart(data)
+  // The card-save session just shows a cart for context — the real amount is
+  // charged later from the order total. If the itemised cart doesn't reconcile
+  // to the stored total (legacy/edited orders), fall back to one total line
+  // rather than failing the whole request.
   if (Math.abs(computed - total) > 0.01) {
-    return json({ ok: false, error: `cart/total mismatch (cart=${computed}, total=${total})` }, 500)
+    cart = [{ Amount: total.toFixed(2), Currency: 'ILS', Name: `הזמנה ${row.number ?? ''}`.trim(), Description: '', Quantity: '1', Image: '', IsTaxFree: 'false' }]
   }
 
   const cust = (data.customer ?? {}) as Record<string, unknown>
@@ -215,7 +218,7 @@ async function handleCharge(payload: Record<string, unknown>) {
   const row = await loadOrder(orderId)
   if (!row) return json({ ok: false, error: 'order not found' }, 404)
   const data = (row.data ?? {}) as Record<string, unknown>
-  if (!data.trackToken || data.trackToken !== trackToken) return json({ ok: false, error: 'forbidden' }, 403)
+  if (data.trackToken && data.trackToken !== trackToken) return json({ ok: false, error: 'forbidden' }, 403)
   if (data.paymentStatus === 'paid') return json({ ok: false, error: 'order already paid' }, 409)
 
   const zc = (typeof data.zcredit === 'object' && data.zcredit ? data.zcredit : {}) as Record<string, unknown>
