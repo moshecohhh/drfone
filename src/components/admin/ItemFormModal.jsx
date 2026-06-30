@@ -65,6 +65,7 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
   const [tab, setTab] = useState('product') // 'product' | 'page' (products only)
   const [draftColor, setDraftColor] = useState('#3B82F6')
   const [colorsOpen, setColorsOpen] = useState(false) // colors menu starts collapsed; click to open
+  const [tagOpen, setTagOpen] = useState(false) // product-tag menu starts collapsed; click to open
   const [urlDraft, setUrlDraft] = useState('')
   const fileRef = useRef(null)
   const tagFileRef = useRef(null)
@@ -118,6 +119,7 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
     setInitialForm(next) // baseline for the unsaved-changes check
     setTab('product')
     setColorsOpen(false) // colors menu always reopens collapsed
+    setTagOpen(false) // product-tag menu always reopens collapsed
     setConfirmClose(false)
   }, [item, categories, open])
 
@@ -456,8 +458,25 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
               be active (turning one on switches the other off). */}
           {!isService && (
             <div className="rounded-xl border border-black/10 p-4">
-              <span className="mb-2 block text-xs font-semibold text-ink-light">תג מוצר (ניתן לבחור אחד בלבד)</span>
-              <div className="space-y-2">
+              {/* Collapsed by default — click the header to open the tag menu. */}
+              <button
+                type="button"
+                onClick={() => setTagOpen((v) => !v)}
+                className="flex w-full items-center justify-between gap-2 text-right"
+                aria-expanded={tagOpen}
+              >
+                <span className="flex items-center gap-2 text-xs font-semibold text-ink-light">
+                  תג מוצר (ניתן לבחור אחד בלבד)
+                  {form.tag && (
+                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-600">
+                      {TAG_LABELS[form.tag] || 'פעיל'}
+                    </span>
+                  )}
+                </span>
+                <ChevronDown size={16} className={`shrink-0 text-ink-light transition-transform ${tagOpen ? '' : '-rotate-90'}`} />
+              </button>
+              {tagOpen && (
+              <div className="mt-3 space-y-2">
                 <label className="flex items-center justify-between rounded-lg border border-black/10 bg-white px-3 py-2">
                   <span className="flex items-center gap-2 text-sm font-medium text-ink">
                     <Flame size={16} className="text-orange-500" /> תג מבצע
@@ -599,6 +618,7 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
 
                 <input ref={tagFileRef} type="file" accept="image/*" onChange={onTagFile} className="hidden" />
               </div>
+              )}
             </div>
           )}
 
@@ -773,6 +793,9 @@ const inputCls =
 
 // Quick-pick palette for the text product tag.
 const TAG_COLORS = ['#0EA5E9', '#2563EB', '#16A34A', '#DC2626', '#F97316', '#EAB308', '#7C3AED', '#EC4899', '#0F172A', '#6B7280']
+
+// Short label per active tag type, shown in the collapsed tag-menu header.
+const TAG_LABELS = { deal: 'תג מבצע', importer: 'יבואן רשמי', custom: 'תמונה עגול', text: 'תג טקסט' }
 
 function Row({ label, children }) {
   return (
