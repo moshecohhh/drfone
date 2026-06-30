@@ -87,6 +87,11 @@ export default function OrderTracking() {
                 <span className="font-bold text-ink">סה״כ</span>
                 <span className="text-xl font-extrabold text-ink">{money(order.total)}</span>
               </div>
+              {order.paymentStatus === 'paid' && (
+                <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-center text-sm font-bold text-emerald-700">
+                  התשלום התקבל בהצלחה ✓
+                </p>
+              )}
             </div>
 
             <p className="mt-5 text-center text-sm text-ink-light">

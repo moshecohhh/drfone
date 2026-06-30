@@ -19,7 +19,7 @@ const rowToOrder = (row) => ({
 })
 
 // Extract the jsonb `data` payload from a flat order object.
-const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items, total, coupon, payments, log, read, trackToken, invoice, draftInvoice }) => ({
+const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items, total, coupon, payments, log, read, trackToken, invoice, draftInvoice, paymentStatus, zcredit }) => ({
   customer,
   payment,
   delivery,
@@ -32,6 +32,10 @@ const orderToData = ({ customer, payment, delivery, deliveryPrice, notes, items,
   trackToken: trackToken || '', // unguessable token for the public order-tracking link
   invoice: invoice || null, // SUMIT invoice { id, number, url } once issued
   draftInvoice: draftInvoice || null, // last SUMIT draft { id, number, sig } for the unchanged order
+  // Z-Credit WebCheckout payment state, set once the admin opens a payment link
+  // for the order and updated by the zcredit-checkout webhook on payment.
+  paymentStatus: paymentStatus || null, // null | 'pending' | 'paid' | 'failed'
+  zcredit: zcredit || null, // { sessionId, sessionUrl, reference, paidAt }
   log: log || [],
   read: !!read, // whether an admin has opened this order yet
 })
@@ -194,6 +198,29 @@ export function OrdersProvider({ children }) {
     return { ok: true, invoice: data.invoice }
   }, [])
 
+  // Admin: open a Z-Credit WebCheckout payment session for an order (the
+  // approve-first-then-charge flow). The edge function recomputes the amount
+  // server-side, creates the hosted-payment session and persists the link +
+  // pending status on the order; here we mirror that into local state so the
+  // panel shows the link without a reload. Returns { ok, sessionUrl }.
+  const createPaymentLink = useCallback(async (order) => {
+    const { data, error } = await supabase.functions.invoke('zcredit-checkout', {
+      body: { action: 'create', orderId: order.id, trackToken: order.trackToken, origin: window.location.origin },
+    })
+    if (error) return { ok: false, error: error.message }
+    if (!data?.ok) return { ok: false, error: data?.error || 'פתיחת עמוד התשלום נכשלה' }
+    const current = ordersRef.current.find((o) => o.id === order.id)
+    if (current) {
+      const merged = {
+        ...current,
+        paymentStatus: 'pending',
+        zcredit: { ...(current.zcredit || {}), sessionId: data.sessionId, sessionUrl: data.sessionUrl },
+      }
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? merged : o)))
+    }
+    return { ok: true, sessionUrl: data.sessionUrl }
+  }, [])
+
   // Mark an order as read (the admin opened it). Persists into the jsonb `data`.
   const markOrderRead = useCallback((id) => {
     const current = ordersRef.current.find((o) => o.id === id)
@@ -223,7 +250,7 @@ export function OrdersProvider({ children }) {
     })
   }, [])
 
-  const value = { orders, addOrder, updateStatus, updateOrderItems, issueInvoice, setOrderDraft, setOrderPayments, getInvoicePdf, cancelDocument, deleteOrder, addOrderLog, markOrderRead }
+  const value = { orders, addOrder, updateStatus, updateOrderItems, issueInvoice, createPaymentLink, setOrderDraft, setOrderPayments, getInvoicePdf, cancelDocument, deleteOrder, addOrderLog, markOrderRead }
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>
 }
