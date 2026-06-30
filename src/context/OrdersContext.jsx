@@ -50,6 +50,18 @@ const makeTrackToken = () => {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`
 }
 
+// supabase.functions.invoke reports any non-2xx as a generic "Edge Function
+// returned a non-2xx status code" and hides our real {error} body. Dig it out of
+// the attached Response so the admin sees the actual reason (missing secret,
+// Z-Credit decline, etc.) instead of the opaque default.
+const fnErrorMessage = async (error, fallback) => {
+  try {
+    const body = await error?.context?.json?.()
+    if (body?.error) return body.error
+  } catch { /* not JSON / already read */ }
+  return error?.message || fallback
+}
+
 const OrdersContext = createContext(null)
 
 export function OrdersProvider({ children }) {
@@ -207,7 +219,7 @@ export function OrdersProvider({ children }) {
     const { data, error } = await supabase.functions.invoke('zcredit-checkout', {
       body: { action: 'create', orderId: order.id, trackToken: order.trackToken, origin: window.location.origin },
     })
-    if (error) return { ok: false, error: error.message }
+    if (error) return { ok: false, error: await fnErrorMessage(error, 'פתיחת עמוד התשלום נכשלה') }
     if (!data?.ok) return { ok: false, error: data?.error || 'פתיחת עמוד התשלום נכשלה' }
     const current = ordersRef.current.find((o) => o.id === order.id)
     if (current) {
@@ -228,7 +240,7 @@ export function OrdersProvider({ children }) {
     const { data, error } = await supabase.functions.invoke('zcredit-checkout', {
       body: { action: 'charge', orderId: order.id, trackToken: order.trackToken, amount },
     })
-    if (error) return { ok: false, error: error.message }
+    if (error) return { ok: false, error: await fnErrorMessage(error, 'החיוב נכשל') }
     if (!data?.ok) return { ok: false, error: data?.error || 'החיוב נכשל' }
     const current = ordersRef.current.find((o) => o.id === order.id)
     if (current) {
