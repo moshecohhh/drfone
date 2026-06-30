@@ -13,6 +13,13 @@ export async function kvLoadAll(table) {
   return out
 }
 
+// Load a single key's value (null if missing / unreadable).
+export async function kvLoad(table, key) {
+  const { data, error } = await supabase.from(table).select('value').eq('key', key).maybeSingle()
+  if (error) return null
+  return data?.value ?? null
+}
+
 // Upsert one key. Fire-and-forget; logs (but never throws) on failure so a
 // blocked write (e.g. a non-admin) can't crash the app.
 export function kvSave(table, key, value) {

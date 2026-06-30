@@ -104,7 +104,9 @@
       "Bash(cat > *)",
       "Bash(git rm *)",
       "Bash(rm -rf kosherplay-service)",
-      "Bash(ls kosherplay-service *)"
+      "Bash(ls kosherplay-service *)",
+      "PowerShell(Get-Content -Raw -Encoding UTF8 \"supabase/functions/kosherplay/index.ts\" | Set-Clipboard; \"clipboard length: \" + \\(Get-Clipboard -Raw\\).Length)",
+      "PowerShell(npm install html5-qrcode 2>&1)"
     ]
   }
 }

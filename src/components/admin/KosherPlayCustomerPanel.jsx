@@ -4,6 +4,7 @@ import {
   PlayCircle, Smartphone, Timer, ChevronDown,
 } from 'lucide-react'
 import { kpAction, kpTimerStart, kpTimerList, kpTimerFinish } from '../../lib/kosherplay.js'
+import { kvLoad, kvSave } from '../../lib/kv.js'
 import { PanelHead, Field, PrimaryBtn, GhostBtn, IconBtn, inputCls } from './ui.jsx'
 import KosherPlayLogo from './KosherPlayLogo.jsx'
 
@@ -45,7 +46,25 @@ export default function KosherPlayCustomerPanel() {
     return () => document.removeEventListener('mousedown', onDoc)
   }, [])
 
-  const persistFavs = (a) => { localStorage.setItem('kp_favs', JSON.stringify(a)); setFavList(a) }
+  // Load favorites from the cloud on mount (overrides the localStorage cache).
+  useEffect(() => {
+    let active = true
+    kvLoad('lab_state', 'kp_favorites').then((v) => {
+      if (active && Array.isArray(v)) {
+        setFavList(v)
+        try { localStorage.setItem('kp_favs', JSON.stringify(v)) } catch { /* ignore */ }
+      }
+    })
+    return () => { active = false }
+  }, [])
+
+  // Persist favorites to the cloud (lab_state) so they follow the shop across
+  // devices, with a localStorage copy for instant paint.
+  const persistFavs = (a) => {
+    setFavList(a)
+    try { localStorage.setItem('kp_favs', JSON.stringify(a)) } catch { /* ignore */ }
+    kvSave('lab_state', 'kp_favorites', a)
+  }
   const pickFav = (f) => { setDevice(f.device); setPhone(f.phone); setFavOpen(false); setFlash(null) }
   const addFav = () => {
     if (!fDevice.trim() || !fPhone.trim()) return
