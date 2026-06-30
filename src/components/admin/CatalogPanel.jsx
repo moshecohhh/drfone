@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, Fragment } from 'react'
 import { Store, Wrench, Plus, Pencil, Trash2, RotateCcw, AlertTriangle, ImagePlus, Tags, Flame, Star, ChevronDown, Check, Smartphone } from 'lucide-react'
+import { imeiOf, cleanImeiList, imeiCountOf } from '../../utils/imei.js'
 import { DOMAINS } from '../../context/AppContext.jsx'
 import { useCatalogStore } from '../../context/CatalogContext.jsx'
 import { useBrands } from '../../context/BrandsContext.jsx'
@@ -43,6 +44,7 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [lowOnly, setLowOnly] = useState(lowStockInitial)
+  const [imeiOnly, setImeiOnly] = useState(false) // show only IMEI-managed products
   const [brandFilter, setBrandFilter] = useState('all')
   const [catFilter, setCatFilter] = useState('all')
   const [sortBy, setSortBy] = useState('default')
@@ -58,12 +60,14 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
   // products still show their numbers (a re-save migrates them to the array).
   const imeiList = (item) =>
     Array.isArray(item.imeis) && item.imeis.length ? item.imeis : [item.imei1, item.imei2].filter(Boolean)
-  const imeiCount = (item) => imeiList(item).filter((s) => String(s || '').trim()).length
+  const imeiCount = (item) => imeiCountOf(imeiList(item))
   const saveImeis = (item, list) => {
-    const clean = (list || []).map((s) => String(s || '').replace(/\D/g, '')).filter(Boolean)
+    // Entries are { imei, color } — the color link is kept so a sold unit's
+    // color stays known. stock/imei1/imei2/inStock all derive from the list.
+    const clean = cleanImeiList(list)
     updateItem(domain, item.id, {
       imeis: clean, stock: clean.length, inStock: clean.length > 0,
-      imei1: clean[0] || '', imei2: clean[1] || '',
+      imei1: clean[0]?.imei || '', imei2: clean[1]?.imei || '',
     })
   }
   // "אישור" on the stock field of an IMEI product: bump → prompt for the new
@@ -134,6 +138,7 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
     setCatFilter('all')
     setSortBy('default')
     setLowOnly(false)
+    setImeiOnly(false)
     setQuery('')
   }
 
@@ -151,9 +156,10 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
           (!!it.barcode && String(it.barcode).toLowerCase().includes(term)) ||
           (!!it.imei1 && String(it.imei1).includes(term)) ||
           (!!it.imei2 && String(it.imei2).includes(term)) ||
-          (Array.isArray(it.imeis) && it.imeis.some((m) => String(m).includes(term))),
+          (Array.isArray(it.imeis) && it.imeis.some((m) => imeiOf(m).includes(term))),
       )
     }
+    if (imeiOnly && !isService) list = list.filter((it) => !!it.hasSerial)
     if (lowOnly && !isService) list = list.filter((it) => (Number(it.stock) || 0) <= LOW_STOCK_THRESHOLD)
     if (brandFilter !== 'all') list = list.filter((it) => it.brand === brandFilter)
     if (catFilter !== 'all') list = list.filter((it) => it.category === catFilter)
@@ -166,7 +172,7 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
     }
     return sortBy !== 'default' && sorters[sortBy] ? [...list].sort(sorters[sortBy]) : list
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allItems, lowOnly, isService, brandFilter, catFilter, sortBy, query])
+  }, [allItems, lowOnly, imeiOnly, isService, brandFilter, catFilter, sortBy, query])
 
   const save = (data) => {
     if (editing) updateItem(domain, editing.id, data)
@@ -296,7 +302,19 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
           </button>
         )}
 
-        {(brandFilter !== 'all' || catFilter !== 'all' || sortBy !== 'default' || lowOnly) && (
+        {!isService && (
+          <button
+            type="button"
+            onClick={() => setImeiOnly((v) => !v)}
+            className={`flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+              imeiOnly ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-black/10 text-ink-light hover:text-ink'
+            }`}
+          >
+            <Smartphone size={15} /> עם IMEI בלבד
+          </button>
+        )}
+
+        {(brandFilter !== 'all' || catFilter !== 'all' || sortBy !== 'default' || lowOnly || imeiOnly) && (
           <span className="text-xs text-ink-light">{items.length} תוצאות</span>
         )}
       </div>
@@ -446,7 +464,7 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
               <td colSpan={6} className="px-4 pb-3">
                 <div className="rounded-xl border border-black/10 bg-white p-3">
                   <p className="mb-2 text-xs font-semibold text-ink-light">רשימת IMEI ({imeiCount(item)} יח׳)</p>
-                  <ImeiListEditor imeis={imeiList(item)} onChange={(next) => saveImeis(item, next)} />
+                  <ImeiListEditor imeis={imeiList(item)} colors={item.colors || []} onChange={(next) => saveImeis(item, next)} />
                 </div>
               </td>
             </tr>
@@ -470,7 +488,11 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
           <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
             <h3 className="mb-1 flex items-center gap-2 text-lg font-extrabold text-ink"><Smartphone size={18} /> הזנת IMEI ליחידות החדשות</h3>
             <p className="mb-3 text-sm text-ink-light">הזינו {imeiPrompt.list.length} מספרי IMEI (או סרקו עם המצלמה):</p>
-            <ImeiListEditor imeis={imeiPrompt.list} onChange={(next) => setImeiPrompt((p) => ({ ...p, list: next }))} />
+            <ImeiListEditor
+              imeis={imeiPrompt.list}
+              colors={getItems(domain).find((it) => it.id === imeiPrompt.id)?.colors || []}
+              onChange={(next) => setImeiPrompt((p) => ({ ...p, list: next }))}
+            />
             <div className="mt-4 flex gap-2">
               <PrimaryBtn
                 type="button"
@@ -478,8 +500,8 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
                 onClick={() => {
                   const item = getItems(domain).find((it) => it.id === imeiPrompt.id)
                   if (item) {
-                    const entered = imeiPrompt.list.map((s) => String(s || '').replace(/\D/g, '')).filter(Boolean)
-                    saveImeis(item, [...imeiList(item).filter(Boolean), ...entered])
+                    // Keep the colors entered for the new units; cleanImeiList normalizes both lists.
+                    saveImeis(item, [...imeiList(item), ...imeiPrompt.list])
                   }
                   setStockDraft((d) => { const n = { ...d }; delete n[imeiPrompt.id]; return n })
                   setImeiPrompt(null)

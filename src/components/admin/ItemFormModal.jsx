@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Save, Upload, ImageOff, Plus, Link2, Flame, BadgeCheck, Package, LayoutTemplate } from 'lucide-react'
+import { X, Save, Upload, ImageOff, Plus, Link2, Flame, BadgeCheck, Package, LayoutTemplate, ChevronDown, Palette } from 'lucide-react'
+import { cleanImeiList, imeiCountOf, normImei } from '../../utils/imei.js'
 import { useBrands } from '../../context/BrandsContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import { useCatalogStore } from '../../context/CatalogContext.jsx'
@@ -59,6 +60,7 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
   const [confirmClose, setConfirmClose] = useState(false)
   const [tab, setTab] = useState('product') // 'product' | 'page' (products only)
   const [draftColor, setDraftColor] = useState('#3B82F6')
+  const [colorsOpen, setColorsOpen] = useState(false) // colors menu starts collapsed; click to open
   const [urlDraft, setUrlDraft] = useState('')
   const fileRef = useRef(null)
   const tagFileRef = useRef(null)
@@ -88,9 +90,11 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
         oldPrice: item.oldPrice ?? '',
         cost: getCost(item.id) || '', // private cost lives in a separate admin table
         // IMEI list: prefer the array; fall back to the legacy imei1/imei2 pair.
-        imeis: Array.isArray(item.imeis) && item.imeis.length
+        // Normalize every entry to { imei, color } so the per-unit color link is preserved.
+        imeis: (Array.isArray(item.imeis) && item.imeis.length
           ? item.imeis
-          : [item.imei1, item.imei2].filter(Boolean),
+          : [item.imei1, item.imei2].filter(Boolean)
+        ).map(normImei),
         images,
         image: images[0] || '',
         colors: normColors(item.colors),
@@ -102,6 +106,7 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
     setForm(next)
     setInitialForm(next) // baseline for the unsaved-changes check
     setTab('product')
+    setColorsOpen(false) // colors menu always reopens collapsed
     setConfirmClose(false)
   }, [item, categories, open])
 
@@ -163,10 +168,8 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
 
   const buildPayload = () => {
     // For an IMEI-managed product, stock is DERIVED from the IMEI list; otherwise
-    // it's the plain stock number.
-    const cleanImeis = (Array.isArray(form.imeis) ? form.imeis : [])
-      .map((s) => String(s || '').replace(/\D/g, ''))
-      .filter(Boolean)
+    // it's the plain stock number. Each entry is { imei, color } (color may be '').
+    const cleanImeis = cleanImeiList(form.imeis)
     const serial = !!form.hasSerial && !isService
     const stock = isService
       ? undefined
@@ -183,8 +186,8 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
       // the first two entries for search + back-compat.
       hasSerial: !!form.hasSerial,
       imeis: serial ? cleanImeis : [],
-      imei1: serial ? (cleanImeis[0] || '') : '',
-      imei2: serial ? (cleanImeis[1] || '') : '',
+      imei1: serial ? (cleanImeis[0]?.imei || '') : '',
+      imei2: serial ? (cleanImeis[1]?.imei || '') : '',
       // For products, availability is driven by stock.
       ...(isService ? {} : { stock, inStock: stock > 0 }),
     }
@@ -420,14 +423,22 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
           {/* Serial number / IMEI — for individually-tracked devices. */}
           {!isService && (
             <div className="rounded-xl border border-black/10 bg-brand-50/30 p-3">
-              <Switch checked={!!form.hasSerial} onChange={(v) => set('hasSerial', v)} label="מוצר עם מספר סידורי (IMEI)" />
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-ink">מוצר עם מספר סידורי (IMEI)</span>
+                <Switch checked={!!form.hasSerial} onChange={(v) => set('hasSerial', v)} label="מוצר עם מספר סידורי (IMEI)" />
+              </label>
               {form.hasSerial && (
                 <div className="mt-3">
                   <p className="mb-2 text-xs font-semibold text-ink-light">
                     רשימת IMEI — שורה לכל יחידה. המלאי נקבע אוטומטית לפי מספר ה-IMEI
-                    {` (כרגע: ${(form.imeis || []).filter((s) => String(s || '').trim()).length})`}
+                    {` (כרגע: ${imeiCountOf(form.imeis)})`}
                   </p>
-                  <ImeiListEditor imeis={form.imeis || []} onChange={(next) => set('imeis', next)} />
+                  {form.colors.length === 0 && (
+                    <p className="mb-2 flex items-center gap-1 text-[11px] text-ink-light">
+                      <Palette size={12} /> הוסיפו צבעים למוצר כדי לשייך כל יחידה לצבע
+                    </p>
+                  )}
+                  <ImeiListEditor imeis={form.imeis || []} colors={form.colors} onChange={(next) => set('imeis', next)} />
                 </div>
               )}
             </div>
@@ -491,8 +502,29 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
               so picking that color on the storefront swaps the shown image. */}
           {!isService && (
             <div className="rounded-xl border border-black/10 bg-brand-50/30 p-4">
-              <span className="mb-2 block text-xs font-semibold text-ink-light">צבעים זמינים למוצר</span>
+              {/* Collapsed by default — click the header to open the color menu. */}
+              <button
+                type="button"
+                onClick={() => setColorsOpen((v) => !v)}
+                className="flex w-full items-center justify-between gap-2 text-right"
+                aria-expanded={colorsOpen}
+              >
+                <span className="flex items-center gap-2 text-xs font-semibold text-ink-light">
+                  צבעים זמינים למוצר
+                  {form.colors.length > 0 && (
+                    <span className="flex items-center gap-1">
+                      {form.colors.slice(0, 6).map((c) => (
+                        <span key={c.hex} className="h-3.5 w-3.5 rounded-full border border-black/15" style={{ background: c.hex }} />
+                      ))}
+                      <span className="text-ink-light">({form.colors.length})</span>
+                    </span>
+                  )}
+                </span>
+                <ChevronDown size={16} className={`shrink-0 text-ink-light transition-transform ${colorsOpen ? '' : '-rotate-90'}`} />
+              </button>
 
+              {colorsOpen && (
+              <div className="mt-3">
               {/* Selected colors — per color: swatch + hex + name, then a grid of
                   gallery images to tag this color with. Picking that color on the
                   storefront shows ONLY its tagged images. */}
@@ -561,6 +593,8 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
               >
                 <Plus size={16} /> הוספת הצבע לרשימה
               </button>
+              </div>
+              )}
             </div>
           )}
 
@@ -579,7 +613,7 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
             <Row label="כמות במלאי">
               <input
                 type="number"
-                value={(form.imeis || []).filter((s) => String(s || '').trim()).length}
+                value={imeiCountOf(form.imeis)}
                 readOnly
                 className={`${inputCls} bg-black/5 text-ink-light`}
                 title="המלאי נקבע אוטומטית לפי מספר ה-IMEI"
