@@ -270,6 +270,11 @@ export default function ProductPage() {
               emoji={product.emoji}
               name={product.name}
               badge={product.badge}
+              tag={product.tag}
+              tagImage={product.tagImage}
+              tagText={product.tagText}
+              tagShape={product.tagShape}
+              tagColor={product.tagColor}
             />
           </div>
 
