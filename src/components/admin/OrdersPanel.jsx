@@ -12,7 +12,7 @@ const fmtDate = (iso) =>
   new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 export default function OrdersPanel({ focusId = null }) {
-  const { orders, updateStatus, updateOrderItems, issueInvoice, setOrderDraft, setOrderPayments, getInvoicePdf, deleteOrder, addOrderLog, markOrderRead } = useOrders()
+  const { orders, updateStatus, updateOrderItems, issueInvoice, createPaymentLink, setOrderDraft, setOrderPayments, getInvoicePdf, deleteOrder, addOrderLog, markOrderRead } = useOrders()
   const { orderStatuses, orderStatusMeta, paymentLabel: payLabel, deliveryLabel } = useSettings()
   const { user } = useAuth()
   const [expanded, setExpanded] = useState(null)
@@ -267,7 +267,7 @@ export default function OrdersPanel({ focusId = null }) {
 
                 {/* Edit items / add custom item + approve */}
                 <div className="sm:col-span-2">
-                  <OrderEditor order={o} updateOrderItems={updateOrderItems} updateStatus={updateStatus} issueInvoice={issueInvoice} setOrderDraft={setOrderDraft} getInvoicePdf={getInvoicePdf} />
+                  <OrderEditor order={o} updateOrderItems={updateOrderItems} updateStatus={updateStatus} issueInvoice={issueInvoice} createPaymentLink={createPaymentLink} setOrderDraft={setOrderDraft} getInvoicePdf={getInvoicePdf} />
                 </div>
 
                 <div className="sm:col-span-2 border-t border-black/5 pt-3">
@@ -286,7 +286,7 @@ export default function OrdersPanel({ focusId = null }) {
 // Admin order editor — change quantities, remove lines, add a custom line item
 // (name + price), then save. Also approves a pending order. Lets the shop fix
 // stock issues with the customer before finalising, instead of refunding.
-function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice, setOrderDraft, getInvoicePdf }) {
+function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice, createPaymentLink, setOrderDraft, getInvoicePdf }) {
   const { store } = useCatalogStore()
   const [editing, setEditing] = useState(false)
   const [items, setItems] = useState(order.items || [])
@@ -295,6 +295,30 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice, setO
   const [invBusy, setInvBusy] = useState(false)
   const [invErr, setInvErr] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [payBusy, setPayBusy] = useState(false)
+  const [payErr, setPayErr] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  // Z-Credit WebCheckout: open a hosted-payment session for this order, then the
+  // admin sends the returned link to the customer (the approve-first/charge-after
+  // flow). The webhook flips paymentStatus to 'paid' once the customer pays.
+  const payUrl = order.zcredit?.sessionUrl || ''
+  const paid = order.paymentStatus === 'paid'
+  const onPaymentLink = async () => {
+    setPayErr('')
+    setPayBusy(true)
+    const res = await createPaymentLink(order)
+    setPayBusy(false)
+    if (!res.ok) { setPayErr(res.error || 'פתיחת עמוד התשלום נכשלה'); return }
+    if (res.sessionUrl) window.open(res.sessionUrl, '_blank', 'noopener')
+  }
+  const copyPayLink = async () => {
+    try {
+      await navigator.clipboard.writeText(payUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch { /* clipboard blocked — the link is still visible to copy manually */ }
+  }
 
   // Open the document PDF (preferred), falling back to SUMIT's document page.
   const openInvoicePreview = (inv) => {
@@ -396,6 +420,25 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice, setO
               <Pencil size={14} /> עריכת פריטים
             </button>
           )}
+          {/* Z-Credit payment link — paid badge, or create/open the hosted page. */}
+          {paid ? (
+            <span className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
+              <CheckCircle2 size={14} /> שולם
+            </span>
+          ) : payUrl ? (
+            <>
+              <a href={payUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-700 hover:bg-brand-100">
+                <CreditCard size={14} /> עמוד תשלום
+              </a>
+              <button type="button" onClick={copyPayLink} className="flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-ink hover:bg-black/5">
+                <Check size={14} /> {copied ? 'הועתק' : 'העתק קישור'}
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={onPaymentLink} disabled={payBusy} className="flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-ink hover:bg-black/5 disabled:opacity-60">
+              <CreditCard size={14} /> {payBusy ? 'יוצר…' : 'קישור תשלום'}
+            </button>
+          )}
           {/* Draft: create a preview, or re-open the existing one if unchanged. */}
           <button type="button" onClick={onDraft} disabled={invBusy} className="flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-ink hover:bg-black/5 disabled:opacity-60">
             <FileText size={14} /> {invBusy ? '…' : draftValid ? 'צפייה בטיוטה' : 'טיוטה'}
@@ -413,6 +456,7 @@ function OrderEditor({ order, updateOrderItems, updateStatus, issueInvoice, setO
         </div>
       </div>
       {invErr && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{invErr}</p>}
+      {payErr && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{payErr}</p>}
 
       {editing && (
         <div className="mt-3 space-y-3 border-t border-black/5 pt-3">

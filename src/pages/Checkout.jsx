@@ -11,7 +11,7 @@ import { useCatalogStore } from '../context/CatalogContext.jsx'
 import { useCoupons, computeCouponDiscount } from '../context/CouponsContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
-import { sanitizePhone, isValidMobileIL, luhnValid, emailIssue } from '../utils/validation.js'
+import { sanitizePhone, isValidMobileIL, emailIssue } from '../utils/validation.js'
 import Logo from '../components/Logo.jsx'
 import CitySelect from '../components/CitySelect.jsx'
 import StreetSelect from '../components/StreetSelect.jsx'
@@ -48,10 +48,8 @@ export default function Checkout() {
     deliveryNotes: '', // courier instructions tied to the address
     delivery: deliveryMethods[0]?.id || 'pickup',
     payment: paymentMethods[0]?.id || 'credit',
-    // mock payment fields
-    cardNumber: '',
-    cardExp: '',
-    cardCvv: '',
+    // Bit phone (still a placeholder flow); credit cards are charged later via a
+    // Z-Credit payment link, so no card fields are collected here.
     bitPhone: '',
   })
   const [placedOrder, setPlacedOrder] = useState(null)
@@ -231,9 +229,6 @@ export default function Checkout() {
         if (!form.city.trim()) return setError('יש לבחור עיר מהרשימה.')
         if (!form.street.trim()) return setError('יש להזין שם רחוב.')
         if (!form.house.trim()) return setError('יש להזין מספר בית.')
-      }
-      if (form.payment === 'credit' && !luhnValid(form.cardNumber)) {
-        return setError('מספר כרטיס האשראי אינו תקין.')
       }
       if (!termsAccepted) return setError('יש לאשר את תקנון האתר כדי להמשיך.')
     }
@@ -502,15 +497,14 @@ export default function Checkout() {
               })}
             </div>
 
-            {/* Mock payment details */}
+            {/* Credit: no card entry here. After the shop approves the order we
+                send a secure Z-Credit payment link — the card is entered on
+                Z-Credit's PCI-certified page, never on our site. */}
             {form.payment === 'credit' && (
-              <div className="mt-4 grid gap-3 rounded-xl bg-brand-50/60 p-4 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <Field label="מספר כרטיס" name="cc-number" autoComplete="cc-number" inputMode="numeric" placeholder="•••• •••• •••• ••••" value={form.cardNumber} onChange={(v) => set('cardNumber', v)} />
-                </div>
-                <Field label="תוקף" name="cc-exp" autoComplete="cc-exp" placeholder="MM/YY" value={form.cardExp} onChange={(v) => set('cardExp', v)} />
-                <Field label="CVV" name="cc-csc" autoComplete="cc-csc" inputMode="numeric" placeholder="•••" value={form.cardCvv} onChange={(v) => set('cardCvv', v)} />
-                <p className="text-xs text-ink-light sm:col-span-2">* תשלום אשראי בהדמיה — לא מתבצע חיוב אמיתי.</p>
+              <div className="mt-4 rounded-xl bg-brand-50/60 p-4">
+                <p className="text-sm text-ink-light">
+                  לאחר אישור ההזמנה על ידי החנות יישלח אליך קישור לתשלום מאובטח בכרטיס אשראי. פרטי הכרטיס מוזנים בעמוד המאובטח של חברת הסליקה — לא נשמרים אצלנו.
+                </p>
               </div>
             )}
             {form.payment === 'bit' && (
