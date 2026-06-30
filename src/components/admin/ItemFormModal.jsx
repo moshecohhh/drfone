@@ -7,6 +7,7 @@ import { downscaleImage } from '../../utils/image.js'
 import { Switch } from './ui.jsx'
 import ColorPicker from './ColorPicker.jsx'
 import ProductPageEditor from './ProductPageEditor.jsx'
+import ImeiListEditor from './ImeiListEditor.jsx'
 
 const MAX_IMAGES = 7
 
@@ -18,7 +19,8 @@ const emptyItem = {
   oldPrice: '',
   cost: '', // private cost price (admin-only) — for profit tracking
   hasSerial: false, // device with a serial number / IMEI
-  imei1: '',
+  imeis: [], // one IMEI per unit; for IMEI-managed products stock = imeis.length
+  imei1: '', // kept in sync with imeis[0]/[1] for search + back-compat
   imei2: '',
   stock: 1,
   description: '',
@@ -85,6 +87,10 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
         ...item,
         oldPrice: item.oldPrice ?? '',
         cost: getCost(item.id) || '', // private cost lives in a separate admin table
+        // IMEI list: prefer the array; fall back to the legacy imei1/imei2 pair.
+        imeis: Array.isArray(item.imeis) && item.imeis.length
+          ? item.imeis
+          : [item.imei1, item.imei2].filter(Boolean),
         images,
         image: images[0] || '',
         colors: normColors(item.colors),
@@ -156,17 +162,29 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
     }))
 
   const buildPayload = () => {
-    const stock = isService ? undefined : Math.max(0, Number(form.stock) || 0)
+    // For an IMEI-managed product, stock is DERIVED from the IMEI list; otherwise
+    // it's the plain stock number.
+    const cleanImeis = (Array.isArray(form.imeis) ? form.imeis : [])
+      .map((s) => String(s || '').replace(/\D/g, ''))
+      .filter(Boolean)
+    const serial = !!form.hasSerial && !isService
+    const stock = isService
+      ? undefined
+      : serial
+        ? cleanImeis.length
+        : Math.max(0, Number(form.stock) || 0)
     return {
       ...form,
       image: form.images[0] || '',
       price: Number(form.price) || 0,
       oldPrice: form.oldPrice === '' ? null : Number(form.oldPrice),
       cost: form.cost === '' ? 0 : Number(form.cost) || 0,
-      // Serial / IMEI (cleared when the toggle is off).
+      // Serial / IMEI list (cleared when the toggle is off). imei1/imei2 mirror
+      // the first two entries for search + back-compat.
       hasSerial: !!form.hasSerial,
-      imei1: form.hasSerial ? String(form.imei1 || '').trim() : '',
-      imei2: form.hasSerial ? String(form.imei2 || '').trim() : '',
+      imeis: serial ? cleanImeis : [],
+      imei1: serial ? (cleanImeis[0] || '') : '',
+      imei2: serial ? (cleanImeis[1] || '') : '',
       // For products, availability is driven by stock.
       ...(isService ? {} : { stock, inStock: stock > 0 }),
     }
@@ -404,28 +422,12 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
             <div className="rounded-xl border border-black/10 bg-brand-50/30 p-3">
               <Switch checked={!!form.hasSerial} onChange={(v) => set('hasSerial', v)} label="מוצר עם מספר סידורי (IMEI)" />
               {form.hasSerial && (
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <Row label="IMEI 1 (חובה)">
-                    <input
-                      required
-                      value={form.imei1}
-                      onChange={(e) => set('imei1', e.target.value.replace(/[^\d]/g, ''))}
-                      placeholder="000000000000000"
-                      dir="ltr"
-                      inputMode="numeric"
-                      className={`${inputCls} text-right font-mono`}
-                    />
-                  </Row>
-                  <Row label="IMEI 2 (אופציונלי)">
-                    <input
-                      value={form.imei2}
-                      onChange={(e) => set('imei2', e.target.value.replace(/[^\d]/g, ''))}
-                      placeholder="000000000000000"
-                      dir="ltr"
-                      inputMode="numeric"
-                      className={`${inputCls} text-right font-mono`}
-                    />
-                  </Row>
+                <div className="mt-3">
+                  <p className="mb-2 text-xs font-semibold text-ink-light">
+                    רשימת IMEI — שורה לכל יחידה. המלאי נקבע אוטומטית לפי מספר ה-IMEI
+                    {` (כרגע: ${(form.imeis || []).filter((s) => String(s || '').trim()).length})`}
+                  </p>
+                  <ImeiListEditor imeis={form.imeis || []} onChange={(next) => set('imeis', next)} />
                 </div>
               )}
             </div>
@@ -573,6 +575,16 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
               />
               זמין לתיקון
             </label>
+          ) : form.hasSerial ? (
+            <Row label="כמות במלאי">
+              <input
+                type="number"
+                value={(form.imeis || []).filter((s) => String(s || '').trim()).length}
+                readOnly
+                className={`${inputCls} bg-black/5 text-ink-light`}
+                title="המלאי נקבע אוטומטית לפי מספר ה-IMEI"
+              />
+            </Row>
           ) : (
             <Row label="כמות במלאי">
               <input

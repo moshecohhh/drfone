@@ -1,11 +1,12 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
-import { Store, Wrench, Plus, Pencil, Trash2, RotateCcw, AlertTriangle, ImagePlus, Tags, Flame, Star } from 'lucide-react'
+import { useState, useMemo, useRef, useEffect, Fragment } from 'react'
+import { Store, Wrench, Plus, Pencil, Trash2, RotateCcw, AlertTriangle, ImagePlus, Tags, Flame, Star, ChevronDown, Check, Smartphone } from 'lucide-react'
 import { DOMAINS } from '../../context/AppContext.jsx'
 import { useCatalogStore } from '../../context/CatalogContext.jsx'
 import { useBrands } from '../../context/BrandsContext.jsx'
 import { downscaleImage } from '../../utils/image.js'
 import { PanelHead, Table, PrimaryBtn, GhostBtn, IconBtn, PanelSearch } from './ui.jsx'
 import ItemFormModal from './ItemFormModal.jsx'
+import ImeiListEditor from './ImeiListEditor.jsx'
 import DomainToggle from './DomainToggle.jsx'
 import CategoryManager from './CategoryManager.jsx'
 
@@ -45,6 +46,39 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
   const [brandFilter, setBrandFilter] = useState('all')
   const [catFilter, setCatFilter] = useState('all')
   const [sortBy, setSortBy] = useState('default')
+  // IMEI inventory UI: which rows have their IMEI list expanded, the editable
+  // stock draft per row, and the "enter N new IMEIs" prompt after a stock bump.
+  const [expanded, setExpanded] = useState({})
+  const [stockDraft, setStockDraft] = useState({})
+  const [imeiPrompt, setImeiPrompt] = useState(null) // { id, list: string[] }
+
+  // Count of real IMEIs on a product, and a helper to persist a new IMEI list
+  // (stock + imei1/imei2 + inStock all derive from it).
+  // Prefer the IMEI array; fall back to the legacy imei1/imei2 pair so older
+  // products still show their numbers (a re-save migrates them to the array).
+  const imeiList = (item) =>
+    Array.isArray(item.imeis) && item.imeis.length ? item.imeis : [item.imei1, item.imei2].filter(Boolean)
+  const imeiCount = (item) => imeiList(item).filter((s) => String(s || '').trim()).length
+  const saveImeis = (item, list) => {
+    const clean = (list || []).map((s) => String(s || '').replace(/\D/g, '')).filter(Boolean)
+    updateItem(domain, item.id, {
+      imeis: clean, stock: clean.length, inStock: clean.length > 0,
+      imei1: clean[0] || '', imei2: clean[1] || '',
+    })
+  }
+  // "אישור" on the stock field of an IMEI product: bump → prompt for the new
+  // IMEIs; reduce → tell the user to remove specific ones from the list.
+  const confirmStock = (item) => {
+    const target = Math.max(0, Number(stockDraft[item.id]) || 0)
+    const cur = imeiCount(item)
+    if (target === cur) { setStockDraft((d) => { const n = { ...d }; delete n[item.id]; return n }); return }
+    if (target < cur) {
+      setExpanded((e) => ({ ...e, [item.id]: true }))
+      alert('להפחתת מלאי במוצר מנוהל-IMEI, פתחו את רשימת ה-IMEI ומחקו את המספרים הרצויים.')
+      return
+    }
+    setImeiPrompt({ id: item.id, list: Array(target - cur).fill('') })
+  }
   const [query, setQuery] = useState('')
   const [showCategories, setShowCategories] = useState(false)
   const imgInputRef = useRef(null)
@@ -116,7 +150,8 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
           catLabel(it.category).toLowerCase().includes(term) ||
           (!!it.barcode && String(it.barcode).toLowerCase().includes(term)) ||
           (!!it.imei1 && String(it.imei1).includes(term)) ||
-          (!!it.imei2 && String(it.imei2).includes(term)),
+          (!!it.imei2 && String(it.imei2).includes(term)) ||
+          (Array.isArray(it.imeis) && it.imeis.some((m) => String(m).includes(term))),
       )
     }
     if (lowOnly && !isService) list = list.filter((it) => (Number(it.stock) || 0) <= LOW_STOCK_THRESHOLD)
@@ -275,9 +310,22 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
           </tr>
         )}
         {items.map((item) => (
-          <tr key={item.id} className="hover:bg-brand-50/40">
+          <Fragment key={item.id}>
+          <tr className="hover:bg-brand-50/40">
             <td className="px-4 py-3">
               <div className="flex items-center gap-2">
+                {/* IMEI list expander (devices only) */}
+                {item.hasSerial && (
+                  <button
+                    type="button"
+                    onClick={() => setExpanded((e) => ({ ...e, [item.id]: !e[item.id] }))}
+                    aria-label="רשימת IMEI"
+                    title="רשימת IMEI"
+                    className="shrink-0 rounded-lg p-1 text-ink-light hover:bg-black/5 hover:text-ink"
+                  >
+                    <ChevronDown size={16} className={`transition-transform ${expanded[item.id] ? '' : '-rotate-90'}`} />
+                  </button>
+                )}
                 {/* Quick image edit — hover shows an edit overlay; click adds images */}
                 <button
                   type="button"
@@ -293,8 +341,8 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
                 </button>
                 <span className="min-w-0">
                   <span className="font-semibold text-ink">{item.name}</span>
-                  {item.hasSerial && item.imei1 && (
-                    <span className="block font-mono text-[11px] text-ink-light" dir="ltr">IMEI: {item.imei1}{item.imei2 ? ` / ${item.imei2}` : ''}</span>
+                  {item.hasSerial && (
+                    <span className="block text-[11px] text-ink-light">{imeiCount(item)} יח׳ IMEI במלאי</span>
                   )}
                 </span>
               </div>
@@ -320,6 +368,19 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
                 >
                   {item.inStock ? 'זמין' : 'לא זמין'}
                 </button>
+              ) : item.hasSerial ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="0"
+                    value={stockDraft[item.id] ?? imeiCount(item)}
+                    onChange={(e) => setStockDraft((d) => ({ ...d, [item.id]: e.target.value }))}
+                    className={`w-16 rounded-lg border px-2 py-1 text-sm outline-none focus:border-brand-500 ${
+                      imeiCount(item) <= 3 ? 'border-amber-300 bg-amber-50' : 'border-black/10'
+                    }`}
+                  />
+                  <IconBtn type="button" title="אישור עדכון מלאי" onClick={() => confirmStock(item)}><Check size={16} /></IconBtn>
+                </div>
               ) : (
                 <input
                   type="number"
@@ -380,6 +441,17 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
               </div>
             </td>
           </tr>
+          {item.hasSerial && expanded[item.id] && (
+            <tr className="bg-brand-50/30">
+              <td colSpan={6} className="px-4 pb-3">
+                <div className="rounded-xl border border-black/10 bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold text-ink-light">רשימת IMEI ({imeiCount(item)} יח׳)</p>
+                  <ImeiListEditor imeis={imeiList(item)} onChange={(next) => saveImeis(item, next)} />
+                </div>
+              </td>
+            </tr>
+          )}
+          </Fragment>
         ))}
       </Table>
 
@@ -391,6 +463,35 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
         categories={editableCats}
         kind={meta.kind}
       />
+
+      {/* Enter the IMEIs for newly-added units (after bumping an IMEI product's stock) */}
+      {imeiPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={(e) => e.target === e.currentTarget && setImeiPrompt(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+            <h3 className="mb-1 flex items-center gap-2 text-lg font-extrabold text-ink"><Smartphone size={18} /> הזנת IMEI ליחידות החדשות</h3>
+            <p className="mb-3 text-sm text-ink-light">הזינו {imeiPrompt.list.length} מספרי IMEI (או סרקו עם המצלמה):</p>
+            <ImeiListEditor imeis={imeiPrompt.list} onChange={(next) => setImeiPrompt((p) => ({ ...p, list: next }))} />
+            <div className="mt-4 flex gap-2">
+              <PrimaryBtn
+                type="button"
+                className="flex-1"
+                onClick={() => {
+                  const item = getItems(domain).find((it) => it.id === imeiPrompt.id)
+                  if (item) {
+                    const entered = imeiPrompt.list.map((s) => String(s || '').replace(/\D/g, '')).filter(Boolean)
+                    saveImeis(item, [...imeiList(item).filter(Boolean), ...entered])
+                  }
+                  setStockDraft((d) => { const n = { ...d }; delete n[imeiPrompt.id]; return n })
+                  setImeiPrompt(null)
+                }}
+              >
+                שמירה
+              </PrimaryBtn>
+              <GhostBtn type="button" onClick={() => setImeiPrompt(null)}>ביטול</GhostBtn>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
