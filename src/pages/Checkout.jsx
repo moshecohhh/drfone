@@ -23,7 +23,7 @@ const money = (n) => '₪' + Number(n || 0).toLocaleString('he-IL')
 export default function Checkout() {
   const { items, subtotal, clear, removeItem } = useCart()
   const { addOrder, orders } = useOrders()
-  const { decrementStock, getItems } = useCatalogStore()
+  const { decrementStock, allocateImeis, getItems } = useCatalogStore()
   const { validateCoupon, redeemCoupon } = useCoupons()
   const { user, isMasterAdminAccount, updateProfile } = useAuth()
   const { paymentMethods, deliveryMethods } = useSettings()
@@ -246,6 +246,20 @@ export default function Checkout() {
       ? ''
       : `${form.street.trim()} ${form.house.trim()}${form.apartment.trim() ? `, ${form.apartment.trim()}` : ''}, ${form.city.trim()}`
 
+    // Inventory: for IMEI-managed products lock the exact units of the chosen
+    // COLOR to this order (so a pink order can't ship a black unit); plain
+    // products just decrement stock. Keyed by lineId for the order items below.
+    const allocations = {}
+    items.forEach((i) => {
+      const product = getItems(DOMAINS.STORE).find((p) => p.id === i.id)
+      if (product?.hasSerial) {
+        allocations[i.lineId] = allocateImeis(DOMAINS.STORE, i.id, i.color || '', i.qty)
+      } else {
+        decrementStock(DOMAINS.STORE, i.id, i.qty)
+        allocations[i.lineId] = { allocated: [], shortage: 0 }
+      }
+    })
+
     const order = addOrder({
       customer: {
         name: form.name,
@@ -271,6 +285,11 @@ export default function Checkout() {
         listPrice: i.listPrice ?? i.price,
         qty: i.qty,
         color: i.color || '',
+        // The exact IMEI unit(s) allocated to this line, locked to the chosen
+        // color so fulfilment is never ambiguous. `imeiShortage` > 0 flags that
+        // not enough units of this color were in stock (admin must reconcile).
+        imeis: allocations[i.lineId]?.allocated || [],
+        imeiShortage: allocations[i.lineId]?.shortage || 0,
         // Chosen product-page option fields (version / storage / upgrades…) so
         // the admin sees exactly what the customer ordered.
         selections: Array.isArray(i.selections) ? i.selections : [],
@@ -278,9 +297,6 @@ export default function Checkout() {
       coupon: coupon ? { code: coupon.code, percent: Number(coupon.percent) || 0, discountAmount: discount } : null,
       total,
     })
-
-    // Inventory: reduce stock for each purchased STORE product.
-    items.forEach((i) => decrementStock(DOMAINS.STORE, i.id, i.qty))
 
     // Mark the coupon redeemed (best-effort) once the order is placed.
     if (coupon) redeemCoupon(coupon.code)

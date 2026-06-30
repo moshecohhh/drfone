@@ -4,6 +4,7 @@ import { STORE_PRODUCTS, STORE_CATEGORIES } from '../data/storeProducts.js'
 import { LAB_SERVICES, LAB_CATEGORIES } from '../data/labServices.js'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from './AuthContext.jsx'
+import { normImei, imeiOf, colorOf } from '../utils/imei.js'
 
 // ---------------------------------------------------------------------------
 // Persistent catalog (items + categories), backed by Supabase so an admin edit
@@ -267,6 +268,49 @@ export function CatalogProvider({ children }) {
     })
   }, [])
 
+  // Allocate `qty` IMEIs of a chosen COLOR for an order, so each sold unit's
+  // exact IMEI stays tied to the color the customer picked — a pink order can
+  // never be fulfilled with a black unit. Returns { allocated:[{imei,color}],
+  // shortage } synchronously from the local list (used for the order record),
+  // and persists the authoritative removal via a color-aware SECURITY DEFINER
+  // RPC. Non-serial products just decrement their plain stock.
+  const allocateImeis = useCallback((domain, id, color, qty) => {
+    const n = Math.max(0, Number(qty) || 0)
+    const product = itemsRef(domain).current.find((it) => it.id === id)
+    if (!product || !product.hasSerial) {
+      if (product) decrementStock(domain, id, n)
+      return { allocated: [], shortage: 0 }
+    }
+    const list = (Array.isArray(product.imeis) ? product.imeis : []).map(normImei).filter((e) => imeiOf(e).trim())
+    const want = color || ''
+    // Trust color tags once any unit is tagged; otherwise allocate by position.
+    const anyTagged = list.some((e) => colorOf(e))
+    const allocated = []
+    const remaining = []
+    list.forEach((e) => {
+      const ok = allocated.length < n && (!want || !anyTagged || colorOf(e) === want)
+      if (ok) allocated.push(e)
+      else remaining.push(e)
+    })
+    // Optimistic local update so the admin catalog reflects the sale at once.
+    setItemsState(domain)((prev) =>
+      prev.map((it) =>
+        it.id === id
+          ? { ...it, imeis: remaining, stock: remaining.length, inStock: remaining.length > 0, imei1: remaining[0]?.imei || '', imei2: remaining[1]?.imei || '' }
+          : it,
+      ),
+    )
+    // Server-authoritative removal. Falls back to a plain decrement if the
+    // allocate_imeis RPC hasn't been deployed yet (see schema_imei_alloc.sql).
+    supabase.rpc('allocate_imeis', { p_id: id, p_color: want, p_qty: n }).then(({ error }) => {
+      if (error) {
+        console.warn('[catalog] allocateImeis failed, falling back to decrement_stock:', error.message)
+        supabase.rpc('decrement_stock', { p_id: id, p_qty: n }).then(() => {})
+      }
+    })
+    return { allocated, shortage: Math.max(0, n - allocated.length) }
+  }, [decrementStock])
+
   // Bulk-import predefined products (e.g. the Samsung/Apple device catalog).
   // Uses stable ids + upsert so a re-import UPDATES rather than duplicates, and
   // ensures any required categories exist first. Runs with the caller's own
@@ -391,6 +435,7 @@ export function CatalogProvider({ children }) {
     updateItem,
     deleteItem,
     decrementStock,
+    allocateImeis,
     getCost,
     importItems,
     resetDomain,

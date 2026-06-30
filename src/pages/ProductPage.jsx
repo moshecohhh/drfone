@@ -6,6 +6,7 @@ import { useCatalogStore } from '../context/CatalogContext.jsx'
 import { useCart } from '../context/CartContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
 import { sanitizeRichHtml } from '../utils/sanitizeHtml.js'
+import { imeiStockForColor } from '../utils/imei.js'
 import Header from '../components/Header.jsx'
 import CartDrawer from '../components/CartDrawer.jsx'
 import Footer from '../components/Footer.jsx'
@@ -140,9 +141,17 @@ export default function ProductPage() {
   const giftPrice = giftWrap ? Number(giftCfg.price) || 0 : 0
   const unitPrice = base + optionsTotal + giftPrice
 
+  // Stock available to add. For an IMEI-managed product WITH colors this is the
+  // count of units of the SELECTED color, so a color with no units in stock
+  // can't be ordered (and thus can never be fulfilled with another color).
+  const serialColored = !!product?.hasSerial && colors.length > 0
+  const effectiveStock = serialColored
+    ? imeiStockForColor(product?.imeis, selectedColor)
+    : Number(product?.stock) || 0
+
   // Required groups with nothing chosen block "add to cart".
   const missingRequired = optionGroups.filter((g) => g.required && selectedIdsFor(g).length === 0)
-  const canAdd = (Number(product?.stock) || 0) > 0 && missingRequired.length === 0
+  const canAdd = effectiveStock > 0 && missingRequired.length === 0
 
   // Toggle one option in a multi-select group.
   const toggleMulti = (gid, oid) =>
@@ -153,7 +162,7 @@ export default function ProductPage() {
 
   if (!product || !pageEnabled) return <Navigate to="/" replace />
 
-  const stock = Number(product.stock) || 0
+  const stock = effectiveStock
   const cats = getCategoriesWithAll(DOMAINS.STORE)
   const catLabel = page.breadcrumbLabel || cats.find((c) => c.id === product.category)?.label || ''
 
@@ -194,7 +203,10 @@ export default function ProductPage() {
 
   const handleAdd = () => {
     if (!canAdd) return false
-    return addItem(product, selectedColor, null, buildOptions())
+    // Cap the cart line at the SELECTED color's stock for IMEI products, so the
+    // ± stepper can never exceed the units we can actually ship in that color.
+    const forCart = serialColored ? { ...product, stock: effectiveStock } : product
+    return addItem(forCart, selectedColor, null, buildOptions())
   }
   const handleBuyNow = () => {
     if (handleAdd()) {
@@ -302,23 +314,35 @@ export default function ProductPage() {
                       <div className="flex flex-wrap gap-2">
                         {colors.map((c) => {
                           const sel = c.hex === selectedColor
+                          // For IMEI products, a color with no units in stock can't be picked.
+                          const soldOut = serialColored && imeiStockForColor(product?.imeis, c.hex) <= 0
                           return (
                             <button
                               key={c.hex}
                               type="button"
-                              onClick={() => pickColor(c)}
+                              onClick={() => !soldOut && pickColor(c)}
+                              disabled={soldOut}
                               aria-pressed={sel}
-                              title={c.name || c.hex}
-                              className={`h-9 w-9 cursor-pointer select-none rounded-full border transition ${
+                              title={soldOut ? `${c.name || c.hex} — אזל מהמלאי` : c.name || c.hex}
+                              className={`relative h-9 w-9 select-none rounded-full border transition ${
                                 sel ? 'border-brand-500 ring-2 ring-brand-500 ring-offset-2' : 'border-black/15 hover:scale-110'
-                              }`}
+                              } ${soldOut ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}
                               style={{ background: c.hex }}
-                            />
+                            >
+                              {soldOut && (
+                                <span className="pointer-events-none absolute inset-0 m-auto h-px w-7 rotate-45 bg-red-500" />
+                              )}
+                            </button>
                           )
                         })}
                       </div>
                       {selectedColorObj?.name && (
-                        <span className="block text-xs font-semibold text-ink-light">{selectedColorObj.name}</span>
+                        <span className="block text-xs font-semibold text-ink-light">
+                          {selectedColorObj.name}
+                          {serialColored && (
+                            <span className="text-ink-light/70"> · {effectiveStock > 0 ? `${effectiveStock} במלאי` : 'אזל מהמלאי'}</span>
+                          )}
+                        </span>
                       )}
                     </div>
                   </FieldRow>

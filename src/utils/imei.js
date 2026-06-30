@@ -26,3 +26,27 @@ export const cleanImeiList = (arr) =>
 // Count the units that carry a real IMEI.
 export const imeiCountOf = (arr) =>
   (Array.isArray(arr) ? arr : []).filter((e) => imeiOf(e).trim()).length
+
+// Map of color hex -> number of in-stock units carrying that color. Units with
+// no color land under the '' key. Only entries with a real IMEI are counted.
+export const imeiCountByColor = (arr) => {
+  const m = {}
+  ;(Array.isArray(arr) ? arr : []).forEach((e) => {
+    if (!imeiOf(e).trim()) return
+    const c = colorOf(e)
+    m[c] = (m[c] || 0) + 1
+  })
+  return m
+}
+
+// How many units are available to sell in a specific color.
+// Once ANY unit has been color-tagged we trust the tags: a color only has the
+// units explicitly assigned to it (so a black-only product can't fulfil a pink
+// order). For a legacy product where NO unit is tagged yet, we fall back to the
+// total count so existing inventory stays sellable until it's tagged.
+export const imeiStockForColor = (arr, color) => {
+  const list = (Array.isArray(arr) ? arr : []).filter((e) => imeiOf(e).trim())
+  const anyTagged = list.some((e) => colorOf(e))
+  if (!anyTagged) return list.length
+  return list.filter((e) => colorOf(e) === (color || '')).length
+}

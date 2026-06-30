@@ -423,10 +423,10 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
           {/* Serial number / IMEI — for individually-tracked devices. */}
           {!isService && (
             <div className="rounded-xl border border-black/10 bg-brand-50/30 p-3">
-              <label className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-semibold text-ink">מוצר עם מספר סידורי (IMEI)</span>
                 <Switch checked={!!form.hasSerial} onChange={(v) => set('hasSerial', v)} label="מוצר עם מספר סידורי (IMEI)" />
-              </label>
+              </div>
               {form.hasSerial && (
                 <div className="mt-3">
                   <p className="mb-2 text-xs font-semibold text-ink-light">

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, Fragment } from 'react'
 import { Store, Wrench, Plus, Pencil, Trash2, RotateCcw, AlertTriangle, ImagePlus, Tags, Flame, Star, ChevronDown, Check, Smartphone } from 'lucide-react'
-import { imeiOf, cleanImeiList, imeiCountOf } from '../../utils/imei.js'
+import { imeiOf, cleanImeiList, imeiCountOf, imeiCountByColor } from '../../utils/imei.js'
 import { DOMAINS } from '../../context/AppContext.jsx'
 import { useCatalogStore } from '../../context/CatalogContext.jsx'
 import { useBrands } from '../../context/BrandsContext.jsx'
@@ -464,6 +464,26 @@ export default function CatalogPanel({ lowStockInitial = false, editTarget = nul
               <td colSpan={6} className="px-4 pb-3">
                 <div className="rounded-xl border border-black/10 bg-white p-3">
                   <p className="mb-2 text-xs font-semibold text-ink-light">רשימת IMEI ({imeiCount(item)} יח׳)</p>
+                  {/* Per-color stock breakdown so it's clear how many of each color are on hand. */}
+                  {Array.isArray(item.colors) && item.colors.length > 0 && (() => {
+                    const counts = imeiCountByColor(imeiList(item))
+                    const untagged = counts[''] || 0
+                    return (
+                      <div className="mb-2 flex flex-wrap gap-1.5">
+                        {item.colors.map((c) => (
+                          <span key={c.hex} className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-2 py-0.5 text-[11px] text-ink-light">
+                            <span className="h-3 w-3 rounded-full border border-black/15" style={{ background: c.hex }} />
+                            {c.name || c.hex}: <b className="text-ink">{counts[c.hex] || 0}</b>
+                          </span>
+                        ))}
+                        {untagged > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                            ללא צבע: {untagged}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })()}
                   <ImeiListEditor imeis={imeiList(item)} colors={item.colors || []} onChange={(next) => saveImeis(item, next)} />
                 </div>
               </td>
