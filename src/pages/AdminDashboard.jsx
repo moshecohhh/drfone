@@ -430,18 +430,29 @@ export default function AdminDashboard() {
             <ThemeToggle />
             <Link
               to="/"
-              className="flex items-center gap-1 rounded-xl border border-black/10 px-3 py-2 text-sm font-semibold text-ink hover:bg-black/5"
+              title="לאתר"
+              className="flex items-center gap-1 rounded-xl border border-black/10 px-2.5 py-2 text-sm font-semibold text-ink hover:bg-black/5"
             >
-              <Home size={16} /> לאתר
+              <Home size={16} /> <span className="hidden sm:inline">לאתר</span>
             </Link>
             <button
               onClick={logout}
-              className="flex items-center gap-1 rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white hover:bg-ink-dark"
+              title="התנתקות"
+              className="flex items-center gap-1 rounded-xl bg-ink px-2.5 py-2 text-sm font-semibold text-white hover:bg-ink-dark"
             >
-              <LogOut size={16} /> התנתקות
+              <LogOut size={16} /> <span className="hidden sm:inline">התנתקות</span>
             </button>
           </div>
         </div>
+
+        {/* Mobile global search — the desktop one is centered in the bar above,
+            but there's no room for it on a phone, so it gets its own full-width
+            row here (Overview only). */}
+        {isMaster && section === 'overview' && (
+          <div className="border-t border-black/5 px-4 py-2 md:hidden">
+            <AdminSearch onNavigate={handleSearchNavigate} />
+          </div>
+        )}
       </header>
 
       <div className="flex">

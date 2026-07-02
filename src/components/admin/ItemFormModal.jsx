@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Save, Upload, ImageOff, Plus, Link2, Flame, BadgeCheck, Package, LayoutTemplate, ChevronDown, Palette, Type, RectangleHorizontal, Circle, Star } from 'lucide-react'
+import { X, Save, Upload, ImageOff, Plus, Link2, Flame, BadgeCheck, Package, LayoutTemplate, ChevronDown, Palette, Type, RectangleHorizontal, Circle, Star, ScanLine } from 'lucide-react'
 import { cleanImeiList, imeiCountOf, normImei } from '../../utils/imei.js'
 import ProductTag, { TAG_TEXT_LIMITS } from '../ProductTag.jsx'
+import BarcodeScanner from './BarcodeScanner.jsx'
 import { useBrands } from '../../context/BrandsContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import { useCatalogStore } from '../../context/CatalogContext.jsx'
@@ -66,6 +67,7 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
   const [draftColor, setDraftColor] = useState('#3B82F6')
   const [colorsOpen, setColorsOpen] = useState(false) // colors menu starts collapsed; click to open
   const [tagOpen, setTagOpen] = useState(false) // product-tag menu starts collapsed; click to open
+  const [scanBarcode, setScanBarcode] = useState(false) // barcode-field camera scanner
   const [urlDraft, setUrlDraft] = useState('')
   const fileRef = useRef(null)
   const tagFileRef = useRef(null)
@@ -420,13 +422,24 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
               the storefront search jump straight to this product. */}
           {!isService && (
             <Row label="ברקוד (פנימי — לא מוצג ללקוח)">
-              <input
-                value={form.barcode}
-                onChange={(e) => set('barcode', e.target.value)}
-                placeholder="סרקו או הקלידו ברקוד"
-                dir="ltr"
-                className={`${inputCls} text-right font-mono`}
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  value={form.barcode}
+                  onChange={(e) => set('barcode', e.target.value)}
+                  placeholder="סרקו או הקלידו ברקוד"
+                  dir="ltr"
+                  className={`${inputCls} text-right font-mono`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setScanBarcode(true)}
+                  title="סריקת ברקוד עם המצלמה"
+                  aria-label="סריקת ברקוד עם המצלמה"
+                  className="flex shrink-0 items-center gap-1.5 rounded-xl border border-brand-500 bg-white px-3 py-2 text-sm font-semibold text-brand-600 transition hover:bg-brand-50"
+                >
+                  <ScanLine size={16} /> סריקה
+                </button>
+              </div>
             </Row>
           )}
 
@@ -784,6 +797,15 @@ export default function ItemFormModal({ open, onClose, onSave, item, categories,
           </div>
         </form>
       </div>
+
+      {/* Barcode field scanner */}
+      {scanBarcode && (
+        <BarcodeScanner
+          title="סריקת ברקוד למוצר"
+          onDetected={(code) => { set('barcode', code); setScanBarcode(false) }}
+          onClose={() => setScanBarcode(false)}
+        />
+      )}
     </div>
   )
 }

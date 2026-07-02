@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { Search, X, Package, Wrench, Users, ShoppingBag, Smartphone, HardDrive } from 'lucide-react'
+import { Search, X, Package, Wrench, Users, ShoppingBag, Smartphone, HardDrive, ScanLine } from 'lucide-react'
+import BarcodeScanner from './BarcodeScanner.jsx'
 import { useCatalogStore } from '../../context/CatalogContext.jsx'
 import { useLab } from '../../context/LabContext.jsx'
 import { useOrders } from '../../context/OrdersContext.jsx'
@@ -18,6 +19,7 @@ export default function AdminSearch({ onNavigate }) {
 
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
+  const [scan, setScan] = useState(false)
   const boxRef = useRef(null)
 
   // Close the results dropdown when clicking outside.
@@ -85,19 +87,37 @@ export default function AdminSearch({ onNavigate }) {
           onChange={(e) => { setQ(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
           placeholder="חיפוש מוצר, ברקוד, לקוח, תיקון, הזמנה…"
-          className="w-full rounded-xl border border-black/10 bg-brand-50/40 py-2 pr-9 pl-8 text-sm text-ink outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20"
+          className="w-full rounded-xl border border-black/10 bg-brand-50/40 py-2 pr-9 pl-16 text-sm text-ink outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20"
         />
+        {/* Scan a barcode to search by it (jumps straight to the matching product). */}
+        <button
+          type="button"
+          onClick={() => setScan(true)}
+          aria-label="סריקת ברקוד"
+          title="סריקת ברקוד"
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-light transition hover:text-brand-600"
+        >
+          <ScanLine size={17} />
+        </button>
         {q && (
           <button
             type="button"
             onClick={() => { setQ(''); setOpen(false) }}
             aria-label="ניקוי"
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-light hover:text-ink"
+            className="absolute left-9 top-1/2 -translate-y-1/2 text-ink-light hover:text-ink"
           >
             <X size={15} />
           </button>
         )}
       </div>
+
+      {scan && (
+        <BarcodeScanner
+          title="סריקת ברקוד לחיפוש"
+          onDetected={(code) => { setScan(false); setQ(code); setOpen(true) }}
+          onClose={() => setScan(false)}
+        />
+      )}
 
       {showDropdown && (
         <div className="absolute inset-x-0 top-full z-40 mt-2 max-h-96 overflow-y-auto rounded-xl border border-black/10 bg-white py-1 shadow-xl">
