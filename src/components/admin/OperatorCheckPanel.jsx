@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Signal, Search, Loader2, AlertCircle } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
+import { crmErrorMessage } from '../../lib/crmError.js'
 import { PanelHead, Field, PrimaryBtn, inputCls } from './ui.jsx'
 
 // "בדיקת מפעיל למספר" — type a mobile number, get back the cellular operator it
@@ -30,8 +31,8 @@ export default function OperatorCheckPanel() {
       if (data?.operator) setResult({ operator: data.operator, company_id: data.company_id })
       else if (data?.error === 'invalid phone') setError('מספר לא תקין.')
       else setError('לא נמצא מפעיל למספר זה.')
-    } catch {
-      setError('שגיאה בבדיקה. נסו שוב מאוחר יותר.')
+    } catch (err) {
+      setError(await crmErrorMessage(err, 'שגיאה בבדיקה. נסו שוב מאוחר יותר.'))
     } finally {
       setLoading(false)
     }
