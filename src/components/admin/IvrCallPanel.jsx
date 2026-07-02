@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { PhoneOutgoing, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
+import { crmErrorMessage } from '../../lib/crmError.js'
 import { PanelHead, Field, PrimaryBtn, inputCls } from './ui.jsx'
 
 // Cellular operators the CRM accepts for an IVR call, matching the company_id
@@ -42,8 +43,8 @@ export default function IvrCallPanel() {
       if (data?.ok) setResult({ message: data.message || 'השיחה בוצעה בהצלחה.' })
       else if (data?.error === 'invalid phone') setError('מספר לא תקין.')
       else setError(data?.message || 'השיחה נכשלה. נסו שוב.')
-    } catch {
-      setError('שגיאה בביצוע השיחה. נסו שוב מאוחר יותר.')
+    } catch (err) {
+      setError(await crmErrorMessage(err, 'שגיאה בביצוע השיחה. נסו שוב מאוחר יותר.'))
     } finally {
       setLoading(false)
     }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ShieldCheck, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
+import { crmErrorMessage } from '../../lib/crmError.js'
 import { PanelHead, Field, PrimaryBtn, inputCls } from './ui.jsx'
 
 // "בדיקת IMEI כשר" — type a device IMEI and the CRM reports whether it's a
@@ -30,8 +31,8 @@ export default function KosherImeiPanel() {
       if (data?.message) setResult({ ok: !!data.ok, message: data.message })
       else if (data?.error === 'invalid imei') setError('מספר IMEI לא תקין.')
       else setError('הבדיקה נכשלה. נסו שוב.')
-    } catch {
-      setError('שגיאה בבדיקה. נסו שוב מאוחר יותר.')
+    } catch (err) {
+      setError(await crmErrorMessage(err, 'שגיאה בבדיקה. נסו שוב מאוחר יותר.'))
     } finally {
       setLoading(false)
     }
